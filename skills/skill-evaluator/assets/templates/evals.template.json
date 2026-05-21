@@ -1,0 +1,40 @@
+{
+  "skill_name": "<skill-slug>",
+  "skill_fingerprint": "<sha-prefix>",
+  "generated_by": "manual",
+  "evals": [
+    {
+      "id": "<kebab-case-id>",
+      "prompt": "<realistic user prompt with file paths, casual phrasing, and concrete context>",
+      "should_trigger": true,
+      "expected_output": "<one-sentence human description of what success looks like>",
+      "assertions": [
+        "<observable assertion 1 — programmatic-friendly when possible>",
+        "<assertion 2 — countable, specific>",
+        "<assertion 3 — substantive, not 'looks good'>"
+      ],
+      "files": []
+    },
+    {
+      "id": "<edge-case-id>",
+      "prompt": "<prompt hitting a malformed input, ambiguous wording, or capability boundary>",
+      "should_trigger": true,
+      "expected_output": "<graceful-handling description>",
+      "assertions": [
+        "The skill is invoked",
+        "<assertion specific to the edge condition>"
+      ],
+      "files": []
+    },
+    {
+      "id": "<near-miss-negative-id>",
+      "prompt": "<prompt sharing keywords with the skill but needing different work>",
+      "should_trigger": false,
+      "expected_output": "The skill is NOT invoked. Agent answers from general knowledge.",
+      "assertions": [
+        "The skill is not invoked (negative test)"
+      ],
+      "files": []
+    }
+  ]
+}

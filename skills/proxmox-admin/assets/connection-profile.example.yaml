@@ -1,0 +1,120 @@
+# Proxmox Admin — Connection Profile
+# ---------------------------------------------------------------------------
+# Stored at: $PMX_PROFILE_DIR/<profile-name>.yaml
+# Default:   ~/.config/proxmox-admin/profiles/<profile-name>.yaml
+#
+# A profile describes ONE Proxmox VE node (or one cluster entry node) plus
+# the credentials and defaults the skill should use against it.
+#
+# Two authentication channels are supported and may coexist:
+#   - ssh:   for shell-level admin (qm, pct, pvesm, pvecm, vzdump, journalctl).
+#   - api:   for REST calls via pvesh or curl (preferred for token-scoped ops).
+#
+# IMPORTANT secrets handling:
+#   - Never inline plaintext passwords or API token secrets in this file unless
+#     the file mode is 0600 and the path is on a trusted host. Prefer the
+#     ${ENV:VAR_NAME} reference syntax, or `pmx-onboard` will read secrets
+#     interactively and write them with restrictive permissions.
+# ---------------------------------------------------------------------------
+
+# Schema version — do not change unless migrating to a new schema.
+version: 1
+
+# Logical name for this profile. Must match the filename stem.
+name: homelab
+
+# Free-form description, shown in `pmx-profile list`.
+description: "Primary 3-node homelab cluster (vmbr0 = 10.0.0.0/24)"
+
+# Proxmox host or cluster entry node.
+host:
+  # Hostname or IP reachable from this workstation. Required.
+  address: pve01.lan
+  # Optional human label, e.g. node name in cluster. Used only for output.
+  node: pve01
+  # Web/API port. Default 8006.
+  api_port: 8006
+  # SSH port. Default 22.
+  ssh_port: 22
+  # Whether to verify the TLS certificate when calling the REST API.
+  # Set true once a trusted CA-signed cert is installed on the node.
+  verify_tls: false
+  # Optional path to a CA bundle (PEM). Used only when verify_tls is true.
+  ca_bundle: ""
+
+# SSH credentials. Required for shell admin and for `pmx-ssh`.
+ssh:
+  user: root
+  # Path to the private key on THIS machine. Absolute paths recommended.
+  identity_file: ~/.ssh/id_ed25519_proxmox
+  # Optional: known_hosts pinning. Strongly recommended in production.
+  known_hosts_file: ~/.ssh/known_hosts_proxmox
+  strict_host_key_checking: yes        # yes | accept-new | no
+  # Optional: ProxyJump host for nodes only reachable via a bastion.
+  # proxy_jump: bastion@jump.lan
+  # Optional: extra ssh CLI options applied to every connection.
+  extra_options:
+    - "-o ServerAliveInterval=30"
+    - "-o ServerAliveCountMax=3"
+
+# Proxmox API token (least-privilege; create with `pveum`).
+api:
+  # User@realm that owns the token. Realm is usually `pve` or `pam`.
+  user: "automation@pve"
+  # Token ID (the part after `!` in PVEAPIToken=user@realm!tokenid).
+  token_id: "skill"
+  # Token secret. PREFER env reference. Onboarding writes this with mode 0600.
+  # Examples:
+  #   token_secret: "${ENV:PMX_TOKEN_SECRET}"
+  #   token_secret: "00000000-0000-0000-0000-000000000000"
+  token_secret: "${ENV:PMX_TOKEN_SECRET}"
+  # privilege_separation reflects how the token was created. Informational.
+  privilege_separation: true
+
+# Defaults used by helper scripts when arguments are not supplied.
+defaults:
+  storage_vm: local-lvm                # default storage for VM disks
+  storage_ct: local-lvm                # default storage for CT rootfs
+  storage_iso: local                   # default storage for ISO uploads
+  storage_backup: local                # default vzdump target
+  storage_template: local              # default LXC template store
+  bridge: vmbr0                        # default network bridge
+  vlan: ""                             # default VLAN tag (blank = untagged)
+  cpu_type: host                       # `host` exposes host CPU features
+  scsihw: virtio-scsi-single           # recommended for modern guests
+  machine: q35                         # recommended for UEFI / PCIe passthrough
+  bios: ovmf                           # set to `seabios` for legacy guests
+  ostype: l26                          # Linux 2.6+/3.x/4.x/5.x/6.x/7.x guest
+  cores: 2
+  memory_mb: 2048
+  disk_size_gb: 32
+
+# Optional: id allocator. The helper scripts use these ranges when a vmid/ctid
+# is not explicitly passed, to keep VM and CT numbering disjoint.
+id_ranges:
+  vm_min: 100
+  vm_max: 999
+  ct_min: 1000
+  ct_max: 1999
+
+# Optional: Proxmox Backup Server linkage. Lets the skill assemble vzdump and
+# `proxmox-backup-client` commands against a known PBS instance.
+pbs:
+  enabled: false
+  datastore: ""
+  server: ""
+  fingerprint: ""
+  namespace: ""
+
+# Optional: PegaProx (community multi-cluster orchestrator). Informational.
+pegaprox:
+  enabled: false
+  url: ""
+
+# Optional: explicit list of cluster peers. Useful when this profile is the
+# cluster entry node and the skill must run commands on a specific member.
+cluster_nodes: []
+# - name: pve02
+#   address: pve02.lan
+# - name: pve03
+#   address: pve03.lan

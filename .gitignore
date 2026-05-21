@@ -1,0 +1,62 @@
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+.pytest_cache/
+.coverage
+.coverage.*
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ── OS / editor cruft ───────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+.cursor/
+
+# ── Skill build artifacts ───────────────────────────────────────────────
+# `.skill` files are packaged distributable archives — should not be committed
+*.skill
+*.zip
+*.tgz
+*.tar.gz
+dist/
+build/
+
+# ── Local scratch & research ────────────────────────────────────────────
+.research/
+.scratch/
+*.bak
+*.orig
+*.rej
+
+# ── Environment / secrets ───────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ── Skill-validator workspaces (build output, not source) ──────────────
+# Created by scripts/run_eval.py and friends in skill-evaluator
+*-workspace/
+
+# ── Logs ────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Node (in case skills add tooling) ───────────────────────────────────
+node_modules/
+.npm
+.yarn/
+package-lock.json.bak

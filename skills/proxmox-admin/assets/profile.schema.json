@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/proxmox-admin/profile.schema.json",
+  "title": "Proxmox Admin Connection Profile",
+  "type": "object",
+  "required": ["version", "name", "host", "ssh"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,62}$" },
+    "description": { "type": "string" },
+    "host": {
+      "type": "object",
+      "required": ["address"],
+      "additionalProperties": false,
+      "properties": {
+        "address": { "type": "string", "minLength": 1 },
+        "node": { "type": "string" },
+        "api_port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8006 },
+        "ssh_port": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 22 },
+        "verify_tls": { "type": "boolean", "default": false },
+        "ca_bundle": { "type": "string" }
+      }
+    },
+    "ssh": {
+      "type": "object",
+      "required": ["user", "identity_file"],
+      "additionalProperties": false,
+      "properties": {
+        "user": { "type": "string", "minLength": 1 },
+        "identity_file": { "type": "string", "minLength": 1 },
+        "known_hosts_file": { "type": "string" },
+        "strict_host_key_checking": {
+          "type": "string",
+          "enum": ["yes", "accept-new", "no"],
+          "default": "accept-new"
+        },
+        "proxy_jump": { "type": "string" },
+        "extra_options": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user": { "type": "string", "pattern": "^[^@]+@[a-zA-Z0-9._-]+$" },
+        "token_id": { "type": "string", "minLength": 1 },
+        "token_secret": { "type": "string" },
+        "privilege_separation": { "type": "boolean" }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "storage_vm": { "type": "string" },
+        "storage_ct": { "type": "string" },
+        "storage_iso": { "type": "string" },
+        "storage_backup": { "type": "string" },
+        "storage_template": { "type": "string" },
+        "bridge": { "type": "string" },
+        "vlan": { "type": ["string", "integer"] },
+        "cpu_type": { "type": "string" },
+        "scsihw": { "type": "string" },
+        "machine": { "type": "string" },
+        "bios": { "type": "string", "enum": ["seabios", "ovmf"] },
+        "ostype": { "type": "string" },
+        "cores": { "type": "integer", "minimum": 1 },
+        "memory_mb": { "type": "integer", "minimum": 16 },
+        "disk_size_gb": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "id_ranges": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "vm_min": { "type": "integer", "minimum": 100, "maximum": 999999999 },
+        "vm_max": { "type": "integer", "minimum": 100, "maximum": 999999999 },
+        "ct_min": { "type": "integer", "minimum": 100, "maximum": 999999999 },
+        "ct_max": { "type": "integer", "minimum": 100, "maximum": 999999999 }
+      }
+    },
+    "pbs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "datastore": { "type": "string" },
+        "server": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "namespace": { "type": "string" }
+      }
+    },
+    "pegaprox": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "url": { "type": "string" }
+      }
+    },
+    "cluster_nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "address"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "address": { "type": "string" }
+        }
+      }
+    }
+  }
+}

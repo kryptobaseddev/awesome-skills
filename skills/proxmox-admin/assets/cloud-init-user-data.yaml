@@ -1,0 +1,54 @@
+#cloud-config
+# proxmox-admin / asset: cloud-init user-data starter.
+# Upload to a storage with `snippets` content type:
+#   scp this-file root@<node>:/var/lib/vz/snippets/user-data-deploy.yaml
+# Then on the VM:
+#   qm set <vmid> --cicustom "user=local:snippets/user-data-deploy.yaml"
+#
+# Variables interpolated by the user/skill BEFORE upload (not by cloud-init):
+#   {{HOSTNAME}}, {{TIMEZONE}}, {{SSH_PUBKEY}}, {{ADMIN_USER}}
+
+hostname: {{HOSTNAME}}
+manage_etc_hosts: true
+preserve_hostname: false
+timezone: {{TIMEZONE}}
+
+users:
+  - name: {{ADMIN_USER}}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - {{SSH_PUBKEY}}
+
+ssh_pwauth: false
+disable_root: true
+
+package_update: true
+package_upgrade: true
+packages:
+  - qemu-guest-agent
+  - unattended-upgrades
+  - curl
+  - jq
+
+write_files:
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+
+runcmd:
+  - [ systemctl, enable, --now, qemu-guest-agent ]
+  - [ systemctl, enable, --now, unattended-upgrades ]
+  # Trim filesystem on first boot to reclaim cloud-image slack.
+  - [ fstrim, -av ]
+
+power_state:
+  mode: reboot
+  message: "Cloud-init first-boot complete"
+  timeout: 30
+  condition: True

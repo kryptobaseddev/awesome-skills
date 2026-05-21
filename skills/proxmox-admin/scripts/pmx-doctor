@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# pmx-doctor — verify the active profile can reach the Proxmox node.
+#
+# Runs five checks in order:
+#   1. profile      Profile loads + parses cleanly.
+#   2. tcp-ssh      TCP reachability to host:ssh_port.
+#   3. tcp-api      TCP reachability to host:api_port.
+#   4. ssh          SSH login + remote `pveversion`.
+#   5. api          REST /api2/json/version using the API token (if any).
+#   6. cv4pve-cli   Optional fast path; informational only.
+#
+# Usage:
+#   pmx-doctor                  human-readable output
+#   pmx-doctor --json           machine-readable single JSON object
+#   pmx-doctor <profile-name>   override active profile (positional)
+#   pmx-doctor --help
+#
+# Exit codes (from lib/profile.sh):
+#   0 success      2 usage       3 no profile   4 missing binary
+#   5 connection   6 auth        1 generic
+
+set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-doctor — verify the active profile can reach the Proxmox node.
+
+Usage:
+  pmx-doctor                   human-readable output (default)
+  pmx-doctor --json            single-line JSON: {profile,host,ok,checks[]}
+  pmx-doctor <profile-name>    override active profile (positional)
+  pmx-doctor --help
+
+Checks (in order):
+  profile      profile parses; host/user populated
+  tcp-ssh      TCP reach to host:ssh_port           [required]
+  tcp-api      TCP reach to host:api_port           [warn-only]
+  ssh          SSH login + remote `pveversion`      [required if reachable]
+  api          REST /api2/json/version              [required if token set]
+  cv4pve-cli   optional fast path                   [informational]
+
+Exit codes: 0 ok | 2 usage | 3 no profile | 4 missing binary
+            5 connection error | 6 auth error | 1 generic
+EOF
+}
+
+json=false
+profile=""
+for arg in "$@"; do
+  case "$arg" in
+    --json) json=true ;;
+    -h|--help) usage; exit 0 ;;
+    -*) pmx_die 2 "unknown flag: $arg" ;;
+    *) profile="$arg" ;;
+  esac
+done
+
+pmx_require ssh curl awk sed
+pmx_load_profile "$profile"
+
+# Each check appends to results: name|status|message
+results=()
+fail_code=0
+
+record() { results+=( "$1|$2|$3" ); }
+
+emit_text() {
+  printf 'Profile %s — running connection checks\n' "$PMX_NAME"
+  for r in "${results[@]}"; do
+    IFS='|' read -r n s m <<<"$r"
+    case "$s" in
+      ok)   printf '  [ok]   %-12s %s\n' "$n" "$m" ;;
+      warn) printf '  [warn] %-12s %s\n' "$n" "$m" ;;
+      fail) printf '  [fail] %-12s %s\n' "$n" "$m" ;;
+    esac
+  done
+}
+
+emit_json() {
+  printf '{"profile":"%s","host":"%s","ok":%s,"checks":[' \
+    "$(pmx_json_escape "$PMX_NAME")" "$(pmx_json_escape "$PMX_HOST")" \
+    "$( [ "$fail_code" -eq 0 ] && echo true || echo false )"
+  local first=true
+  for r in "${results[@]}"; do
+    IFS='|' read -r n s m <<<"$r"
+    $first || printf ','
+    first=false
+    printf '{"name":"%s","status":"%s","message":"%s"}' \
+      "$(pmx_json_escape "$n")" "$s" "$(pmx_json_escape "$m")"
+  done
+  printf ']}\n'
+}
+
+# ----- 1. profile sanity --------------------------------------------------
+if [ -z "$PMX_HOST" ]; then
+  record profile fail "host.address is empty"
+  fail_code=2
+elif [ -z "$PMX_SSH_USER" ]; then
+  record profile fail "ssh.user is empty"
+  fail_code=2
+else
+  record profile ok "$PMX_HOST (api:$PMX_API_PORT ssh:$PMX_SSH_PORT)"
+fi
+
+# ----- 2-3. TCP probes ----------------------------------------------------
+tcp_probe() {
+  (exec 3<>"/dev/tcp/$1/$2") 2>/dev/null && exec 3<&- 3>&-
+}
+if [ "$fail_code" -eq 0 ]; then
+  if tcp_probe "$PMX_HOST" "$PMX_SSH_PORT"; then record tcp-ssh ok "reachable"
+  else record tcp-ssh fail "$PMX_HOST:$PMX_SSH_PORT unreachable"; fail_code=5; fi
+
+  if tcp_probe "$PMX_HOST" "$PMX_API_PORT"; then record tcp-api ok "reachable"
+  else record tcp-api warn "$PMX_HOST:$PMX_API_PORT unreachable (API may be down)"; fi
+fi
+
+# ----- 4. SSH login -------------------------------------------------------
+if [ "$fail_code" -eq 0 ]; then
+  if out="$(pmx_ssh 'pveversion' 2>&1)"; then
+    record ssh ok "pveversion: $out"
+  else
+    record ssh fail "$out"
+    fail_code=6
+  fi
+fi
+
+# ----- 5. REST /version ---------------------------------------------------
+if [ "$fail_code" -eq 0 ]; then
+  if [ -n "${PMX_API_TOKEN_ID:-}" ] && [ -n "${PMX_API_TOKEN_SECRET:-}" ]; then
+    if out="$(pmx_api GET /api2/json/version 2>&1)"; then
+      if printf '%s' "$out" | grep -q '"version"'; then
+        ver="$(printf '%s' "$out" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+        record api ok "version $ver"
+      else
+        record api fail "unexpected payload: $out"; fail_code=5
+      fi
+    else
+      record api fail "$out"; fail_code=6
+    fi
+  else
+    record api warn "no api.token_id in profile — see references/api-tokens.md"
+  fi
+fi
+
+# ----- 6. cv4pve-cli (optional) ------------------------------------------
+if command -v cv4pve-cli >/dev/null 2>&1; then
+  ver="$(cv4pve-cli --version 2>/dev/null | head -n1 || true)"
+  if cv4pve-cli config current 2>/dev/null | grep -qi "$PMX_NAME"; then
+    record cv4pve-cli ok "active context = $PMX_NAME (${ver:-?})"
+  else
+    record cv4pve-cli warn "context != profile; run pmx-cv4pve-sync --activate"
+  fi
+else
+  record cv4pve-cli warn "not installed (optional; see references/remote-cli-tools.md)"
+fi
+
+if $json; then emit_json; else emit_text; fi
+exit "$fail_code"

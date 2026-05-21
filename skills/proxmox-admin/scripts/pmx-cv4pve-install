@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# pmx-cv4pve-install — install (or upgrade) Corsinvest cv4pve-cli locally.
+#
+# cv4pve-cli is a remote-first kubectl-style binary that talks to the Proxmox
+# REST API. We use it as the OPTIONAL fast path: when present, the skill can
+# delegate API ops to it instead of curl. The connection profile YAML in
+# ~/.config/proxmox-admin/profiles/ remains the canonical source of truth;
+# `pmx-cv4pve-sync` mirrors profiles into cv4pve-cli contexts.
+#
+# Default install prefix: /usr/local/bin (writes via sudo). Override with
+#   PMX_CV4PVE_PREFIX=$HOME/.local/bin  ./pmx-cv4pve-install
+#
+# Pinning a version (optional):
+#   PMX_CV4PVE_VERSION=v8.3.0  ./pmx-cv4pve-install
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+pmx_require curl unzip
+
+PREFIX="${PMX_CV4PVE_PREFIX:-/usr/local/bin}"
+TAG="${PMX_CV4PVE_VERSION:-}"   # empty = latest
+REPO="Corsinvest/cv4pve-cli"
+
+case "$(uname -s)" in
+  Linux)   os="linux" ;;
+  Darwin)  os="osx" ;;
+  *) pmx_die "unsupported OS for cv4pve-cli: $(uname -s)" ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch="x64" ;;
+  aarch64|arm64) arch="arm64" ;;
+  *) pmx_die "unsupported architecture: $(uname -m)" ;;
+esac
+asset_substr="${os}-${arch}"
+
+# Resolve release tag and the matching asset URL.
+if [ -z "$TAG" ]; then
+  api_url="https://api.github.com/repos/$REPO/releases/latest"
+else
+  api_url="https://api.github.com/repos/$REPO/releases/tags/$TAG"
+fi
+pmx_log "fetching release metadata from $api_url"
+asset_url="$(curl -fsSL "$api_url" \
+  | grep -E '"browser_download_url"' \
+  | grep -E "$asset_substr" \
+  | grep -E '\.zip"' \
+  | head -n1 \
+  | sed -E 's/.*"browser_download_url": *"([^"]+)".*/\1/')"
+
+[ -n "$asset_url" ] || pmx_die "no asset found for ${asset_substr}.zip in release ${TAG:-latest}"
+pmx_log "downloading $asset_url"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+zip="$tmp/cv4pve-cli.zip"
+curl -fsSL --retry 3 -o "$zip" "$asset_url"
+unzip -q -o "$zip" -d "$tmp"
+
+bin="$(find "$tmp" -maxdepth 2 -type f -name 'cv4pve-cli' -perm -u+x -print -quit || true)"
+[ -n "$bin" ] || bin="$(find "$tmp" -maxdepth 2 -type f -name 'cv4pve-cli' -print -quit)"
+[ -n "$bin" ] || pmx_die "cv4pve-cli binary not found inside archive"
+
+chmod +x "$bin"
+
+if [ -w "$PREFIX" ]; then
+  install -m 0755 "$bin" "$PREFIX/cv4pve-cli"
+else
+  pmx_log "$PREFIX not writable — using sudo"
+  sudo install -m 0755 "$bin" "$PREFIX/cv4pve-cli"
+fi
+
+ver="$("$PREFIX/cv4pve-cli" --version 2>/dev/null || true)"
+pmx_log "installed: $PREFIX/cv4pve-cli  (${ver:-version unknown})"
+
+cat <<'NEXT'
+
+Next:
+  1. Sync your profiles into cv4pve-cli contexts:
+       scripts/pmx-cv4pve-sync
+  2. Confirm the active context maps cleanly:
+       cv4pve-cli config list
+       cv4pve-cli api get /version
+  3. Enable shell completion (optional):
+       cv4pve-cli completion bash > /etc/bash_completion.d/cv4pve-cli
+       cv4pve-cli completion zsh  > ~/.zsh/completions/_cv4pve-cli
+
+NEXT

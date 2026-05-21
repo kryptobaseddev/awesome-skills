@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# pmx-backup — backup / restore VMs and containers via vzdump and qm/pct restore.
+#
+# Subcommands:
+#   run <id|--all> [--mode snapshot|suspend|stop] [--compress zstd|lzo|gzip] [--storage <s>]
+#   list [--storage <s>]                            -> list backup files
+#   restore vm <vmid> <file> [--storage <s>]
+#   restore ct <ctid> <file> [--storage <s>]
+#   prune  <id> --keep-last N --keep-daily N --keep-weekly N --keep-monthly N
+#
+# All flags are forwarded to the underlying tool; profile defaults apply.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-backup — backup / restore Proxmox guests.
+
+Subcommands:
+  run <id|--all> [--dry-run] [--mode snapshot|suspend|stop]
+                 [--compress zstd|lzo|gzip] [--storage <s>]
+  list [--storage <s>]
+  restore vm <vmid> <file> [--storage <s>]
+  restore ct <ctid> <file> [--storage <s>]
+  prune <id> --keep-last N --keep-daily N --keep-weekly N --keep-monthly N
+
+Examples:
+  pmx-backup run 100
+  pmx-backup run --all --mode snapshot --compress zstd
+  pmx-backup run --all --dry-run                       # show command, don't execute
+  pmx-backup list
+  pmx-backup restore vm 100 /var/lib/vz/dump/vzdump-qemu-100-XXXX.vma.zst
+  pmx-backup prune 100 --keep-last 3 --keep-daily 7 --keep-weekly 4
+
+Exit codes: 0 ok | 2 usage | 3 no profile | 4 missing binary | other = vzdump exit
+EOF
+}
+
+[ "$#" -ge 1 ] || { usage; exit 2; }
+case "$1" in -h|--help|help) usage; exit 0;; esac
+
+pmx_require ssh
+pmx_load_profile
+
+sub="$1"; shift
+
+case "$sub" in
+  run)
+    storage="${PMX_DEFAULT_STORAGE_BACKUP:-local}"
+    dry=false
+    args=()
+    case "${1:-}" in
+      --all) args+=(--all); shift ;;
+      [0-9]*) args+=("$1"); shift ;;
+      *) echo "usage: pmx-backup run <vmid|--all> [--dry-run] [flags]" >&2; exit 2 ;;
+    esac
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --storage) storage="$2"; shift 2 ;;
+        --dry-run) dry=true; shift ;;
+        *) args+=("$1"); shift ;;
+      esac
+    done
+    cmd="vzdump ${args[*]} --storage $storage --mode snapshot --compress zstd --quiet 1"
+    if $dry; then
+      printf '[pmx][dry-run] would execute: %s\n' "$cmd" >&2
+      exit 0
+    fi
+    pmx_ssh "$cmd"
+    ;;
+  list)
+    storage="${PMX_DEFAULT_STORAGE_BACKUP:-local}"
+    [ "${1:-}" = "--storage" ] && { storage="$2"; shift 2; }
+    pmx_ssh "pvesm list $storage --content backup"
+    ;;
+  restore)
+    kind="${1:-}"; shift || true
+    case "$kind" in
+      vm)
+        [ "$#" -ge 2 ] || { echo "usage: pmx-backup restore vm <vmid> <file>" >&2; exit 2; }
+        vmid="$1"; file="$2"; shift 2
+        storage="${PMX_DEFAULT_STORAGE_VM:-local-lvm}"
+        [ "${1:-}" = "--storage" ] && { storage="$2"; shift 2; }
+        pmx_ssh "qmrestore '$file' $vmid --storage $storage $*"
+        ;;
+      ct)
+        [ "$#" -ge 2 ] || { echo "usage: pmx-backup restore ct <ctid> <file>" >&2; exit 2; }
+        ctid="$1"; file="$2"; shift 2
+        storage="${PMX_DEFAULT_STORAGE_CT:-local-lvm}"
+        [ "${1:-}" = "--storage" ] && { storage="$2"; shift 2; }
+        pmx_ssh "pct restore $ctid '$file' --storage $storage $*"
+        ;;
+      *) echo "usage: pmx-backup restore <vm|ct> ..." >&2; exit 2 ;;
+    esac
+    ;;
+  prune)
+    [ "$#" -ge 1 ] || { echo "usage: pmx-backup prune <vmid> [--keep-*]" >&2; exit 2; }
+    id="$1"; shift
+    storage="${PMX_DEFAULT_STORAGE_BACKUP:-local}"
+    pmx_ssh "vzdump $id --prune-backups $* --storage $storage"
+    ;;
+  *)
+    pmx_ssh "vzdump $sub $*"
+    ;;
+esac

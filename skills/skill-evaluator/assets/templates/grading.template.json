@@ -1,0 +1,17 @@
+{
+  "case_id": "<case-id>",
+  "assertion_results": [
+    {
+      "text": "<the assertion as written in evals.json>",
+      "passed": true,
+      "method": "script:valid_json | script:contains_literal | script:regex_match | script:file_exists | script:invoked | script:not_invoked | llm | script-skipped | llm-unavailable",
+      "evidence": "<concrete quote or file reference, ≤500 chars>"
+    }
+  ],
+  "summary": {
+    "passed": 0,
+    "failed": 0,
+    "total": 0,
+    "pass_rate": 0.0
+  }
+}

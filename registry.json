@@ -1,0 +1,192 @@
+{
+  "generated_at": "2026-05-21 15:33:13",
+  "total_skills": 15,
+  "total_categories": 11,
+  "categories": [
+    {
+      "slug": "skill-development",
+      "name": "Skill Development",
+      "icon": "\ud83e\uddf0",
+      "skills": [
+        {
+          "name": "skill-evaluator",
+          "path": "skills/skill-evaluator",
+          "description": "Eval-driven quality evaluation, regression detection, and auto-improvement of Agent Skills. Auto-generates challenging test cases unique to the target skill from its SKILL.md, runs A/B benchmarks (with-skill vs without-skill or version-vs-version), grades outputs with programmatic + LLM-judge assertions, aggregates pass-rate/token/latency deltas, detects regressions across iterations, proposes generalized improvements grounded in failure transcripts, and optimizes the trigger `description` field via train/validation splits. Use whenever the user wants to evaluate, benchmark, A/B test, grade, score, regression-test, fine-tune, harden, optimize, improve, iterate on, or measure the quality of any skill \u2014 even if they only say \"test this skill\", \"is this skill any good\", \"rate this skill\", \"tune the description\", \"did my edits make it worse\", or \"make this skill better\".",
+          "metadata": {}
+        },
+        {
+          "name": "skill-validator",
+          "path": "skills/skill-validator",
+          "description": "Validate any Agent Skill against the agentskills.io specification plus project- or skill-local rule overrides. Use when auditing a skill folder for compliance, preparing a skill for distribution, checking PR-changed skills in CI, enforcing custom frontmatter rules, or verifying that a skill's `metadata`, `compatibility`, body length, and file references all meet the spec. Every rule is config-driven \u2014 point the validator at a YAML config to customize allowed/required/forbidden frontmatter fields, regex patterns for metadata values, timestamp formats, body thresholds, and placeholder bans. Triggers on: 'validate skill', 'check skill compliance', 'audit SKILL.md', 'lint skill folder', 'verify skill against agentskills.io', 'is this skill spec-compliant'.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "2.0.0",
+            "last_updated": "2026-05-21 14:00:18",
+            "spec": "https://agentskills.io/specification.md",
+            "related": "skill-evaluator"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "browser",
+      "name": "Browser & Web Automation",
+      "icon": "\ud83c\udf10",
+      "skills": [
+        {
+          "name": "agent-browser",
+          "path": "skills/agent-browser",
+          "description": "Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to \"open a website\", \"fill out a form\", \"click a button\", \"take a screenshot\", \"scrape data from a page\", \"test this web app\", \"login to a site\", \"automate browser actions\", or any task requiring programmatic web interaction.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "payments",
+      "name": "Payments & Commerce",
+      "icon": "\ud83d\udcb3",
+      "skills": [
+        {
+          "name": "payment-provider-oauth",
+          "path": "skills/payment-provider-oauth",
+          "description": "Build OAuth connections for payment providers (Stripe Connect, Square) in SvelteKit applications. Use when creating booking platforms, marketplaces, or applications where businesses need to connect their own payment accounts. Covers complete OAuth flows, database schema with Drizzle, token management, security best practices, webhook handling, and extensible provider abstraction for easily adding new providers. Integrates with Better-Auth authentication and includes token refresh strategies.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "frontend",
+      "name": "Frontend & UI",
+      "icon": "\ud83c\udfa8",
+      "skills": [
+        {
+          "name": "svelte5-sveltekit",
+          "path": "skills/svelte5-sveltekit",
+          "description": "Comprehensive guide for building modern web applications with Svelte 5 and SvelteKit. Use when creating Svelte components, implementing Svelte 5 runes ($state, $derived, $effect, $props), building SvelteKit applications with filesystem routing, loading data, handling forms, styling components, or deploying Svelte/SvelteKit apps. Essential for questions about Svelte reactivity, SvelteKit project structure, SSR/CSR configuration, form actions, adapters, or migration from Svelte 4.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "infra",
+      "name": "Infrastructure & Sysadmin",
+      "icon": "\ud83d\udda5\ufe0f",
+      "skills": [
+        {
+          "name": "proxmox-admin",
+          "path": "skills/proxmox-admin",
+          "description": "Use this skill to administer a Proxmox VE 8.x/9.x host, node, or cluster remotely \u2014 provisioning, day-2 ops, troubleshooting, hardening, IaC, migration off VMware/ESXi. Covers KVM VMs (qm), LXC containers (pct; OCI in 9.1+), storage (pvesm; ZFS, LVM-thin, NFS, Ceph), networking and SDN (zones, VNets, Fabrics in 9.0+, BGP/WireGuard in 9.2+), clustering and HA (pvecm, ha-manager, Dynamic Load Balancer in 9.2+), backup/restore (vzdump, Proxmox Backup Server), API tokens (pveum), firewall and security, and IaC (Terraform bpg/Telmate, Ansible). Onboards a YAML connection profile (SSH key + API token + defaults) under ~/.config/proxmox-admin/ and drives ops via bundled SSH/REST helpers or cv4pve-cli. Trigger even when the user does not say \"Proxmox\" \u2014 e.g. \"spin up a VM on my homelab\", \"the LXC container is OOMing\", \"web UI at port 8006\", \"vCenter alternative\", ProxMox, PVE, PBS, ProxLB, PegaProx, vmbr0, vmid, cloud-init, GPU passthrough, ZFS pool, cluster quorum, qm, pct, pvesh.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.1",
+            "compatibility": "Requires SSH client, curl, and bash 4+ on the workstation; the Proxmox host must be PVE 8.0+ and reachable from the workstation. Optionally uses cv4pve-cli (auto-installed via scripts/pmx-cv4pve-install). No agent or extra package needed on the Proxmox node itself."
+          }
+        }
+      ]
+    },
+    {
+      "slug": "cloud",
+      "name": "Cloud & Deployment",
+      "icon": "\u2601\ufe0f",
+      "skills": [
+        {
+          "name": "flarectl",
+          "path": "skills/flarectl",
+          "description": "Cloudflare CLI management via the flarectl tool. Use when the user asks to manage Cloudflare zones, DNS records, firewall rules, cache purging, or zone exports using flarectl. Covers onboarding (installation, API Token vs Global API Key setup), zone CRUD, DNS record CRUD, firewall access rules, cache purging, zone file export, and permission verification. Also guides when to use Wrangler instead (Workers, Pages, R2, KV, D1). Triggers on: 'flarectl', 'cloudflare cli', 'cloudflare dns', 'cloudflare zone', 'CF_API_TOKEN', 'CF_API_KEY', 'manage cloudflare', 'cloudflare firewall', 'purge cloudflare cache', 'cloudflare setup', 'flarectl setup'.",
+          "metadata": {}
+        },
+        {
+          "name": "railway",
+          "path": "skills/railway",
+          "description": "Operate Railway infrastructure: create projects, provision services and databases, manage object storage buckets, deploy code, configure environments and variables, manage domains and networking, set up volumes and persistent storage, configure scaling with replicas and multi-region, set up cron jobs and healthchecks, manage PR deploy previews, configure railway.toml and railpack.json for programmatic builds, troubleshoot build and runtime failures, check status and metrics, query Railway docs and community, and interact with the Railway GraphQL API. Use this skill whenever the user mentions Railway, deployments, services, environments, buckets, object storage, build failures, infrastructure operations, volumes, cron, scaling, replicas, healthchecks, PR deploys, app sleeping, railway.toml, railpack, Railpack config, Railway CLI commands, local development, database connections, or Railway project management, even if they don't say 'Railway' explicitly.",
+          "metadata": {}
+        },
+        {
+          "name": "runpodctl",
+          "path": "skills/runpodctl",
+          "description": "Runpod CLI (runpodctl) to manage your Runpod GPU workloads from the terminal. Use when you need to create or terminate GPU pods, list available GPU types and prices, inspect pod status, manage SSH connections, configure API keys, or run shell commands inside a pod. Triggers on: 'runpodctl', 'runpod cli', 'runpod gpu', 'manage runpod', 'list runpod pods', 'create runpod pod', 'terminate runpod pod', 'runpod ssh', 'RUNPOD_API_KEY', 'runpodctl install', 'runpod gpu types', 'runpod pricing'.",
+          "metadata": {
+            "author": "runpod",
+            "version": "2.2"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "databases",
+      "name": "Databases & ORMs",
+      "icon": "\ud83d\uddc4\ufe0f",
+      "skills": [
+        {
+          "name": "drizzle-orm",
+          "path": "skills/drizzle-orm",
+          "description": "Expert guidance for Drizzle ORM and drizzle-kit, covering the v1.0.0-beta (RQBv2, defineRelations, new migration folder structure, consolidated validators) and stable 0.x releases. Includes Node 24 node:sqlite integration with drizzle-orm/node-sqlite driver, drizzle-orm/zod validation (createInsertSchema, createSelectSchema, createUpdateSchema, createSchemaFactory), schema design for all dialects (SQLite preferred, PostgreSQL, MySQL, MSSQL), migrations (generate/migrate), rapid prototyping (push), and drizzle-seed. Use when: (1) working with Drizzle ORM projects, (2) setting up or running migrations with drizzle-kit, (3) using Node 24 built-in node:sqlite with Drizzle, (4) validating data with drizzle-orm/zod or drizzle-zod, (5) upgrading from 0.x to v1 beta, (6) defining relations with defineRelations or RQBv2, (7) seeding databases with drizzle-seed, (8) configuring drizzle.config.ts, or (9) any Drizzle ORM question.",
+          "metadata": {}
+        },
+        {
+          "name": "neonctl",
+          "path": "skills/neonctl",
+          "description": "Comprehensive Neon CLI (neonctl) management for serverless Postgres. Use when managing Neon projects, branches, databases, roles, connection strings, IP allowlists, operations, or authentication via the neonctl command-line tool. Triggers on: 'neonctl', 'neon cli', 'neon projects', 'neon branches', 'neon databases', 'neon roles', 'neon connection-string', 'neon set-context', 'neon ip-allow', 'neon operations', 'neon auth', 'neon schema-diff', 'neon branch reset', 'neon branch restore', 'NEON_API_KEY', 'neon completion', 'neon init', 'manage neon', 'neon setup', 'neonctl install'.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "communication",
+      "name": "Communication & Email",
+      "icon": "\ud83d\udce7",
+      "skills": [
+        {
+          "name": "resend",
+          "path": "skills/resend",
+          "description": "Use when working with the Resend email API \u2014 sending transactional emails (single or batch), receiving inbound emails via webhooks, managing email templates, tracking delivery events, or setting up the Resend SDK. Always use this skill when the user mentions Resend, even for simple tasks like \"send an email with Resend\" \u2014 the skill contains critical gotchas (idempotency keys, webhook verification, template variable syntax) that prevent common production issues.",
+          "metadata": {
+            "author": "resend",
+            "version": "3.0.0",
+            "homepage": "https://resend.com",
+            "source": "https://github.com/resend/resend-skills"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "code-quality",
+      "name": "Code Quality & Refactoring",
+      "icon": "\u2728",
+      "skills": [
+        {
+          "name": "code-optimizer",
+          "path": "skills/code-optimizer",
+          "description": "Deep code optimization audit using parallel specialist agents. Each agent hunts for performance anti-patterns, inefficiencies, and suboptimal code using pattern-based detection (Grep/Glob) WITHOUT reading the full source code first \u2014 avoiding anchoring bias on existing implementations. Covers ALL optimization domains: database queries, memory leaks, algorithmic complexity, concurrency, bundle size, dead code, I/O & network, rendering/UI, data structures, error handling, caching, build config, security-performance, logging, and infrastructure. Use when asked to: 'optimize my code', 'find performance issues', 'audit code quality', 'speed up my app', 'find bottlenecks', 'code review for performance', 'find anti-patterns', 'improve code efficiency', 'reduce latency', 'optimize performance', 'code smell detection', 'find slow code', 'optimize this project', 'performance audit', 'code optimization'. Also triggers on: 'optimizar codigo', 'encontrar cuellos de botella', 'mejorar rendimiento'.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "security",
+      "name": "Security",
+      "icon": "\ud83d\udee1\ufe0f",
+      "skills": [
+        {
+          "name": "security-review",
+          "path": "skills/security-review",
+          "description": "Threat-model-driven security review of a change, feature, or subsystem. Runs a STRIDE-style pass (Spoofing, Tampering, Repudiation, Info disclosure, Denial of service, Elevation of privilege), examines the actual code, and produces a filing-ready report with severity, exploit scenario, and concrete remediation. Use when asked to \"security review\", \"threat model\", \"check for vulnerabilities\", \"audit this for security\", \"secure this\", or before shipping any change that touches auth, input handling, data access, or external surfaces.",
+          "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "helpers",
+      "name": "Quick Helpers",
+      "icon": "\ud83d\udca1",
+      "skills": [
+        {
+          "name": "btw",
+          "path": "skills/btw",
+          "description": "Ask a quick side question about your current work without derailing the main task. Answers from existing conversation context only \u2014 no tool calls, no file reads, single concise response. Use when you need a fast answer from what is already in this session.",
+          "metadata": {}
+        }
+      ]
+    }
+  ]
+}

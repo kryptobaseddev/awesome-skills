@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# pmx-api — call the Proxmox REST API using the active profile's token.
+#
+# Examples:
+#   scripts/pmx-api GET  /api2/json/version
+#   scripts/pmx-api GET  /api2/json/nodes
+#   scripts/pmx-api GET  /api2/json/cluster/resources?type=vm
+#   scripts/pmx-api POST /api2/json/nodes/$node/qemu -d vmid=110 -d name=test
+#
+# Anything after the path is forwarded verbatim to curl, which means you can
+# use -d key=value, -F form fields, --data-binary @file.json, etc.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+pmx_require curl
+pmx_load_profile
+
+if [ "$#" -lt 2 ]; then
+  cat >&2 <<'USAGE'
+usage: pmx-api <METHOD> <path> [curl args...]
+   eg: pmx-api GET /api2/json/version
+       pmx-api GET '/api2/json/cluster/resources?type=vm'
+       pmx-api POST /api2/json/nodes/$node/qemu -d vmid=110 -d name=demo
+USAGE
+  exit 2
+fi
+
+pmx_api "$@"

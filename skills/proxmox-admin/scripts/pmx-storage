@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# pmx-storage — wrapper for `pvesm` on the remote node.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-storage — manage Proxmox storage via `pvesm` over SSH.
+
+Common:
+  status                           pvesm status (per-storage usage)
+  list [storage]                   pvesm list <storage> (or all)
+  scan-iso                         find ISOs in default ISO store
+  scan-vztmpl                      find LXC templates in default template store
+  add ...                          pass-through to `pvesm add`
+  remove <id>                      pass-through to `pvesm remove`
+  set ...                          pass-through to `pvesm set`
+
+Examples:
+  pmx-storage add nfs nfs-backup --server 10.0.0.5 --export /exports/pve \
+                                 --content backup,iso,vztmpl
+  pmx-storage list local-lvm
+EOF
+}
+
+[ "$#" -ge 1 ] || { usage; exit 2; }
+case "$1" in -h|--help|help) usage; exit 0;; esac
+
+pmx_load_profile
+
+sub="$1"; shift
+
+case "$sub" in
+  status)
+    pmx_ssh "pvesm status"
+    ;;
+  list)
+    s="${1:-${PMX_DEFAULT_STORAGE_BACKUP:-local}}"
+    pmx_ssh "pvesm list $s"
+    ;;
+  scan-iso)
+    pmx_ssh "pvesm list ${PMX_DEFAULT_STORAGE_ISO:-local} --content iso"
+    ;;
+  scan-vztmpl)
+    pmx_ssh "pvesm list ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} --content vztmpl"
+    ;;
+  add|remove|set|alloc|free|extractconfig|path)
+    pmx_ssh "pvesm $sub $*"
+    ;;
+  *)
+    pmx_ssh "pvesm $sub $*"
+    ;;
+esac

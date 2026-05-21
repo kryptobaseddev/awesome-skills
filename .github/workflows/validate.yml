@@ -1,0 +1,72 @@
+name: Validate skills
+
+on:
+  pull_request:
+    paths:
+      - 'skills/**'
+      - 'skill-validator.config.yml'
+      - 'scripts/build_registry.py'
+      - '.github/workflows/validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'skills/**'
+      - 'skill-validator.config.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need history for diff against base
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Determine changed skills
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+          if [ -n "$base" ]; then
+            mapfile -t files < <(git diff --name-only "$base" HEAD -- 'skills/**' || true)
+          else
+            mapfile -t files < <(find skills -name SKILL.md)
+          fi
+          declare -A seen=()
+          dirs=()
+          for f in "${files[@]:-}"; do
+            d=$(echo "$f" | awk -F/ '{print $1 "/" $2}')
+            if [ -d "$d" ] && [ -f "$d/SKILL.md" ] && [ -z "${seen[$d]:-}" ]; then
+              dirs+=("$d")
+              seen[$d]=1
+            fi
+          done
+          printf '%s\n' "${dirs[@]:-}" > /tmp/skills.txt
+          echo "count=${#dirs[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate each changed skill
+        if: steps.changed.outputs.count != '0'
+        run: |
+          fail=0
+          while IFS= read -r d; do
+            [ -z "$d" ] && continue
+            echo "::group::Validating $d"
+            if ! python3 skills/skill-validator/scripts/validate.py "$d"; then
+              fail=1
+            fi
+            echo "::endgroup::"
+          done < /tmp/skills.txt
+          exit $fail
+
+      - name: Check registry + README in sync
+        run: python3 scripts/build_registry.py --check

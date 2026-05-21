@@ -1,0 +1,37 @@
+# Project-level skill-validator config for Kryptobaseddev's Awesome Skills.
+#
+# Inherits from skills/skill-validator/config/default.yml. Only override
+# what differs from the agentskills.io spec defaults.
+
+# Extend the allowed frontmatter set with structured fields used by some
+# skills in this repo:
+#   - inputs:     array of env-var / parameter spec objects (e.g. resend)
+#   - references: array of related file slugs (e.g. resend)
+#
+# These aren't part of the agentskills.io open spec — they're Kryptobaseddev
+# conventions that capture useful structured data. Keeping them at the top
+# level (rather than stuffing into metadata as string blobs) preserves the
+# YAML structure and stays human-readable.
+#
+# Skills that ARE published outside this repo should drop these fields or
+# convert them to metadata for cross-runtime portability.
+frontmatter:
+  allowed:
+    # agentskills.io spec
+    - name
+    - description
+    - license
+    - compatibility
+    - metadata
+    - allowed-tools
+    # Claude Code harness extensions
+    - argument-hint
+    - disable-model-invocation
+    - user-invocable
+    - model
+    - context
+    - agent
+    - hooks
+    # Kryptobaseddev / awesome-skills conventions
+    - inputs
+    - references

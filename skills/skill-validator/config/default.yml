@@ -1,0 +1,191 @@
+# Skill Validator — default configuration
+#
+# This file is the single source of truth for every rule the validator
+# applies. Every threshold, regex, and field list is loaded from here.
+#
+# Override precedence (highest wins):
+#   1. CLI flag: validate.py --config <path>
+#   2. Skill-local override: <skill-dir>/.skill-validator.yml
+#   3. Project-level override: <project-root>/skill-validator.config.yml
+#   4. This bundled default
+#
+# Each top-level key controls one rule group. Set `enabled: false` on any
+# group to skip it entirely. Set `severity: off` on any individual rule to
+# silence it without removing the rule.
+#
+# Severity vocabulary: error | warn | off
+#
+# See ./README.md for the full guide.
+
+# Spec reference
+spec:
+  source: https://agentskills.io/specification.md
+  version: "current"
+
+# ─── TIER 1 ─── Structural rules ─────────────────────────────────────────
+structure:
+  enabled: true
+  # All structure rules are mandatory by the spec; they cannot be downgraded.
+  # (Listed here only for completeness — the validator will refuse to
+  # disable them.)
+
+# ─── TIER 2 ─── Frontmatter quality ──────────────────────────────────────
+
+# Which fields are allowed at SKILL.md top level.
+# - agentskills.io spec: name, description, license, compatibility, metadata, allowed-tools
+# - Claude Code harness extensions (honored by runtime; not in open spec):
+#   argument-hint, disable-model-invocation, user-invocable, model, context, agent, hooks
+# Unknown top-level fields are reported as warnings (T2-FM-UNKNOWN).
+frontmatter:
+  allowed:
+    - name
+    - description
+    - license
+    - compatibility
+    - metadata
+    - allowed-tools
+    - argument-hint
+    - disable-model-invocation
+    - user-invocable
+    - model
+    - context
+    - agent
+    - hooks
+  required:
+    - name
+    - description
+  # Fields the validator should reject at SKILL.md top level (override per project).
+  # Empty by default — projects that have a separate manifest (e.g. cleocode's
+  # manifest-entry.json) can list `version`, `tier`, `category`, etc. here.
+  forbidden: []
+  # Severity for an unknown-but-not-forbidden field.
+  unknown_severity: warn
+
+# ── name field ──
+name:
+  enabled: true
+  pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+  max_length: 64
+  reject_consecutive_hyphens: true
+  must_match_directory:
+    severity: warn
+
+# ── description field ──
+description:
+  enabled: true
+  min_length:
+    value: 50
+    severity: warn
+  max_length:
+    value: 1024
+    severity: error
+  forbid_chars: ['<', '>']
+  must_contain_trigger:
+    severity: warn
+    trigger_words: ['when', 'use when', 'use for']
+  not_first_person:
+    severity: warn
+  reject_yaml_multiline:
+    severity: warn
+
+# ── compatibility field (agentskills.io spec) ──
+compatibility:
+  enabled: true
+  type: string
+  max_length: 500
+  severity: error
+
+# ── metadata field (agentskills.io spec) ──
+# Map from string keys to string values; arbitrary keys allowed.
+metadata:
+  enabled: true
+  type: dict
+  keys_must_be_strings:
+    severity: error
+  values_must_be_strings:
+    severity: warn
+  # Warn if metadata is present but none of these keys are.
+  recommended_keys:
+    keys: [author, version, last_updated]
+    severity: warn
+  # Sub-keys whose values must match `timestamp_pattern`.
+  timestamp_keys: [last_updated, last_reviewed]
+  timestamp_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
+  timestamp_example: '2026-05-21 14:00:18'
+  timestamp_severity: warn
+  # Optional per-key value patterns. Each entry: key: pattern.
+  # Add e.g. `version: '^\d+\.\d+\.\d+'` to enforce SemVer.
+  patterns: {}
+
+# ── boolean fields ──
+booleans:
+  enabled: true
+  fields: [disable-model-invocation, user-invocable]
+  contradictory_pairs:
+    - [disable-model-invocation: true, user-invocable: false]
+
+# ── allowed-tools ──
+allowed_tools:
+  enabled: true
+  types: [string, list]
+
+# ── argument-hint ──
+argument_hint:
+  enabled: true
+  max_length: 100
+
+# ── context / agent ──
+context:
+  enabled: true
+  allowed_values: [fork]
+  pair_with: agent
+  pair_severity: warn
+
+# ─── TIER 3 ─── Body quality ─────────────────────────────────────────────
+body:
+  enabled: true
+  warn_lines: 500   # agentskills.io spec recommendation
+  error_lines: 600  # hard cap
+  warn_no_sections_above_lines: 200
+  placeholder_patterns:
+    - '\[Required:'
+    - '\bTODO\b'
+    - '\bREPLACE\b'
+    - '\bFIXME\b'
+    - '\bTBD\b'
+    - '\[Add content'
+  placeholder_severity: warn
+  validate_file_references: true
+  file_reference_severity: warn
+
+# ─── DEPTH ─── Progressive-disclosure rule ───────────────────────────────
+# A skill PASSES depth when ANY of these thresholds is met. Set
+# enabled: false to skip the depth check entirely.
+depth:
+  enabled: true
+  min_body_lines: 100
+  min_reference_files: 3
+  reference_extensions: ['.md']
+  # Optional allowlist of skill names exempted from depth, each with a
+  # rationale and `last_reviewed: YYYY-MM-DD HH:MM:SS` stamp. Stale entries
+  # (> allowlist_stale_days) emit a WARN.
+  allowlist: {}
+  allowlist_stale_days: 30
+  allowlist_timestamp_pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$'
+
+# ─── TIER 4 ─── Manifest integration (optional) ──────────────────────────
+manifest:
+  enabled: false
+  # Set `path` to the project-level manifest.json if you have one.
+  # Tier 4 will check that the skill is registered and has required fields.
+  path: null
+  required_entry_fields:
+    - name
+    - description
+    - path
+    - status
+
+# ─── TIER 5 ─── Provider compatibility (optional) ────────────────────────
+provider_compatibility:
+  enabled: false
+  provider_map_path: null

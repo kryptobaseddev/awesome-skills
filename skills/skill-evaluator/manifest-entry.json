@@ -1,0 +1,42 @@
+{
+  "name": "skill-evaluator",
+  "version": "1.0.0",
+  "path": "skill-evaluator",
+  "status": "active",
+  "tier": "specialist",
+  "category": "skill-development",
+  "compatibility": "Requires Python 3.10+, uv (recommended) or pipx, and access to an LLM agent runtime (Claude Code or Claude API) for spawning isolated evaluation runs.",
+  "metadata": {
+    "author": "keatonhoskins",
+    "related": ["skill-creator", "ct-skill-validator"],
+    "spec": "https://agentskills.io/specification.md",
+    "inspiration": "https://agentskills.io/skill-creation/evaluating-skills.md"
+  },
+  "capabilities": [
+    "Auto-generate skill-unique challenging test cases from a SKILL.md",
+    "Run with-skill / without-skill / version-vs-version A/B benchmarks",
+    "Grade outputs with hybrid programmatic + LLM-judge assertions",
+    "Aggregate pass-rate, token, latency benchmarks with mean ± stddev",
+    "Detect regression across iterations (hard, case, cost, blind)",
+    "Propose lean, regression-safe improvements grounded in transcripts",
+    "Optimize the trigger description with train/validation splits"
+  ],
+  "constraints": [
+    "Workspace artifacts live outside the skill directory",
+    "Never modify a skill's SKILL.md automatically without --apply-proposals",
+    "Hard regressions block the auto-loop"
+  ],
+  "tags": ["evaluation", "benchmarking", "skill-quality", "regression-detection"],
+  "triggers": [
+    "evaluate skill",
+    "benchmark skill",
+    "A/B test skill",
+    "grade skill output",
+    "skill regression",
+    "auto-improve skill",
+    "tune description",
+    "is this skill any good",
+    "did my edits regress"
+  ],
+  "token_budget": 5000
+}

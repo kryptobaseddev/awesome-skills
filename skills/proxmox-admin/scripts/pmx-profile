@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# pmx-profile — list / use / show / remove connection profiles.
+#
+# Usage:
+#   pmx-profile [list] [--json]      list profiles (* marks active)
+#   pmx-profile use <name>           set <name> as active
+#   pmx-profile active               print active profile name only
+#   pmx-profile show [name]          print YAML (token_secret redacted)
+#   pmx-profile path [name]          print absolute file path
+#   pmx-profile remove <name>        delete profile file (prompts)
+#   pmx-profile --help
+#
+# Exit codes (from lib/profile.sh):
+#   0 success      2 usage       3 no profile / not found
+#   4 missing binary
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+cmd="${1:-list}"; shift 2>/dev/null || true
+
+case "$cmd" in
+  -h|--help|help)
+    cat <<'EOF'
+pmx-profile — list / use / show / remove connection profiles.
+
+Usage:
+  pmx-profile [list] [--json]      list profiles (* marks active)
+  pmx-profile use <name>           set <name> as active
+  pmx-profile active               print active profile name only
+  pmx-profile show [name]          print YAML (token_secret redacted)
+  pmx-profile path [name]          print absolute file path
+  pmx-profile remove <name>        delete profile file (prompts)
+  pmx-profile --help
+
+Examples:
+  pmx-profile list --json | jq '.[] | select(.active) | .host'
+  PMX_PROFILE=prod-east pmx-profile show
+
+Exit codes: 0 ok | 2 usage | 3 no profile / not found | 4 missing binary
+EOF
+    exit 0
+    ;;
+  list)
+    json=false
+    [ "${1:-}" = "--json" ] && json=true
+    [ -d "$PMX_PROFILE_DIR" ] || { $json && echo '[]' || echo "no profiles yet"; exit 0; }
+    active="$(pmx_active_profile 2>/dev/null || true)"
+
+    if $json; then
+      printf '['
+      first=true
+      for f in "$PMX_PROFILE_DIR"/*.yaml; do
+        [ -e "$f" ] || continue
+        n="$(basename "$f" .yaml)"
+        host="$(pmx_yaml_get "$f" host.address)"
+        node="$(pmx_yaml_get "$f" host.node)"
+        api_port="$(pmx_yaml_get "$f" host.api_port)"
+        ssh_port="$(pmx_yaml_get "$f" host.ssh_port)"
+        $first || printf ','
+        first=false
+        printf '{"name":"%s","host":"%s","node":"%s","api_port":"%s","ssh_port":"%s","active":%s}' \
+          "$(pmx_json_escape "$n")" "$(pmx_json_escape "$host")" \
+          "$(pmx_json_escape "$node")" "$(pmx_json_escape "$api_port")" \
+          "$(pmx_json_escape "$ssh_port")" \
+          "$( [ "$n" = "$active" ] && echo true || echo false )"
+      done
+      printf ']\n'
+    else
+      for f in "$PMX_PROFILE_DIR"/*.yaml; do
+        [ -e "$f" ] || continue
+        n="$(basename "$f" .yaml)"
+        host="$(pmx_yaml_get "$f" host.address)"
+        mark=" "; [ "$n" = "$active" ] && mark="*"
+        printf ' %s %-20s %s\n' "$mark" "$n" "$host"
+      done
+    fi
+    ;;
+  use)
+    [ "$#" -ge 1 ] || pmx_die 2 "usage: pmx-profile use <name>"
+    pmx_active_profile "$1"
+    ;;
+  active)
+    pmx_active_profile
+    ;;
+  show)
+    name="${1:-$(pmx_active_profile)}"
+    file="$PMX_PROFILE_DIR/$name.yaml"
+    [ -f "$file" ] || pmx_die 3 "no such profile: $name"
+    sed -E 's/(token_secret:[[:space:]]*).*$/\1"***REDACTED***"/' "$file"
+    ;;
+  path)
+    name="${1:-$(pmx_active_profile)}"
+    file="$PMX_PROFILE_DIR/$name.yaml"
+    [ -f "$file" ] || pmx_die 3 "no such profile: $name"
+    printf '%s\n' "$file"
+    ;;
+  remove)
+    [ "$#" -ge 1 ] || pmx_die 2 "usage: pmx-profile remove <name>"
+    file="$PMX_PROFILE_DIR/$1.yaml"
+    [ -f "$file" ] || pmx_die 3 "no such profile: $1"
+    rm -i -- "$file"
+    ;;
+  *)
+    pmx_die 2 "unknown subcommand: $cmd (try: list | use | show | path | remove | active)"
+    ;;
+esac

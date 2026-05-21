@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# awesome-skills pre-commit hook
+#
+# Runs:
+#   1. build_registry.py — regenerates README skills block + registry.json
+#                          when skills/*/SKILL.md has changed.
+#   2. skill-validator   — validates each changed skill; blocks the commit
+#                          on any ERROR. WARNs are non-blocking.
+#
+# Install once:    git config core.hooksPath .githooks
+# Skip ad hoc:     git commit --no-verify
+
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# Staged file list (NUL-separated for path safety)
+mapfile -d '' staged < <(git diff --cached --name-only -z --diff-filter=ACMR)
+
+changed_skills=()
+for f in "${staged[@]:-}"; do
+  # Match `skills/<name>/...`
+  if [[ "$f" == skills/*/* ]]; then
+    skill_dir=$(echo "$f" | awk -F/ '{print $1 "/" $2}')
+    # de-dupe
+    if [[ ! " ${changed_skills[*]:-} " =~ " ${skill_dir} " ]]; then
+      changed_skills+=("$skill_dir")
+    fi
+  fi
+done
+
+if [[ ${#changed_skills[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+echo "[pre-commit] ${#changed_skills[@]} skill(s) changed — validating + refreshing registry"
+
+# 1. Validate each changed skill
+validator="skills/skill-validator/scripts/validate.py"
+if [[ ! -f "$validator" ]]; then
+  echo "[pre-commit] error: $validator not found — cannot validate" >&2
+  exit 1
+fi
+
+fail=0
+for s in "${changed_skills[@]}"; do
+  # Skip the validator itself if not present yet (bootstrap case)
+  if [[ ! -f "$s/SKILL.md" ]]; then continue; fi
+  echo "  validating $s"
+  if ! python3 "$validator" "$s" >/tmp/awesome-skills-validate.$$ 2>&1; then
+    tail -20 /tmp/awesome-skills-validate.$$ | sed 's/^/    /'
+    fail=1
+  fi
+done
+rm -f /tmp/awesome-skills-validate.$$
+
+if [[ $fail -ne 0 ]]; then
+  echo ""
+  echo "[pre-commit] validator reported errors. Fix them and re-stage, or run with --no-verify to skip."
+  exit 1
+fi
+
+# 2. Refresh registry + README
+echo "  refreshing registry + README"
+if ! python3 scripts/build_registry.py >/dev/null 2>&1; then
+  echo "[pre-commit] error: build_registry.py failed" >&2
+  exit 1
+fi
+
+# 3. Stage the refreshed files if they changed
+if ! git diff --quiet README.md registry.json 2>/dev/null; then
+  git add README.md registry.json
+  echo "  staged README.md + registry.json updates"
+fi
+
+exit 0

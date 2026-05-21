@@ -1,0 +1,29 @@
+{
+  "iteration_dir": "<absolute path>",
+  "run_summary": {
+    "with_skill": {
+      "pass_rate":    {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "total_tokens": {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "duration_ms":  {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "runs": 0
+    },
+    "without_skill": {
+      "pass_rate":    {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "total_tokens": {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "duration_ms":  {"mean": 0.0, "stddev": 0.0, "n": 0},
+      "runs": 0
+    }
+  },
+  "delta": {
+    "baseline": "without_skill",
+    "pass_rate":    0.0,
+    "total_tokens": 0.0,
+    "duration_ms":  0.0
+  },
+  "per_case": {
+    "<case-id>": {
+      "with_skill":    {"pass_rate": {"mean": 0.0, "stddev": 0.0, "n": 0}, "total_tokens": {"mean": 0.0, "stddev": 0.0, "n": 0}, "duration_ms": {"mean": 0.0, "stddev": 0.0, "n": 0}, "runs": 0},
+      "without_skill": {"pass_rate": {"mean": 0.0, "stddev": 0.0, "n": 0}, "total_tokens": {"mean": 0.0, "stddev": 0.0, "n": 0}, "duration_ms": {"mean": 0.0, "stddev": 0.0, "n": 0}, "runs": 0}
+    }
+  }
+}

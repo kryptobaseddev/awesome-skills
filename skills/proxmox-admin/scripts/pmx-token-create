@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# pmx-token-create — provision a least-privilege API token on the host.
+#
+# Runs the documented pveum sequence (user + role + acl + token) over SSH
+# and prints the secret EXACTLY ONCE on stdout. Capture it with:
+#
+#   secret="$(scripts/pmx-token-create skill /)"
+#
+# Defaults assume the audit role 'pmx-skill' covering audit + VM/CT power +
+# config so the skill can do day-2 ops without giving away root. Adjust
+# --privs to scope tighter. With --privsep 0 the token inherits the user's
+# permissions directly (simpler debug; less defense in depth).
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+pmx_load_profile
+
+token_id="${1:-skill}"
+acl_path="${2:-/}"
+realm_user="${PMX_ONBOARD_API_USER:-automation@pve}"
+role_name="${PMX_ROLE:-pmx-skill}"
+privsep="${PMX_PRIVSEP:-0}"   # 0 == disabled (token == user perms); 1 == separated
+
+privs="${PMX_PRIVS:-Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit \
+Pool.Allocate VM.Allocate VM.Audit VM.Backup VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit \
+VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Console \
+VM.Migrate VM.Monitor VM.PowerMgmt VM.Snapshot VM.Snapshot.Rollback SDN.Audit SDN.Use Sys.Audit \
+Sys.Console Sys.Modify Sys.PowerMgmt}"
+
+cat >&2 <<HINT
+Creating Proxmox API token:
+  user@realm : $realm_user
+  role       : $role_name
+  acl path   : $acl_path
+  privsep    : $privsep
+HINT
+
+pmx_ssh "pveum user add '$realm_user' --comment 'proxmox-admin skill' 2>/dev/null || true"
+pmx_ssh "pveum role add '$role_name' --privs \"$privs\" 2>/dev/null || pveum role modify '$role_name' --privs \"$privs\""
+pmx_ssh "pveum acl modify '$acl_path' --user '$realm_user' --role '$role_name' --propagate 1"
+
+# token add returns YAML with the secret only once. Capture it and emit on stdout.
+out="$(pmx_ssh "pveum user token add '$realm_user' '$token_id' --privsep $privsep --output-format=json 2>&1 || true")"
+echo "$out"

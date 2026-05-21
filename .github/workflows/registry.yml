@@ -1,0 +1,43 @@
+name: Refresh registry + README
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'skills/**/SKILL.md'
+      - 'skills/skill-validator/config/categories.yml'
+      - 'scripts/build_registry.py'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install pyyaml
+
+      - name: Build registry + README
+        run: python3 scripts/build_registry.py
+
+      - name: Commit changes (if any)
+        run: |
+          if ! git diff --quiet README.md registry.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md registry.json
+            git commit -m "chore(registry): auto-update skills list [skip ci]"
+            git push
+          else
+            echo "No changes to commit — registry already up to date."
+          fi

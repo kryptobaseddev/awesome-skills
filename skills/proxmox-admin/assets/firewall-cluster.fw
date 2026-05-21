@@ -1,0 +1,39 @@
+# proxmox-admin / asset: starter datacenter firewall config.
+# Deploy to /etc/pve/firewall/cluster.fw (pmxcfs syncs cluster-wide).
+# IMPORTANT: confirm at least one IN ACCEPT rule for your management subnet
+# BEFORE flipping `policy_in: DROP`, or you will lock yourself out.
+
+[OPTIONS]
+enable: 1
+policy_in: DROP
+policy_out: ACCEPT
+log_level_in: nolog
+ebtables: 1
+
+[ALIASES]
+mgmt_lan 10.0.0.0/24
+admin_workstation 10.0.0.42/32
+
+[IPSET safe_sources]
+10.0.0.0/24
+10.10.0.0/24
+
+[group ssh-allow]
+IN ACCEPT -source +safe_sources -p tcp -dport 22 -log nolog
+
+[group pve-web-allow]
+IN ACCEPT -source +safe_sources -p tcp -dport 8006 -log nolog
+
+[RULES]
+# Allow ICMP from management subnet (diagnostics)
+IN ACCEPT -source +safe_sources -p icmp
+
+# Group rules (declared above)
+GROUP ssh-allow
+GROUP pve-web-allow
+
+# Optional: SPICE proxy
+IN ACCEPT -source +safe_sources -p tcp -dport 3128 -log nolog
+
+# Catch-all log line just before the implicit DROP (uncomment to debug)
+# IN DROP -log info

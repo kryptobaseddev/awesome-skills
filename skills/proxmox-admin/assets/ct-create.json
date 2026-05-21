@@ -1,0 +1,27 @@
+{
+  "_comment": "proxmox-admin / asset: LXC container create parameters. Pass to `pvesh create /nodes/<node>/lxc` (--input-format json). Edit placeholders before use.",
+
+  "vmid": 200,
+  "hostname": "web-ct",
+  "description": "Created by proxmox-admin skill",
+  "tags": "web,utility",
+
+  "ostemplate": "local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst",
+  "rootfs": "local-lvm:8",
+  "storage": "local-lvm",
+
+  "cores": 2,
+  "memory": 2048,
+  "swap": 512,
+
+  "unprivileged": 1,
+  "features": "nesting=1,keyctl=1",
+  "onboot": 1,
+  "start": 1,
+
+  "net0": "name=eth0,bridge=vmbr0,ip=dhcp",
+  "nameserver": "1.1.1.1 9.9.9.9",
+  "searchdomain": "lan",
+
+  "_password_note": "Set --password '<pw>' on the CLI rather than committing here. Or set --ssh-public-keys via --input-format json with a file:// reference."
+}

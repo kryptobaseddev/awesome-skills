@@ -1,0 +1,40 @@
+{
+  "_comment": "proxmox-admin / asset: SDN VLAN-aware zone + VNet + subnet creation payload set. Apply with cv4pve-cli api create or pvesh create.",
+
+  "zone": {
+    "endpoint": "/cluster/sdn/zones",
+    "params": {
+      "type": "vlan",
+      "zone": "homelab",
+      "bridge": "vmbr0",
+      "nodes": "pve01,pve02,pve03"
+    }
+  },
+
+  "vnet": {
+    "endpoint": "/cluster/sdn/vnets",
+    "params": {
+      "vnet": "vmgmt",
+      "zone": "homelab",
+      "tag": 10,
+      "alias": "Management VNet"
+    }
+  },
+
+  "subnet": {
+    "endpoint": "/cluster/sdn/vnets/vmgmt/subnets",
+    "params": {
+      "type": "subnet",
+      "subnet": "10.20.0.0/24",
+      "gateway": "10.20.0.1",
+      "snat": 1,
+      "dnszoneprefix": "vmgmt"
+    }
+  },
+
+  "apply": {
+    "endpoint": "/cluster/sdn",
+    "method": "POST",
+    "note": "Always call after any zone/vnet/subnet mutation to push pending changes."
+  }
+}

@@ -1,0 +1,201 @@
+# Category inference rules for the awesome-skills registry generator.
+#
+# Used by ../../../scripts/build_registry.py to assign each skill a category
+# when its SKILL.md doesn't explicitly declare one via metadata.category.
+#
+# Resolution priority for any single skill:
+#   1. Explicit override:  metadata.category: <slug> in SKILL.md frontmatter
+#   2. Rule-based match:   first matching category below (top → bottom)
+#   3. Fallback:           the `fallback` block at the end
+#
+# Within each rule, match precedence is:
+#   1. tags        — exact match against author-declared metadata.tags
+#   2. name_contains — substring in the skill's directory/name
+#   3. keywords    — word-boundary match in name+description+tags
+#
+# ORDERING RULE: list MORE SPECIFIC categories FIRST. E.g. "Skill Development"
+# is more specific than "AI Agents & LLMs" — put it earlier or
+# skill-validator/skill-evaluator end up in the wrong bucket.
+
+categories:
+
+  # ── 1. Skill development (most specific — catches skill-* skills) ──
+  - name: "Skill Development"
+    icon: "🧰"
+    slug: skill-development
+    match:
+      keywords: []   # rely on name_contains to avoid false positives
+      name_contains: [skill-validator, skill-evaluator, skill-creator, skill-generator]
+      tags: [skill-development, skill-creator, skill-validator]
+
+  # ── 2. Browser & web automation ──
+  - name: "Browser & Web Automation"
+    icon: "🌐"
+    slug: browser
+    match:
+      keywords: [playwright, puppeteer, selenium, scrape, crawl, webdriver]
+      name_contains: [browser, chrome, playwright, agent-browser]
+      tags: [browser, scraping, automation, web-automation]
+
+  # ── 3. Mobile & cross-platform ──
+  - name: "Mobile & Cross-Platform"
+    icon: "📱"
+    slug: mobile
+    match:
+      keywords: [expo, react-native, ionic]
+      name_contains: [expo, react-native, ionic]
+      tags: [mobile, ios, android]
+
+  # ── 4. Payments & commerce ──
+  - name: "Payments & Commerce"
+    icon: "💳"
+    slug: payments
+    match:
+      keywords: [stripe, square, checkout, paypal, lemonsqueezy, revenuecat]
+      name_contains: [stripe, square, payment, billing]
+      tags: [payments, billing, commerce]
+
+  # ── 5. Authentication & identity ──
+  # Keywords kept narrow on purpose. Broad terms like "authentication" or
+  # "authorization" appear in many CLI descriptions ("authenticate to X")
+  # without the skill actually being about auth. Use the protocol/standard
+  # names or rely on name_contains / tags.
+  - name: "Authentication & Identity"
+    icon: "🔐"
+    slug: auth
+    match:
+      keywords: [oauth, saml, rbac, sso, mfa, jwt, openid, oidc]
+      name_contains: [auth, oauth, better-auth, clerk-]
+      tags: [auth, authentication, authorization, identity]
+
+  # ── 6. Frontend & UI ──
+  - name: "Frontend & UI"
+    icon: "🎨"
+    slug: frontend
+    match:
+      keywords: [svelte, react, vue, sveltekit, nextjs, nuxt, tailwind, tailwindcss, shadcn]
+      name_contains: [svelte, react, vue, sveltekit, next, nuxt, tailwind, shadcn]
+      tags: [frontend, ui, ux, design-system]
+
+  # ── 7. Infrastructure & sysadmin (covers proxmox/k8s before generic cloud) ──
+  - name: "Infrastructure & Sysadmin"
+    icon: "🖥️"
+    slug: infra
+    match:
+      keywords: [proxmox, kubernetes, k8s, terraform, ansible, sysadmin]
+      name_contains: [proxmox, kubernetes, k8s, terraform, ansible]
+      tags: [infrastructure, sysadmin, devops, hypervisor]
+
+  # ── 8. Cloud & deployment (railway/vercel/etc. land here, not databases) ──
+  - name: "Cloud & Deployment"
+    icon: "☁️"
+    slug: cloud
+    match:
+      keywords: [cloudflare, vercel, fly.io, render, ngrok, deploy, hosting]
+      name_contains: [cloudflare, railway, vercel, flarectl, runpod, runpodctl, fly, render]
+      tags: [cloud, deployment, hosting, paas]
+
+  # ── 9. Databases & ORMs ──
+  - name: "Databases & ORMs"
+    icon: "🗄️"
+    slug: databases
+    match:
+      keywords: [orm, sqlite, postgres, mysql, drizzle, prisma, supabase, neon]
+      name_contains: [drizzle, postgres, sqlite, neon, supabase, prisma, neonctl]
+      tags: [database, orm, sql]
+
+  # ── 10. AI agents & LLMs ──
+  - name: "AI Agents & LLMs"
+    icon: "🤖"
+    slug: ai
+    match:
+      keywords: [claude, llm, prompt, mcp, openai, anthropic, ollama, hermes]
+      name_contains: [claude, ollama, ct-orchestrator, ct-research]
+      tags: [ai, agent, llm, mcp]
+
+  # ── 11. Communication & email ──
+  - name: "Communication & Email"
+    icon: "📧"
+    slug: communication
+    match:
+      keywords: [resend, sendgrid, twilio, smtp]
+      name_contains: [resend, sendgrid, twilio, slack]
+      tags: [email, notifications, communication]
+
+  # ── 12. Code quality & refactoring ──
+  - name: "Code Quality & Refactoring"
+    icon: "✨"
+    slug: code-quality
+    match:
+      keywords: [refactor, lint, formatter, eslint, prettier, biome, simplify]
+      name_contains: [simplify, optimizer, code-optimizer, refactor, lint]
+      tags: [refactoring, lint, code-quality, optimization]
+
+  # ── 13. Testing & validation ──
+  - name: "Testing & Validation"
+    icon: "✅"
+    slug: testing
+    match:
+      keywords: [pytest, vitest, jest, playwright-test, benchmark, doctest]
+      name_contains: [test-, benchmark]
+      tags: [testing, qa, validation]
+
+  # ── 14. Security ──
+  - name: "Security"
+    icon: "🛡️"
+    slug: security
+    match:
+      keywords: [vulnerability, csp, sast, xss, csrf]
+      name_contains: [security, audit-, security-review]
+      tags: [security, audit]
+
+  # ── 15. Documentation & writing ──
+  - name: "Documentation & Writing"
+    icon: "📚"
+    slug: docs
+    match:
+      keywords: [mintlify, docusaurus, mkdocs, tsdoc, jsdoc]
+      name_contains: [docs, mintlify, forge-ts]
+      tags: [docs, documentation, writing]
+
+  # ── 16. Research & knowledge ──
+  - name: "Research & Knowledge"
+    icon: "🔬"
+    slug: research
+    match:
+      keywords: [tavily, context7, knowledge-graph]
+      name_contains: [graphify, find-docs, research-]
+      tags: [research, knowledge, search]
+
+  # ── 17. Media & content ──
+  - name: "Media & Content"
+    icon: "🎬"
+    slug: media
+    match:
+      keywords: [yt-dlp, youtube, ffmpeg, transcode]
+      name_contains: [yt-dlp, video, audio]
+      tags: [media, video, audio, content]
+
+  # ── 18. Workflow & orchestration ──
+  - name: "Workflow & Orchestration"
+    icon: "🎭"
+    slug: workflow
+    match:
+      keywords: []
+      name_contains: [orchestrator, council, scheduler]
+      tags: [workflow, orchestration]
+
+  # ── 19. Quick helpers (catch-all for tiny conversational skills) ──
+  - name: "Quick Helpers"
+    icon: "💡"
+    slug: helpers
+    match:
+      keywords: []
+      name_contains: [btw, ask, quick-]
+      tags: [helper, conversational]
+
+# Fallback for skills that match no rule
+fallback:
+  name: "Other"
+  icon: "📦"
+  slug: other

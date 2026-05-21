@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# pmx-vm — thin wrapper around `qm` on the remote node.
+#
+# Subcommands intentionally mirror `qm`. The wrapper:
+#   * Resolves the active profile and runs commands over SSH.
+#   * Provides "create-cloudinit" and "from-image" helpers that bundle the
+#     small number of `qm` calls every cloud-init / qcow2 import needs.
+#   * Applies sane defaults from the profile when args are missing.
+#
+# Almost every flag is forwarded verbatim to `qm`. When in doubt, see:
+#   scripts/pmx-ssh 'qm help <subcommand>'
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-vm — manage Proxmox VMs via `qm` over SSH.
+
+Lifecycle:
+  list                                 -> qm list
+  status <vmid>                        -> qm status
+  config <vmid>                        -> qm config
+  start <vmid> | shutdown | stop |
+  reboot | reset | suspend | resume    pass-through to qm
+  destroy <vmid> [--purge] [--dry-run] qm destroy (prints command if --dry-run)
+  unlock <vmid>                        qm unlock
+
+Provisioning helpers:
+  create <vmid> <name> [extra qm args]
+      Calls `qm create` with profile defaults (cores, memory, scsihw,
+      machine, bios, ostype, bridge, storage) merged in. Override any
+      default by passing the matching `qm` flag at the end.
+
+  from-image <vmid> <name> <local-image-url-or-path>
+      Downloads the image on the host (if URL), imports as scsi0 into
+      the default VM storage, attaches cloud-init drive, sets serial
+      console + boot order.
+
+  cloudinit <vmid> --ciuser <u> [--cipassword <p>] [--sshkeys <file>] \
+            [--ipconfig0 ip=10.0.0.X/24,gw=10.0.0.1] [--nameserver 1.1.1.1]
+      Adds a cloud-init drive (if missing) and sets the supplied
+      cloud-init params, then starts the VM.
+
+  template <vmid>                      qm template (irreversible)
+  clone    <src> <dst> [--name n] [--full]   qm clone
+
+Snapshots & migration:
+  snapshot <vmid> <name> [--description ...]
+  rollback <vmid> <name>
+  listsnapshot <vmid>
+  delsnapshot <vmid> <name>
+  migrate <vmid> <target-node> [--online]
+
+Examples:
+  pmx-vm create 110 web-1 --memory 4096 --cores 4
+  pmx-vm cloudinit 110 --ciuser deploy --sshkeys ~/.ssh/id_ed25519.pub
+  pmx-vm destroy 110 --purge --dry-run
+
+Exit codes: 0 ok | 2 usage | 3 no profile | 4 missing binary | other = qm exit
+EOF
+}
+
+[ "$#" -ge 1 ] || { usage; exit 2; }
+case "$1" in -h|--help|help) usage; exit 0;; esac
+
+pmx_require ssh
+pmx_load_profile
+
+sub="$1"; shift
+
+case "$sub" in
+  list|status|config|start|shutdown|stop|reboot|reset|suspend|resume|unlock|template|listsnapshot)
+    pmx_ssh "qm $sub $*"
+    ;;
+  destroy)
+    dry=false
+    args=()
+    for a in "$@"; do
+      case "$a" in
+        --dry-run) dry=true ;;
+        *) args+=("$a") ;;
+      esac
+    done
+    cmd="qm destroy ${args[*]}"
+    if $dry; then
+      printf '[pmx][dry-run] would execute: %s\n' "$cmd" >&2
+      exit 0
+    fi
+    pmx_ssh "$cmd"
+    ;;
+  clone|snapshot|rollback|delsnapshot|migrate)
+    pmx_ssh "qm $sub $*"
+    ;;
+  create)
+    [ "$#" -ge 2 ] || { echo "usage: pmx-vm create <vmid> <name> [extra qm args]" >&2; exit 2; }
+    vmid="$1"; name="$2"; shift 2
+    cmd="qm create $vmid"
+    cmd+=" --name $name"
+    cmd+=" --cores ${PMX_DEFAULT_CORES:-2}"
+    cmd+=" --memory ${PMX_DEFAULT_MEMORY:-2048}"
+    cmd+=" --net0 virtio,bridge=${PMX_DEFAULT_BRIDGE:-vmbr0}"
+    cmd+=" --scsi0 ${PMX_DEFAULT_STORAGE_VM:-local-lvm}:${PMX_DEFAULT_DISK:-32}"
+    cmd+=" --scsihw ${PMX_DEFAULT_SCSIHW:-virtio-scsi-single}"
+    cmd+=" --machine ${PMX_DEFAULT_MACHINE:-q35}"
+    cmd+=" --bios ${PMX_DEFAULT_BIOS:-ovmf}"
+    cmd+=" --ostype ${PMX_DEFAULT_OSTYPE:-l26}"
+    cmd+=" --cpu cputype=${PMX_DEFAULT_CPU_TYPE:-host}"
+    cmd+=" --agent enabled=1,fstrim_cloned_disks=1"
+    cmd+=" --serial0 socket --vga serial0"
+    if [ "${PMX_DEFAULT_BIOS:-ovmf}" = "ovmf" ]; then
+      cmd+=" --efidisk0 ${PMX_DEFAULT_STORAGE_VM:-local-lvm}:1,efitype=4m,pre-enrolled-keys=1"
+    fi
+    if [ "$#" -gt 0 ]; then cmd+=" $*"; fi
+    pmx_ssh "$cmd"
+    ;;
+  from-image)
+    [ "$#" -ge 3 ] || { echo "usage: pmx-vm from-image <vmid> <name> <url-or-remote-path>" >&2; exit 2; }
+    vmid="$1"; name="$2"; src="$3"; shift 3
+    storage="${PMX_DEFAULT_STORAGE_VM:-local-lvm}"
+    iso_store="${PMX_DEFAULT_STORAGE_ISO:-local}"
+    remote_tmp="/var/lib/vz/template/iso/$(basename "${src%%\?*}")"
+    if [[ "$src" =~ ^https?:// ]]; then
+      pmx_ssh "test -f '$remote_tmp' || wget -q -O '$remote_tmp' '$src'"
+      image_path="$remote_tmp"
+    else
+      image_path="$src"
+    fi
+    pmx_ssh "qm create $vmid \
+      --name $name \
+      --cores ${PMX_DEFAULT_CORES:-2} \
+      --memory ${PMX_DEFAULT_MEMORY:-2048} \
+      --net0 virtio,bridge=${PMX_DEFAULT_BRIDGE:-vmbr0} \
+      --scsihw ${PMX_DEFAULT_SCSIHW:-virtio-scsi-single} \
+      --machine ${PMX_DEFAULT_MACHINE:-q35} \
+      --bios ${PMX_DEFAULT_BIOS:-ovmf} \
+      --ostype ${PMX_DEFAULT_OSTYPE:-l26} \
+      --cpu cputype=${PMX_DEFAULT_CPU_TYPE:-host} \
+      --agent enabled=1,fstrim_cloned_disks=1 \
+      --serial0 socket --vga serial0 \
+      --efidisk0 $storage:1,efitype=4m,pre-enrolled-keys=1"
+    pmx_ssh "qm disk import $vmid '$image_path' $storage"
+    # qm disk import assigns the disk as vm-<vmid>-disk-0 in the target storage.
+    pmx_ssh "qm set $vmid --scsi0 $storage:vm-$vmid-disk-0,discard=on,iothread=1,ssd=1"
+    pmx_ssh "qm set $vmid --boot order=scsi0"
+    pmx_ssh "qm set $vmid --ide2 $storage:cloudinit"
+    ;;
+  cloudinit)
+    [ "$#" -ge 1 ] || { echo "usage: pmx-vm cloudinit <vmid> --ciuser ... [flags]" >&2; exit 2; }
+    vmid="$1"; shift
+    pmx_ssh "qm set $vmid --ide2 ${PMX_DEFAULT_STORAGE_VM:-local-lvm}:cloudinit"
+    pmx_ssh "qm set $vmid $*"
+    pmx_ssh "qm start $vmid"
+    ;;
+  *)
+    # Unknown subcommand: forward as-is so power users aren't blocked.
+    pmx_ssh "qm $sub $*"
+    ;;
+esac

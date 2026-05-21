@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# pmx-ssh — run an arbitrary command on the active Proxmox host.
+#
+# Examples:
+#   scripts/pmx-ssh 'qm list'
+#   scripts/pmx-ssh 'qm config 100'
+#   scripts/pmx-ssh 'pvesm status'
+#   echo "uptime" | scripts/pmx-ssh -
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+pmx_require ssh
+pmx_load_profile
+
+if [ "$#" -eq 0 ]; then
+  cat >&2 <<'USAGE'
+usage: pmx-ssh <command>           run command on the active node
+       pmx-ssh -                   read command from stdin
+       PMX_PROFILE=name pmx-ssh ...  override active profile
+USAGE
+  exit 2
+fi
+
+if [ "$1" = "-" ]; then
+  cmd="$(cat)"
+  pmx_ssh "$cmd"
+else
+  pmx_ssh "$*"
+fi

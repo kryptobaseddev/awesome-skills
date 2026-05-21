@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+# pmx-onboard — interactive onboarding wizard.
+#
+# Builds a connection profile at  $PMX_PROFILE_DIR/<name>.yaml  (mode 0600)
+# and marks it active. Asks for each field in order and explains why.
+#
+# Non-interactive usage is also supported by exporting PMX_ONBOARD_* vars
+# before invocation; see the matching pmx_ask() prompts below.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/profile.sh
+. "$SCRIPT_DIR/lib/profile.sh"
+
+mkdir -p "$PMX_PROFILE_DIR"
+chmod 700 "$PMX_CONFIG_DIR" "$PMX_PROFILE_DIR" 2>/dev/null || true
+
+pmx_ask() {
+  # pmx_ask <var> <prompt> [default]
+  local var="$1" prompt="$2" default="${3:-}"
+  local envname="PMX_ONBOARD_${var}"
+  local val="${!envname:-}"
+  if [ -z "$val" ]; then
+    if [ -n "$default" ]; then
+      read -r -p "$prompt [$default]: " val || true
+      val="${val:-$default}"
+    else
+      read -r -p "$prompt: " val || true
+    fi
+  fi
+  printf -v "$var" '%s' "$val"
+}
+
+pmx_ask_secret() {
+  # pmx_ask_secret <var> <prompt>
+  local var="$1" prompt="$2"
+  local envname="PMX_ONBOARD_${var}"
+  local val="${!envname:-}"
+  if [ -z "$val" ]; then
+    read -r -s -p "$prompt: " val || true
+    echo
+  fi
+  printf -v "$var" '%s' "$val"
+}
+
+cat <<'BANNER'
+===========================================================================
+Proxmox Admin — Connection Profile Onboarding
+---------------------------------------------------------------------------
+This wizard creates a YAML profile so the skill can connect to your
+Proxmox VE node over SSH (for shell ops) and the REST API (for token ops).
+You can re-run it any time to add or replace profiles.
+
+You will need:
+  1. SSH access (preferably key-based) to a Proxmox node as root or an
+     equivalent admin user.
+  2. (Recommended) A least-privilege API token. If you don't have one yet,
+     this wizard can print the exact pveum commands to create one.
+===========================================================================
+BANNER
+
+pmx_ask name "Profile name (e.g. homelab, prod-east)" "homelab"
+pmx_ask description "Short description"               ""
+pmx_ask host_address "Proxmox host (IP or FQDN)"      ""
+pmx_ask host_node    "Node name (cluster member)"     ""
+pmx_ask api_port     "API port"                       "8006"
+pmx_ask ssh_port     "SSH port"                       "22"
+pmx_ask verify_tls   "Verify TLS (true|false)"        "false"
+
+pmx_ask ssh_user            "SSH user"                "root"
+pmx_ask ssh_identity_file   "SSH private key path"    "$HOME/.ssh/id_ed25519"
+pmx_ask ssh_known_hosts     "SSH known_hosts file"    "$HOME/.ssh/known_hosts"
+pmx_ask ssh_strict          "StrictHostKeyChecking"   "accept-new"
+
+echo
+echo "API token (optional but strongly recommended)."
+echo "Skip the next three prompts to omit API access."
+pmx_ask api_user      "API user@realm"      ""
+pmx_ask api_token_id  "API token id"        ""
+pmx_ask_secret api_token_secret "API token secret"
+pmx_ask api_privsep   "Privilege separation (true|false)" "true"
+
+pmx_ask def_storage_vm     "Default VM storage"       "local-lvm"
+pmx_ask def_storage_ct     "Default CT storage"       "local-lvm"
+pmx_ask def_storage_iso    "Default ISO storage"      "local"
+pmx_ask def_storage_backup "Default backup storage"   "local"
+pmx_ask def_bridge         "Default network bridge"   "vmbr0"
+
+profile_path="$PMX_PROFILE_DIR/$name.yaml"
+if [ -e "$profile_path" ]; then
+  read -r -p "Profile '$name' already exists. Overwrite? (y/N) " yn
+  case "$yn" in y|Y|yes|YES) ;; *) pmx_die "aborted (existing profile kept)";; esac
+fi
+
+# secret_field: write a literal value if provided, otherwise omit
+secret_line=""
+if [ -n "$api_token_secret" ]; then
+  secret_line="  token_secret: \"$api_token_secret\""
+fi
+
+umask 077
+cat > "$profile_path" <<YAML
+version: 1
+name: $name
+description: "$description"
+
+host:
+  address: $host_address
+  node: $host_node
+  api_port: $api_port
+  ssh_port: $ssh_port
+  verify_tls: $verify_tls
+
+ssh:
+  user: $ssh_user
+  identity_file: $ssh_identity_file
+  known_hosts_file: $ssh_known_hosts
+  strict_host_key_checking: $ssh_strict
+
+api:
+  user: "$api_user"
+  token_id: "$api_token_id"
+$secret_line
+  privilege_separation: $api_privsep
+
+defaults:
+  storage_vm: $def_storage_vm
+  storage_ct: $def_storage_ct
+  storage_iso: $def_storage_iso
+  storage_backup: $def_storage_backup
+  bridge: $def_bridge
+  cpu_type: host
+  scsihw: virtio-scsi-single
+  machine: q35
+  bios: ovmf
+  ostype: l26
+  cores: 2
+  memory_mb: 2048
+  disk_size_gb: 32
+
+id_ranges:
+  vm_min: 100
+  vm_max: 999
+  ct_min: 1000
+  ct_max: 1999
+
+pbs:
+  enabled: false
+
+pegaprox:
+  enabled: false
+YAML
+chmod 600 "$profile_path"
+pmx_log "profile written: $profile_path (mode 0600)"
+
+pmx_active_profile "$name"
+
+cat <<HINT
+
+---------------------------------------------------------------------------
+Next steps:
+  1. Test SSH:     scripts/pmx-doctor
+  2. Smoke API:    scripts/pmx-api GET /api2/json/version
+  3. List VMs:     scripts/pmx-vm list
+If you skipped the API token, see references/api-tokens.md for the exact
+pveum commands to create a least-privilege token.
+---------------------------------------------------------------------------
+HINT

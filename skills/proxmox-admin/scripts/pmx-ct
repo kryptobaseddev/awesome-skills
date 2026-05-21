@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# pmx-ct — thin wrapper around `pct` on the remote node.
+#
+# Mirrors `pct` subcommands. Helpers:
+#   create   — applies profile defaults (storage_ct, bridge, ostemplate from local).
+#   from-oci — PVE 9.1+ application/system containers from an OCI image URL.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-ct — manage Proxmox LXC containers via `pct` over SSH.
+
+Lifecycle:
+  list | status | config | start | shutdown | stop | reboot | unlock | destroy
+  enter <ctid>                          interactive shell inside container
+  exec  <ctid> -- <cmd...>              run a command inside container
+  console <ctid>
+
+Provisioning:
+  templates                             -> pveam available --section system
+  download-template <template>          -> pveam download local <template>
+
+  create <ctid> <hostname> <template>   create with profile defaults
+      template may be a local entry (e.g. local:vztmpl/debian-12-...zst)
+      or a short name (e.g. debian-12-standard) which will be downloaded.
+
+  from-oci <ctid> <hostname> <image>    [PVE 9.1+]
+      Pulls an OCI image and creates an application container.
+
+  clone | snapshot | rollback | delsnapshot | listsnapshot   pass-through
+
+Examples:
+  pmx-ct create 200 web debian-12-standard --memory 1024 --cores 2 \
+                                            --net0 name=eth0,bridge=vmbr0,ip=dhcp
+  pmx-ct exec 200 -- apt-get update
+EOF
+}
+
+[ "$#" -ge 1 ] || { usage; exit 2; }
+case "$1" in -h|--help|help) usage; exit 0;; esac
+
+pmx_require ssh
+pmx_load_profile
+
+sub="$1"; shift
+
+case "$sub" in
+  list|status|config|start|shutdown|stop|reboot|unlock|destroy|console|enter|exec| \
+  clone|snapshot|rollback|delsnapshot|listsnapshot)
+    pmx_ssh "pct $sub $*"
+    ;;
+  templates)
+    pmx_ssh "pveam update >/dev/null && pveam available --section system"
+    ;;
+  download-template)
+    [ "$#" -ge 1 ] || { echo "usage: pmx-ct download-template <template-name>" >&2; exit 2; }
+    pmx_ssh "pveam update >/dev/null && pveam download ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} $1"
+    ;;
+  create)
+    [ "$#" -ge 3 ] || { echo "usage: pmx-ct create <ctid> <hostname> <template> [extra pct args]" >&2; exit 2; }
+    ctid="$1"; host="$2"; tmpl="$3"; shift 3
+    if [[ "$tmpl" != *:vztmpl/* ]]; then
+      # Short name — try to download it (idempotent) then resolve to full path.
+      pmx_ssh "pveam update >/dev/null && pveam download ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} $tmpl"
+      tmpl_full="$(pmx_ssh "pveam list ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} | awk '/$tmpl/ {print \$1; exit}'")"
+      [ -n "$tmpl_full" ] || pmx_die "could not resolve template: $tmpl"
+      tmpl="$tmpl_full"
+    fi
+    cmd="pct create $ctid '$tmpl'"
+    cmd+=" --hostname $host"
+    cmd+=" --cores ${PMX_DEFAULT_CORES:-2}"
+    cmd+=" --memory ${PMX_DEFAULT_MEMORY:-2048}"
+    cmd+=" --rootfs ${PMX_DEFAULT_STORAGE_CT:-local-lvm}:${PMX_DEFAULT_DISK:-8}"
+    cmd+=" --net0 name=eth0,bridge=${PMX_DEFAULT_BRIDGE:-vmbr0},ip=dhcp"
+    cmd+=" --unprivileged 1"
+    cmd+=" --features nesting=1"
+    cmd+=" --onboot 1"
+    if [ "$#" -gt 0 ]; then cmd+=" $*"; fi
+    pmx_ssh "$cmd"
+    ;;
+  from-oci)
+    [ "$#" -ge 3 ] || { echo "usage: pmx-ct from-oci <ctid> <hostname> <oci-image>" >&2; exit 2; }
+    ctid="$1"; host="$2"; img="$3"; shift 3
+    # PVE 9.1+ ships pct support for OCI templates downloaded via pveam.
+    pmx_ssh "pveam download ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} $img"
+    full="$(pmx_ssh "pveam list ${PMX_DEFAULT_STORAGE_TEMPLATE:-local} | awk '/$img/ {print \$1; exit}'")"
+    [ -n "$full" ] || pmx_die "OCI image not visible after download — check 'pveam list'"
+    pmx_ssh "pct create $ctid '$full' --hostname $host \
+      --cores ${PMX_DEFAULT_CORES:-2} --memory ${PMX_DEFAULT_MEMORY:-2048} \
+      --rootfs ${PMX_DEFAULT_STORAGE_CT:-local-lvm}:${PMX_DEFAULT_DISK:-8} \
+      --net0 name=eth0,bridge=${PMX_DEFAULT_BRIDGE:-vmbr0},ip=dhcp \
+      --unprivileged 1 $*"
+    ;;
+  *)
+    pmx_ssh "pct $sub $*"
+    ;;
+esac

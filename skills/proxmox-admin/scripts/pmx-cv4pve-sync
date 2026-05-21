@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# pmx-cv4pve-sync — mirror every connection profile into a cv4pve-cli context.
+#
+# Profiles stay canonical (~/.config/proxmox-admin/profiles/*.yaml). This
+# script reads each profile and runs `cv4pve-cli config add` / `set` with
+# matching values so that:
+#
+#   * cv4pve-cli's context name === profile name
+#   * cv4pve-cli uses the same API token (host, port, api-token, TLS verify)
+#   * switching the cv4pve-cli current context mirrors the active profile
+#
+# Re-run any time profiles change. Idempotent: existing contexts are updated
+# in place, not duplicated.
+#
+# Flags:
+#   --activate            also `cv4pve-cli config use <active-profile>`
+#   --skip <name>...      do not sync these profile names
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+pmx_require cv4pve-cli
+
+activate=false
+skip=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --activate) activate=true; shift ;;
+    --skip) shift; while [ "$#" -gt 0 ] && [[ "$1" != --* ]]; do skip+=("$1"); shift; done ;;
+    -h|--help)
+      sed -n '2,18p' "$0"; exit 0 ;;
+    *) pmx_die "unknown arg: $1" ;;
+  esac
+done
+
+[ -d "$PMX_PROFILE_DIR" ] || pmx_die "no profile dir at $PMX_PROFILE_DIR — run pmx-onboard first"
+mapfile -t profiles < <(find "$PMX_PROFILE_DIR" -maxdepth 1 -type f -name '*.yaml' -printf '%f\n' | sed 's/\.yaml$//')
+[ "${#profiles[@]}" -gt 0 ] || pmx_die "no profiles found in $PMX_PROFILE_DIR"
+
+existing_contexts="$(cv4pve-cli config list 2>/dev/null | awk 'NR>1 {print $1}' | sed 's/[* ]//g' || true)"
+
+in_skip() { local n="$1"; for s in "${skip[@]:-}"; do [ "$s" = "$n" ] && return 0; done; return 1; }
+has_context() { printf '%s\n' "$existing_contexts" | grep -qx "$1"; }
+
+for name in "${profiles[@]}"; do
+  if in_skip "$name"; then pmx_log "skip $name (--skip)"; continue; fi
+  pmx_load_profile "$name"
+
+  host="$PMX_HOST"
+  port="${PMX_API_PORT:-8006}"
+  validate_certs="false"
+  [ "$PMX_VERIFY_TLS" = "true" ] || [ "$PMX_VERIFY_TLS" = "yes" ] && validate_certs="true"
+
+  args=( --host "$host" --port "$port" --validate-certificate "$validate_certs" )
+  if [ -n "${PMX_API_USER:-}" ] && [ -n "${PMX_API_TOKEN_ID:-}" ] && [ -n "${PMX_API_TOKEN_SECRET:-}" ]; then
+    args+=( --api-token "${PMX_API_USER}!${PMX_API_TOKEN_ID}=${PMX_API_TOKEN_SECRET}" )
+  else
+    pmx_warn "profile '$name' has no api token — skipping (cv4pve-cli needs token or password)"
+    continue
+  fi
+
+  if has_context "$name"; then
+    pmx_log "updating cv4pve-cli context: $name"
+    cv4pve-cli config set "$name" "${args[@]}" >/dev/null
+  else
+    pmx_log "adding cv4pve-cli context:    $name"
+    cv4pve-cli config add "$name" "${args[@]}" >/dev/null
+  fi
+done
+
+if $activate; then
+  active="$(pmx_active_profile || true)"
+  if [ -n "$active" ]; then
+    pmx_log "cv4pve-cli config use $active"
+    cv4pve-cli config use "$active" >/dev/null
+  fi
+fi
+
+cv4pve-cli config list

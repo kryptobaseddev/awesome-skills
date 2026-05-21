@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# pmx-cv4 — thin convenience wrapper that ensures cv4pve-cli is using the
+# context that matches the active proxmox-admin profile, then forwards
+# every argument to cv4pve-cli.
+#
+# Examples:
+#   scripts/pmx-cv4 get vms
+#   scripts/pmx-cv4 api get /version
+#   scripts/pmx-cv4 do start guest --guest web
+#
+# Without args, prints the active context and a brief help.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+pmx_require cv4pve-cli
+
+active="$(pmx_active_profile 2>/dev/null || true)"
+if [ -n "$active" ]; then
+  cur="$(cv4pve-cli config current 2>/dev/null | awk '{print $NF}' || true)"
+  if [ "$cur" != "$active" ]; then
+    pmx_log "switching cv4pve-cli context: $cur -> $active"
+    cv4pve-cli config use "$active" >/dev/null || pmx_warn "context '$active' not in cv4pve-cli — run pmx-cv4pve-sync"
+  fi
+fi
+
+if [ "$#" -eq 0 ]; then
+  cv4pve-cli config current
+  echo
+  cv4pve-cli --help | head -30
+  exit 0
+fi
+
+exec cv4pve-cli "$@"

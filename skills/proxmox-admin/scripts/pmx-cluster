@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# pmx-cluster — wrapper for `pvecm` and cluster-level API helpers.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/lib/profile.sh"
+
+usage() {
+  cat <<'EOF'
+pmx-cluster — manage Proxmox cluster via `pvecm` over SSH.
+
+Common:
+  status                    pvecm status
+  nodes                     pvecm nodes
+  resources [--type vm|qemu|lxc|storage|node]
+                            cluster-wide resource inventory via REST API
+  ha-status                 ha-manager status
+  ha-add <vmid> [--max-restart N --max-relocate N --state started|stopped|disabled]
+  migrate <vmid> <target>   qm migrate <vmid> <target> --online
+EOF
+}
+
+[ "$#" -ge 1 ] || { usage; exit 2; }
+case "$1" in -h|--help|help) usage; exit 0;; esac
+
+pmx_load_profile
+
+sub="$1"; shift
+
+case "$sub" in
+  status)
+    pmx_ssh "pvecm status"
+    ;;
+  nodes)
+    pmx_ssh "pvecm nodes"
+    ;;
+  resources)
+    type_filter=""
+    if [ "${1:-}" = "--type" ]; then type_filter="?type=$2"; shift 2; fi
+    pmx_api GET "/api2/json/cluster/resources$type_filter"
+    ;;
+  ha-status)
+    pmx_ssh "ha-manager status"
+    ;;
+  ha-add)
+    [ "$#" -ge 1 ] || { echo "usage: pmx-cluster ha-add <vmid> [flags]" >&2; exit 2; }
+    vmid="$1"; shift
+    pmx_ssh "ha-manager add vm:$vmid $*"
+    ;;
+  migrate)
+    [ "$#" -ge 2 ] || { echo "usage: pmx-cluster migrate <vmid> <target-node>" >&2; exit 2; }
+    pmx_ssh "qm migrate $1 $2 --online"
+    ;;
+  *)
+    pmx_ssh "pvecm $sub $*"
+    ;;
+esac
