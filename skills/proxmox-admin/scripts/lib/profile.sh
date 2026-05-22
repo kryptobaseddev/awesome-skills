@@ -23,8 +23,64 @@
 set -u
 set -o pipefail
 
-PMX_CONFIG_DIR="${PMX_CONFIG_DIR:-$HOME/.config/proxmox-admin}"
-PMX_PROFILE_DIR="${PMX_PROFILE_DIR:-$PMX_CONFIG_DIR/profiles}"
+# ---------------------------------------------------------------------------
+# Config-directory resolution (v1.2.0+)
+#
+# Resolution order, first match wins:
+#   1. $PMX_CONFIG_DIR explicitly set in the environment (existing behavior)
+#   2. Walk up from $PWD looking for a directory containing `.proxmox-admin/`
+#      — this is the new "project-folder" pattern (see references/project-folder.md)
+#   3. Fall back to $HOME/.config/proxmox-admin (the historical default)
+#
+# Backwards compatible: pre-existing users with ~/.config/proxmox-admin/ but
+# no project folder are unaffected. Existing scripts setting PMX_CONFIG_DIR
+# directly continue to win.
+#
+# Cross-OS: $HOME resolves correctly on Linux, macOS, and Windows (Git Bash
+# / MSYS / WSL). The walk-up loop terminates at filesystem root on all
+# three (`/` on POSIX, `/c/` on Git-Bash-on-Windows via `dirname`).
+# ---------------------------------------------------------------------------
+pmx_resolve_config_dir() {
+  local d="${PWD:-$(pwd)}"
+  while [ -n "$d" ] && [ "$d" != "/" ]; do
+    if [ -d "$d/.proxmox-admin" ]; then
+      printf '%s' "$d/.proxmox-admin"
+      return 0
+    fi
+    local parent
+    parent="$(dirname "$d")"
+    # Guard against pathological dirname returning the same path
+    if [ "$parent" = "$d" ]; then
+      break
+    fi
+    d="$parent"
+  done
+  return 1
+}
+
+if [ -z "${PMX_CONFIG_DIR:-}" ]; then
+  if PMX_CONFIG_DIR="$(pmx_resolve_config_dir)"; then
+    : # found a project folder — $PMX_CONFIG_DIR is the .proxmox-admin/ dir
+  else
+    PMX_CONFIG_DIR="$HOME/.config/proxmox-admin"
+  fi
+fi
+
+# Profiles live in different places under the two layouts:
+#   - Project layout: <project>/profiles/        (sibling of .proxmox-admin/)
+#   - Home-dir layout: ~/.config/proxmox-admin/profiles/   (child of PMX_CONFIG_DIR)
+#
+# Distinguish by whether $PMX_CONFIG_DIR ends with /.proxmox-admin
+if [ -z "${PMX_PROFILE_DIR:-}" ]; then
+  case "$PMX_CONFIG_DIR" in
+    */.proxmox-admin)
+      PMX_PROFILE_DIR="${PMX_CONFIG_DIR%/.proxmox-admin}/profiles"
+      ;;
+    *)
+      PMX_PROFILE_DIR="$PMX_CONFIG_DIR/profiles"
+      ;;
+  esac
+fi
 PMX_ACTIVE_FILE="${PMX_ACTIVE_FILE:-$PMX_CONFIG_DIR/active}"
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,356 @@
+#!/usr/bin/env bash
+# pmx-init — scaffold a project-folder structure for proxmox-admin.
+#
+# Creates a self-contained directory holding profiles, inventory, decisions,
+# runbooks, and secrets. Once present, every pmx-* script in this skill
+# auto-detects the project folder when run from inside it (see
+# lib/profile.sh::pmx_resolve_config_dir).
+#
+# Usage:
+#   pmx-init                  # scaffold in current directory
+#   pmx-init <dir>            # scaffold in <dir> (created if missing)
+#   pmx-init --help
+#
+# Idempotent: refuses to overwrite existing files unless --force is given.
+# Cross-OS: uses only POSIX file ops + heredocs. chmod is best-effort
+# (advisory on Windows NTFS).
+
+set -euo pipefail
+
+usage() {
+  cat <<USAGE
+pmx-init — scaffold a project-folder for proxmox-admin
+
+Usage:
+  pmx-init [<dir>] [--force]
+
+Creates the following layout under <dir> (default: \$PWD):
+
+  <dir>/
+  ├── .proxmox-admin/        tool state (active profile, schema version)
+  ├── profiles/              connection profiles (YAML, secrets via env)
+  ├── inventory/             per-system docs (overview + auto-snapshots)
+  ├── decisions/             ADR-style decision log
+  ├── runbooks/              step-by-step procedures
+  ├── secrets/               GITIGNORED — real secrets via env.sh
+  ├── .gitignore             default ignores (secrets/, *.bak, ...)
+  └── README.md              quickstart for new clones
+
+After scaffolding:
+
+  cd <dir>
+  cp secrets/env.sh.example secrets/env.sh
+  \$EDITOR secrets/env.sh                       # fill in token secrets
+  source secrets/env.sh
+  scripts/pmx-onboard                          # create your first profile
+  scripts/pmx-doctor                           # verify
+
+Options:
+  --force                    overwrite existing files (preserves git history)
+  --help, -h                 show this message
+USAGE
+}
+
+FORCE=0
+TARGET=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --force)   FORCE=1; shift ;;
+    -*)        echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
+    *)
+      if [ -z "$TARGET" ]; then TARGET="$1"; else
+        echo "too many positional args" >&2; exit 2
+      fi
+      shift
+      ;;
+  esac
+done
+TARGET="${TARGET:-.}"
+
+mkdir -p "$TARGET"
+TARGET="$(cd "$TARGET" && pwd)"
+echo "[pmx-init] scaffolding into: $TARGET" >&2
+
+# ---------------------------------------------------------------------------
+# Directory tree
+# ---------------------------------------------------------------------------
+for d in \
+  .proxmox-admin \
+  profiles \
+  inventory \
+  decisions \
+  runbooks \
+  secrets \
+  ; do
+  mkdir -p "$TARGET/$d"
+done
+
+# ---------------------------------------------------------------------------
+# write_if_missing <relpath> <heredoc-content>
+# ---------------------------------------------------------------------------
+write_if_missing() {
+  local rel="$1" content="$2"
+  local abs="$TARGET/$rel"
+  if [ -e "$abs" ] && [ "$FORCE" -ne 1 ]; then
+    echo "[pmx-init] keep    $rel  (already exists; use --force to overwrite)" >&2
+    return 0
+  fi
+  printf '%s' "$content" > "$abs"
+  if [ "$FORCE" -eq 1 ]; then
+    echo "[pmx-init] write   $rel  (forced)" >&2
+  else
+    echo "[pmx-init] create  $rel" >&2
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# .proxmox-admin/ — tool state
+# ---------------------------------------------------------------------------
+write_if_missing ".proxmox-admin/active" ""
+write_if_missing ".proxmox-admin/version" "1
+"
+
+# ---------------------------------------------------------------------------
+# secrets/ — gitignored runtime, plus tracked README + .example
+# ---------------------------------------------------------------------------
+write_if_missing "secrets/.gitkeep" ""
+
+write_if_missing "secrets/README.md" "# secrets/
+
+This directory holds files that must NEVER enter git history. Real
+content is \`.gitignore\`d; only \`*.example\` templates and this README
+are tracked.
+
+## What lives here
+
+- \`env.sh\` — sourced into your shell before running any \`pmx-*\` command.
+  Sets \`PMX_*_TOKEN_SECRET\` env vars referenced by profile YAMLs.
+- \`*.key\`, \`*.pem\`, \`*.p12\`, \`*.token\` — any binary/PEM secrets.
+
+## Setup
+
+\`\`\`bash
+cp env.sh.example env.sh
+\$EDITOR env.sh                  # fill in real values
+chmod 600 env.sh                # restrict (no-op on Windows NTFS, that's OK)
+source env.sh
+\`\`\`
+
+## Rotating a token
+
+1. On the Proxmox node, regenerate:
+   \`\`\`bash
+   pveum user token remove automation@pve skill
+   pveum user token add automation@pve skill --privsep 0
+   \`\`\`
+2. Update the relevant \`PMX_*_TOKEN_SECRET\` in \`env.sh\`.
+3. \`source env.sh\` again in any open shells.
+4. Verify: \`pmx-doctor\` passes.
+"
+
+write_if_missing "secrets/env.sh.example" "# Copy this to secrets/env.sh and fill in real values.
+# secrets/env.sh is gitignored.
+#
+# Usage:
+#   source secrets/env.sh
+# Or add to your shell rc for persistent loading.
+#
+# Each PMX_* secret is referenced from a profile YAML using
+# \${ENV:VAR_NAME} — see profiles/<name>.yaml.
+
+# Per-profile secrets — add one PMX_*_TOKEN_SECRET line per profile.
+# Generate on the Proxmox node with:
+#   pveum user token add automation@pve skill --privsep 0
+# (the skill prints the secret ONCE — paste it here).
+
+# export PMX_<SYSTEM>_TOKEN_SECRET=\"paste-uuid-here\"
+"
+
+# ---------------------------------------------------------------------------
+# .gitignore — protect secrets and common junk
+# ---------------------------------------------------------------------------
+write_if_missing ".gitignore" "# Real secrets — never commit
+secrets/env.sh
+secrets/*.key
+secrets/*.pem
+secrets/*.p12
+secrets/*.token
+
+# Editor / OS junk
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.bak
+*.backup
+
+# Transient working files
+*.tmp
+*.local
+"
+
+# ---------------------------------------------------------------------------
+# Per-area README files
+# ---------------------------------------------------------------------------
+write_if_missing "profiles/README.md" "# profiles/
+
+Connection profiles for each Proxmox system this repo manages. The active
+profile is named in \`../.proxmox-admin/active\`.
+
+Run \`scripts/pmx-onboard\` from this repo's root to create your first
+profile interactively — it will write here automatically.
+
+Secrets in profile YAML use \`\${ENV:VAR_NAME}\` references resolved at
+load time. See \`../secrets/env.sh.example\`.
+"
+
+write_if_missing "inventory/README.md" "# inventory/
+
+Per-system documentation. Each \`<system-name>/\` subdirectory mirrors a
+profile in \`../profiles/<system-name>.yaml\`.
+
+Files inside each system directory:
+- \`overview.md\`     hand-curated one-pager (purpose, key facts)
+- \`hardware.md\`     auto-snapshot of CPU/RAM/disks/NICs
+- \`network.md\`      auto-snapshot of bridges/IPs/firewall
+- \`storage.md\`      auto-snapshot of pools/datasets/LVM
+- \`containers.md\`   auto-snapshot of LXC inventory
+- \`vms.md\`          auto-snapshot of KVM VMs (omitted if none)
+
+The auto-snapshot files are generated by \`scripts/pmx-inventory snapshot\`.
+Re-run it to refresh — the diff shows what changed.
+"
+
+write_if_missing "decisions/README.md" "# decisions/
+
+Architecture Decision Records (ADRs) in Nygard format. Each file captures
+ONE non-obvious decision: what we chose, why, and what we accept as a
+consequence.
+
+## Template
+
+\`\`\`markdown
+# ADR NNNN: <Title>
+
+**Status:** Proposed | Accepted | Superseded by NNNN | Deprecated
+**Date:** YYYY-MM-DD
+
+## Context
+<situation that forced a decision>
+
+## Decision
+<what we decided>
+
+## Consequences
+- + <positive outcome>
+- - <negative outcome we accept>
+- ~ <neutral but worth noting>
+\`\`\`
+
+Numbered sequentially. Don't edit accepted ADRs — supersede instead.
+"
+
+write_if_missing "runbooks/README.md" "# runbooks/
+
+Step-by-step procedures. Each runbook has:
+
+- **Prerequisites**  what must be true before starting
+- **Steps**          copy-pasteable commands with comments
+- **Verification**   how to confirm success
+- **Rollback**       how to undo, or honest 'restore from backup'
+
+Add runbooks as you operate the system — they capture procedural
+knowledge that would otherwise be lost.
+"
+
+# ---------------------------------------------------------------------------
+# Top-level README
+# ---------------------------------------------------------------------------
+write_if_missing "README.md" "# Proxmox Project — Source of Truth
+
+This repository is the canonical record of one or more Proxmox systems
+managed by the [proxmox-admin skill][skill]. Everything about the
+systems — connection profiles, inventory, decisions, and runbooks —
+lives here in version control.
+
+[skill]: https://github.com/kryptobaseddev/awesome-skills/tree/main/skills/proxmox-admin
+
+## Layout
+
+\`\`\`
+.proxmox-admin/    tool state (active profile, schema version)
+profiles/          connection profiles (YAML, secrets via \\\${ENV:VAR})
+inventory/         per-system documentation
+decisions/         ADR-style decision log
+runbooks/          step-by-step procedures
+secrets/           GITIGNORED — real secrets via env.sh
+\`\`\`
+
+## Quickstart
+
+\`\`\`bash
+# 1. Configure secrets
+cp secrets/env.sh.example secrets/env.sh
+\$EDITOR secrets/env.sh                  # fill in token secret
+source secrets/env.sh
+
+# 2. Create your first profile interactively
+~/.claude/skills/proxmox-admin/scripts/pmx-onboard
+
+# 3. Verify connectivity
+~/.claude/skills/proxmox-admin/scripts/pmx-doctor
+
+# 4. Capture initial inventory
+~/.claude/skills/proxmox-admin/scripts/pmx-inventory snapshot
+\`\`\`
+
+The skill auto-detects this project folder by looking for
+\`.proxmox-admin/\` in the current directory or any parent. No env-var
+exports needed once you're \`cd\`'d into this repo.
+
+## Conventions
+
+- **Secrets never enter git.** Profile YAML uses \`\\\${ENV:VAR}\`
+  references; real values live in \`secrets/env.sh\` (gitignored).
+- **Inventory is auto-refreshable.** Re-run \`pmx-inventory snapshot\` to
+  update; \`git diff\` shows what changed.
+- **Decisions are ADRs.** One file per non-obvious choice. Don't edit
+  accepted ADRs — supersede with a new one.
+- **Runbooks are copy-pasteable.** Real commands, with prerequisites,
+  verification, and rollback.
+- **Commits are atomic.** One commit per logical change.
+"
+
+# ---------------------------------------------------------------------------
+# File modes (best-effort; advisory on Windows NTFS)
+# ---------------------------------------------------------------------------
+chmod 700 "$TARGET/.proxmox-admin" "$TARGET/secrets" 2>/dev/null || \
+  echo "[pmx-init][warn] chmod 700 not enforced (Windows NTFS or no perms); secrets/ is still gitignored" >&2
+[ -f "$TARGET/secrets/env.sh" ] && chmod 600 "$TARGET/secrets/env.sh" 2>/dev/null || true
+
+# ---------------------------------------------------------------------------
+# Next steps
+# ---------------------------------------------------------------------------
+cat <<NEXT
+
+[pmx-init] scaffold complete: $TARGET
+
+Recommended next steps:
+
+  cd $TARGET
+  cp secrets/env.sh.example secrets/env.sh
+  \$EDITOR secrets/env.sh                      # fill in real token secret(s)
+  source secrets/env.sh
+  ~/.claude/skills/proxmox-admin/scripts/pmx-onboard
+  ~/.claude/skills/proxmox-admin/scripts/pmx-doctor
+
+Optional (recommended): version-control this project.
+
+  git init -b main
+  git add .
+  git commit -m "initial scaffold from pmx-init"
+
+NEXT

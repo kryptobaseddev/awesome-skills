@@ -44,13 +44,21 @@ pmx_ask_secret() {
   printf -v "$var" '%s' "$val"
 }
 
-cat <<'BANNER'
+cat <<BANNER
 ===========================================================================
 Proxmox Admin — Connection Profile Onboarding
 ---------------------------------------------------------------------------
 This wizard creates a YAML profile so the skill can connect to your
 Proxmox VE node over SSH (for shell ops) and the REST API (for token ops).
 You can re-run it any time to add or replace profiles.
+
+Profile will be written to:
+  $PMX_PROFILE_DIR/<name>.yaml
+
+(Resolution:
+  - If you're in a project folder containing .proxmox-admin/, that wins.
+  - Otherwise ~/.config/proxmox-admin/profiles/ is used.
+  - Override with PMX_CONFIG_DIR or PMX_PROFILE_DIR env vars.)
 
 You will need:
   1. SSH access (preferably key-based) to a Proxmox node as root or an

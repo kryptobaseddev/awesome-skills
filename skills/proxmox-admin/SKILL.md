@@ -4,9 +4,9 @@ description: Use this skill to administer a Proxmox VE 8.x/9.x host, node, or cl
 license: MIT
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.1.1"
-  last_updated: "2026-05-21 20:22:37"
-  compatibility: Requires SSH client, curl, and bash 4+ on the workstation; the Proxmox host must be PVE 8.0+ and reachable from the workstation. Optionally uses cv4pve-cli (auto-installed via scripts/pmx-cv4pve-install). No agent or extra package needed on the Proxmox node itself.
+  version: "1.2.0"
+  last_updated: "2026-05-22 17:00:00"
+  compatibility: Requires SSH client, curl, and a POSIX shell (bash 3.2+) on the workstation; Linux, macOS, and Windows via Git Bash/WSL all supported. The Proxmox host must be PVE 8.0+ and reachable from the workstation. Optionally uses cv4pve-cli (auto-installed via scripts/pmx-cv4pve-install). No agent or extra package needed on the Proxmox node itself.
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
 
@@ -16,9 +16,18 @@ allowed-tools: Bash Read Write Edit Glob Grep
 
 This skill drives Proxmox VE 8.x/9.x **remotely** from the user's workstation.
 It maintains a per-instance **connection profile** (SSH credentials + API
-token + defaults) in `~/.config/proxmox-admin/profiles/<name>.yaml`. Every
-helper script reads the active profile, so the agent never needs to ask
-the user for credentials twice.
+token + defaults). Every helper script reads the active profile, so the
+agent never needs to ask the user for credentials twice.
+
+The profile can live in either of two places:
+
+1. **A project folder** that you own — recommended. Auto-detected when a
+   `.proxmox-admin/` directory is found in `$PWD` or any ancestor. Lets
+   you version-control profiles, inventory, decisions, and runbooks
+   together. Scaffold with `scripts/pmx-init`. See
+   [project-folder.md](references/project-folder.md).
+2. **`~/.config/proxmox-admin/`** — the historical default. Used when no
+   project folder is detected. Backwards compatible with all prior versions.
 
 Two execution paths run side by side:
 
@@ -33,8 +42,11 @@ into cv4pve-cli contexts so the user never duplicates credentials.
 ## Decision tree — start here
 
 ```
-Is there an active profile? (~/.config/proxmox-admin/active exists?)
-├── NO  →  Read references/onboarding.md, run scripts/pmx-onboard.
+Is there an active profile?
+  (.proxmox-admin/active in cwd or ancestor, OR ~/.config/proxmox-admin/active)
+├── NO  →  For a single-throwaway profile: read references/onboarding.md, run scripts/pmx-onboard.
+│           For anything you want to keep:  run scripts/pmx-init <dir>, then pmx-onboard from inside.
+│           See references/project-folder.md for the recommended pattern.
 └── YES →  Run scripts/pmx-doctor to confirm reachability.
           ├── Any check fails       → references/troubleshooting.md
           └── All checks pass       → Pick the task lane below.
@@ -55,16 +67,44 @@ Is there an active profile? (~/.config/proxmox-admin/active exists?)
 | Terraform / Ansible / IaC | n/a (delegate to provider) | [iac-terraform-ansible.md](references/iac-terraform-ansible.md) |
 | PegaProx / multi-cluster orchestration | n/a (community tool) | [pegaprox.md](references/pegaprox.md) |
 | Compare or install remote CLIs | `scripts/pmx-cv4pve-install` | [remote-cli-tools.md](references/remote-cli-tools.md) |
+| Scaffold a project folder for this skill | `scripts/pmx-init` | [project-folder.md](references/project-folder.md) |
+| Capture live state into diffable markdown | `scripts/pmx-inventory snapshot` | [project-folder.md](references/project-folder.md) |
 | Look up any CLI flag fast | — | [cli-cheat-sheet.md](references/cli-cheat-sheet.md) |
 | Anything broken | `scripts/pmx-doctor` | [troubleshooting.md](references/troubleshooting.md) |
+
+## Project layout (recommended)
+
+For anything beyond a single throwaway profile, scaffold a **project
+folder** that holds connection profiles, inventory, decisions, and
+runbooks together in version control:
+
+```bash
+mkdir my-proxmox-project && cd my-proxmox-project
+~/.claude/skills/proxmox-admin/scripts/pmx-init
+```
+
+The skill auto-detects `.proxmox-admin/` in `$PWD` or any ancestor and
+uses it as the config root. Falls back to `~/.config/proxmox-admin/` if
+no project folder is found — backwards compatible with prior versions.
+
+Full layout, secret-handling conventions, cross-OS notes, and migration
+path from `~/.config/`: **[references/project-folder.md](references/project-folder.md)**.
 
 ## Onboarding workflow (first run)
 
 Before any other action, if no profile exists yet:
 
 ```bash
+# (Recommended) scaffold a project folder first
+scripts/pmx-init <project-dir>
+cd <project-dir>
+cp secrets/env.sh.example secrets/env.sh
+$EDITOR secrets/env.sh                  # fill in the token secret(s) later
+
+# Profile creation + verification
 scripts/pmx-onboard            # interactive wizard, writes 0600 YAML
 scripts/pmx-doctor             # verifies SSH + REST reachability
+scripts/pmx-inventory snapshot # capture initial inventory as diffable markdown
 scripts/pmx-cv4pve-install     # optional but recommended
 scripts/pmx-cv4pve-sync --activate
 ```
@@ -136,14 +176,19 @@ contexts stay in sync automatically as long as the user re-runs
 ## Available scripts
 
 Run `<script> --help` for the full interface of each. All scripts read the
-active profile from `~/.config/proxmox-admin/active`, accept `PMX_PROFILE=<name>`
+active profile via the resolution order documented in
+[references/project-folder.md](references/project-folder.md) — first
+`$PMX_CONFIG_DIR` env, then auto-detected `.proxmox-admin/` in cwd or
+ancestor, then `~/.config/proxmox-admin/`. They accept `PMX_PROFILE=<name>`
 for one-shot override, and write JSON to stdout / diagnostics to stderr
 when `--json` is supported.
 
 | Script | Purpose | Notable flags |
 |--------|---------|---------------|
+| `scripts/pmx-init` | Scaffold a project folder with profiles/inventory/decisions/runbooks | `--force` to overwrite |
 | `scripts/pmx-onboard` | Interactive wizard → YAML profile | env-driven (non-interactive) when `PMX_ONBOARD_*` set |
 | `scripts/pmx-doctor` | TCP + SSH + REST + cv4pve checks | `--json` |
+| `scripts/pmx-inventory` | Snapshot live state to diffable markdown | `snapshot \| diff \| show <cat>` |
 | `scripts/pmx-profile` | list/use/show/path/remove/active | `list --json` |
 | `scripts/pmx-ssh` | Run any shell command on the host | `-` reads command from stdin |
 | `scripts/pmx-api` | Call REST API with the active token | forwards extra args to `curl` |
