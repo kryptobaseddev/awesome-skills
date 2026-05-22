@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-21 22:33:44",
+  "generated_at": "2026-05-21 20:22:57",
   "total_skills": 15,
   "total_categories": 11,
   "categories": [
@@ -78,7 +78,8 @@
           "description": "Use this skill to administer a Proxmox VE 8.x/9.x host, node, or cluster remotely \u2014 provisioning, day-2 ops, troubleshooting, hardening, IaC, migration off VMware/ESXi. Covers KVM VMs (qm), LXC containers (pct; OCI in 9.1+), storage (pvesm; ZFS, LVM-thin, NFS, Ceph), networking and SDN (zones, VNets, Fabrics in 9.0+, BGP/WireGuard in 9.2+), clustering and HA (pvecm, ha-manager, Dynamic Load Balancer in 9.2+), backup/restore (vzdump, Proxmox Backup Server), API tokens (pveum), firewall and security, and IaC (Terraform bpg/Telmate, Ansible). Onboards a YAML connection profile (SSH key + API token + defaults) under ~/.config/proxmox-admin/ and drives ops via bundled SSH/REST helpers or cv4pve-cli. Trigger even when the user does not say \"Proxmox\" \u2014 e.g. \"spin up a VM on my homelab\", \"the LXC container is OOMing\", \"web UI at port 8006\", \"vCenter alternative\", ProxMox, PVE, PBS, ProxLB, PegaProx, vmbr0, vmid, cloud-init, GPU passthrough, ZFS pool, cluster quorum, qm, pct, pvesh.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
-            "version": "1.1",
+            "version": "1.1.1",
+            "last_updated": "2026-05-21 20:22:37",
             "compatibility": "Requires SSH client, curl, and bash 4+ on the workstation; the Proxmox host must be PVE 8.0+ and reachable from the workstation. Optionally uses cv4pve-cli (auto-installed via scripts/pmx-cv4pve-install). No agent or extra package needed on the Proxmox node itself."
           }
         }

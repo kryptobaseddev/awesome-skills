@@ -7,8 +7,10 @@
 # ~/.config/proxmox-admin/profiles/ remains the canonical source of truth;
 # `pmx-cv4pve-sync` mirrors profiles into cv4pve-cli contexts.
 #
-# Default install prefix: /usr/local/bin (writes via sudo). Override with
-#   PMX_CV4PVE_PREFIX=$HOME/.local/bin  ./pmx-cv4pve-install
+# Default install prefix: ~/.local/bin if writable without sudo, else
+# /usr/local/bin (writes via sudo when available and interactive). Override with
+#   PMX_CV4PVE_PREFIX=/usr/local/bin   ./pmx-cv4pve-install
+#   PMX_CV4PVE_PREFIX=$HOME/.local/bin ./pmx-cv4pve-install
 #
 # Pinning a version (optional):
 #   PMX_CV4PVE_VERSION=v8.3.0  ./pmx-cv4pve-install
@@ -19,9 +21,31 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 pmx_require curl unzip
 
-PREFIX="${PMX_CV4PVE_PREFIX:-/usr/local/bin}"
+# Pick a sensible default prefix:
+#   - explicit PMX_CV4PVE_PREFIX always wins
+#   - root → /usr/local/bin
+#   - else if /usr/local/bin is writable → /usr/local/bin
+#   - else if sudo is usable non-interactively (or stdin is a tty) → /usr/local/bin
+#   - otherwise → $HOME/.local/bin (created if missing; no sudo needed)
+pmx_pick_prefix() {
+  if [ -n "${PMX_CV4PVE_PREFIX:-}" ]; then
+    printf '%s\n' "$PMX_CV4PVE_PREFIX"; return
+  fi
+  if [ "$(id -u)" = "0" ] || [ -w /usr/local/bin ]; then
+    printf '%s\n' /usr/local/bin; return
+  fi
+  if command -v sudo >/dev/null 2>&1; then
+    if sudo -n true 2>/dev/null || [ -t 0 ]; then
+      printf '%s\n' /usr/local/bin; return
+    fi
+  fi
+  printf '%s\n' "$HOME/.local/bin"
+}
+
+PREFIX="$(pmx_pick_prefix)"
 TAG="${PMX_CV4PVE_VERSION:-}"   # empty = latest
 REPO="Corsinvest/cv4pve-cli"
+mkdir -p "$PREFIX"
 
 case "$(uname -s)" in
   Linux)   os="linux" ;;
@@ -66,13 +90,21 @@ chmod +x "$bin"
 
 if [ -w "$PREFIX" ]; then
   install -m 0755 "$bin" "$PREFIX/cv4pve-cli"
-else
+elif command -v sudo >/dev/null 2>&1 && { sudo -n true 2>/dev/null || [ -t 0 ]; }; then
   pmx_log "$PREFIX not writable — using sudo"
   sudo install -m 0755 "$bin" "$PREFIX/cv4pve-cli"
+else
+  pmx_die "$PREFIX is not writable and sudo is unavailable or non-interactive — re-run with PMX_CV4PVE_PREFIX=\$HOME/.local/bin"
 fi
 
 ver="$("$PREFIX/cv4pve-cli" --version 2>/dev/null || true)"
 pmx_log "installed: $PREFIX/cv4pve-cli  (${ver:-version unknown})"
+
+# Warn if the chosen prefix isn't on PATH (common with ~/.local/bin on fresh shells).
+case ":${PATH}:" in
+  *":$PREFIX:"*) ;;
+  *) pmx_log "warning: $PREFIX is not on \$PATH — add it (e.g. 'export PATH=\"$PREFIX:\$PATH\"' in ~/.bashrc) or invoke with the full path" ;;
+esac
 
 cat <<'NEXT'
 

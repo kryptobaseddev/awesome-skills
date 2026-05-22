@@ -39,11 +39,16 @@ stay relevant for shell-level work that has no REST endpoint (e.g. editing
 ## Install and sync workflow
 
 ```bash
-# 1. Install the binary (defaults to /usr/local/bin, falls back to sudo).
+# 1. Install the binary. Prefix is auto-selected:
+#    - root or /usr/local/bin writable        → /usr/local/bin
+#    - sudo available + interactive (or NOPASSWD) → /usr/local/bin (via sudo)
+#    - otherwise                              → $HOME/.local/bin (no sudo)
+#    Override with PMX_CV4PVE_PREFIX.
 scripts/pmx-cv4pve-install
-# Optional pinning:
-PMX_CV4PVE_VERSION=v8.3.0  scripts/pmx-cv4pve-install
+# Optional pinning / prefix override:
+PMX_CV4PVE_VERSION=v8.3.0           scripts/pmx-cv4pve-install
 PMX_CV4PVE_PREFIX=$HOME/.local/bin  scripts/pmx-cv4pve-install
+PMX_CV4PVE_PREFIX=/usr/local/bin    scripts/pmx-cv4pve-install   # force system path
 
 # 2. Mirror your YAML profiles into cv4pve-cli contexts (idempotent).
 scripts/pmx-cv4pve-sync --activate

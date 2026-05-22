@@ -4,7 +4,8 @@ description: Use this skill to administer a Proxmox VE 8.x/9.x host, node, or cl
 license: MIT
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.1"
+  version: "1.1.1"
+  last_updated: "2026-05-21 20:22:37"
   compatibility: Requires SSH client, curl, and bash 4+ on the workstation; the Proxmox host must be PVE 8.0+ and reachable from the workstation. Optionally uses cv4pve-cli (auto-installed via scripts/pmx-cv4pve-install). No agent or extra package needed on the Proxmox node itself.
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
