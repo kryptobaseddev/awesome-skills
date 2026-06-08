@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/marketplace.json",
+  "name": "{{MARKETPLACE_NAME}}",
+  "owner": {
+    "name": "{{OWNER}}",
+    "url": "{{HOMEPAGE}}"
+  },
+  "description": "{{MARKETPLACE_DESCRIPTION}}",
+  "plugins": [
+    {
+      "name": "{{PLUGIN_NAME}}",
+      "source": "./plugins/{{PLUGIN_NAME}}",
+      "description": "{{DESCRIPTION}}"
+    }
+  ]
+}

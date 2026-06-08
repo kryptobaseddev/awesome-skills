@@ -1,0 +1,11 @@
+{
+  "name": "{{PLUGIN_NAME}}",
+  "displayName": "{{DISPLAY_NAME}}",
+  "version": "{{VERSION}}",
+  "description": "{{DESCRIPTION}}",
+  "author": { "name": "{{OWNER}}" },
+  "homepage": "{{HOMEPAGE}}",
+  "license": "{{LICENSE}}",
+  "keywords": ["mcp", "registry", "skills", "agents", "on-demand"],
+  "mcpServers": "./.mcp.json"
+}

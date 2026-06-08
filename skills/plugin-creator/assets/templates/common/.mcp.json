@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "{{SERVER_NAME}}": {
+      "type": "stdio",
+      "command": "{{RUNTIME}}",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/{{SERVER_ENTRY}}"]
+    }
+  }
+}

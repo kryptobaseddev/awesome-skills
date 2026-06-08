@@ -130,12 +130,13 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_15 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-05-22 23:20:03._
+_16 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-08 12:24:11._
 
 ### 🧰 Skill Development
 
 | Skill | Description |
 |---|---|
+| [`plugin-creator`](skills/plugin-creator/) | Scaffold, validate, test, and ship a production-grade Claude Code plugin + marketplace — especially the pattern where the plugin's ONLY component is an MCP server that surfaces a registry of skills… |
 | [`skill-evaluator`](skills/skill-evaluator/) | Eval-driven quality evaluation, regression detection, and auto-improvement of Agent Skills. Auto-generates challenging test cases unique to the target skill from its SKILL.md, runs A/B benchmarks (… |
 | [`skill-validator`](skills/skill-validator/) | Validate any Agent Skill against the agentskills.io specification plus project- or skill-local rule overrides. Use when auditing a skill folder for compliance, preparing a skill for distribution, c… |
 

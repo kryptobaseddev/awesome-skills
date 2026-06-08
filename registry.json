@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-22 23:20:03",
-  "total_skills": 15,
+  "generated_at": "2026-06-08 12:24:11",
+  "total_skills": 16,
   "total_categories": 11,
   "categories": [
     {
@@ -8,6 +8,17 @@
       "name": "Skill Development",
       "icon": "\ud83e\uddf0",
       "skills": [
+        {
+          "name": "plugin-creator",
+          "path": "skills/plugin-creator",
+          "description": "Scaffold, validate, test, and ship a production-grade Claude Code plugin + marketplace \u2014 especially the pattern where the plugin's ONLY component is an MCP server that surfaces a registry of skills and agents on demand (so they never clog the / menu or the always-on context). Use this WHENEVER the user wants to create, build, scaffold, package, or distribute a Claude Code plugin, plugin marketplace, or MCP-server plugin; expose project-specific skills/agents/tools to a coding agent; turn skills or agents into an installable package; or \"make a plugin for this project\" \u2014 even if they don't say \"MCP\" or \"marketplace\" explicitly. Ships a scaffolder, a smoke-tester, a validator, reference docs, and Node + Python server templates so any agent can do this repeatably and correctly.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-06-08 12:20:29",
+            "category": "skill-development"
+          }
+        },
         {
           "name": "skill-evaluator",
           "path": "skills/skill-evaluator",
