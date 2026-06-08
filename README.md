@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_16 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-08 12:24:11._
+_16 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-08 19:24:28._
 
 ### 🧰 Skill Development
 
