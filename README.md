@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_16 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-08 19:24:28._
+_17 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-11 16:48:20._
 
 ### 🧰 Skill Development
 
@@ -196,6 +196,12 @@ _16 skills across 11 categories — auto-generated from `skills/*/SKILL.md`. Las
 | Skill | Description |
 |---|---|
 | [`security-review`](skills/security-review/) | Threat-model-driven security review of a change, feature, or subsystem. Runs a STRIDE-style pass (Spoofing, Tampering, Repudiation, Info disclosure, Denial of service, Elevation of privilege), exam… |
+
+### 🎬 Media & Content
+
+| Skill | Description |
+|---|---|
+| [`image-nanobanana`](skills/image-nanobanana/) | Generate and edit production-ready, watermark-free image assets with Google's Nano Banana models — gemini-3.1-flash-image (Nano Banana 2) and gemini-3-pro-image (Nano Banana Pro) — via the paid Gem… |
 
 ### 💡 Quick Helpers
 
