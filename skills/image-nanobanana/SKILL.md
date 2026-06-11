@@ -9,12 +9,12 @@ compatibility: >-
   path uses it. Linux, macOS, and WSL.
 inputs:
   - name: GEMINI_API_KEY
-    description: Gemini API key from https://aistudio.google.com/apikey — its Google Cloud project must have billing enabled (Tier 1+); image models are not available on the API free tier. GOOGLE_API_KEY works as a fallback.
+    description: Gemini API key from https://aistudio.google.com/apikey — its Google Cloud project must have billing enabled (Tier 1+); image models are not available on the API free tier. GOOGLE_API_KEY and NANOBANANA_API_KEY work as fallbacks. Instead of an env var, the key can be stored in ~/.gemini/.env via scripts/nb-cli-setup.sh --set-key (never in the skill folder — it is git-tracked).
     required: true
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.0.0"
-  last_updated: "2026-06-11 17:30:00"
+  version: "1.1.0"
+  last_updated: "2026-06-11 18:15:00"
   category: media
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
@@ -58,9 +58,14 @@ prove billing — an un-billed key still passes and then 429s on the first real
 generation (that 429 means "enable billing", not "retry").
 
 If there's no key: send the user to https://aistudio.google.com/apikey,
-remind them to enable billing on the key's project, then
-`export GEMINI_API_KEY=...`. Don't attempt generation before preflight
-passes — every failure mode after that is harder to diagnose.
+remind them to enable billing on the key's project, then either
+`export GEMINI_API_KEY=...` (session/profile) or store it persistently with
+`bash scripts/nb-cli-setup.sh --set-key -` (writes `~/.gemini/.env`,
+chmod 600 — the one file gemini-cli, the extension, and these scripts all
+read). **Never write a key into the skill folder** — it's a git-tracked
+directory and keys placed there end up in commits. Don't attempt generation
+before preflight passes — every failure mode after that is harder to
+diagnose.
 
 ## Generating assets
 
@@ -165,7 +170,7 @@ story"), load both references and compose one answer.
 |---|---|---|
 | `scripts/nb-preflight.sh` | Verify binaries, key validity, model visibility, gemini-cli state | `--quiet` (JSON) |
 | `scripts/nb-generate.py` | Generate/edit via the API (the production path) | `-m -a -s -i -n -o --name --thinking-level --search-grounding --json --dry-run` |
-| `scripts/nb-cli-setup.sh` | Install/update extension, pin GA model, audit auth | `--model flash\|pro --fix-auth --dry-run` |
+| `scripts/nb-cli-setup.sh` | Install/update extension, pin GA model, store key, audit auth | `--model flash\|pro --set-key KEY\|- --fix-auth --dry-run` |
 
 ## Conduct
 

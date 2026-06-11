@@ -61,12 +61,34 @@ for bin in python3 curl; do
   fi
 done
 
-# 2. API key
+# 2. API key — environment first, then ~/.gemini/.env (written by
+#    nb-cli-setup.sh --set-key; also read by gemini-cli and nb-generate.py)
 API_KEY="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-${NANOBANANA_API_KEY:-}}}"
+KEY_SOURCE="environment"
+if [ -z "$API_KEY" ] && [ -f "$HOME/.gemini/.env" ]; then
+  API_KEY=$(python3 - "$HOME/.gemini/.env" <<'PY'
+import sys
+names = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "NANOBANANA_API_KEY")
+try:
+    for line in open(sys.argv[1]):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        v = v.strip().strip('"').strip("'")
+        if k.strip() in names and v:
+            print(v)
+            break
+except OSError:
+    pass
+PY
+)
+  KEY_SOURCE="$HOME/.gemini/.env"
+fi
 if [ -n "$API_KEY" ]; then
-  PASS+=("API key found in environment")
+  PASS+=("API key found ($KEY_SOURCE)")
 else
-  fail_json 6 "no API key: export GEMINI_API_KEY=... (create at https://aistudio.google.com/apikey; image models need billing enabled — they are NOT on the free tier)"
+  fail_json 6 "no API key: export GEMINI_API_KEY=... or store one with nb-cli-setup.sh --set-key (create at https://aistudio.google.com/apikey; image models need billing enabled — they are NOT on the free tier)"
 fi
 
 # 3. Key works against the GA image model

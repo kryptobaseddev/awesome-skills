@@ -42,13 +42,27 @@ Two hard deadlines collapsed gemini-cli auth onto API keys:
   billing).
 
 So: get a key at https://aistudio.google.com/apikey, enable billing on its
-project, then:
+project, then either export it:
 
 ```bash
 export GEMINI_API_KEY="..."          # also put it in your shell profile
 ```
 
-and set `~/.gemini/settings.json` → `security.auth.selectedType` to
+or store it persistently:
+
+```bash
+bash scripts/nb-cli-setup.sh --set-key -    # prompts (hidden input), writes
+                                            # ~/.gemini/.env with chmod 600
+```
+
+`~/.gemini/.env` is the one key location every consumer reads: gemini-cli
+loads it at startup (so the nanobanana extension inherits it), and
+`nb-generate.py` / `nb-preflight.sh` fall back to it when no env var is set.
+Do **not** put keys in the skill folder or a project `.env` inside a repo —
+skill directories are git-tracked (often public) and keys there end up in
+commits.
+
+Finally set `~/.gemini/settings.json` → `security.auth.selectedType` to
 `"gemini-api-key"` (run `scripts/nb-cli-setup.sh --fix-auth` to do both checks
 and the edit with a backup).
 

@@ -60,3 +60,8 @@ node_modules/
 .npm
 .yarn/
 package-lock.json.bak
+
+# ── Secrets — API keys must never land in this repo (store in ~/.gemini/.env) ──
+.env
+*.env
+!*.env.example

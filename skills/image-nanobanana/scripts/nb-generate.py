@@ -29,9 +29,11 @@ Options:
       --json           machine-readable result on stdout (logs go to stderr)
       --dry-run        print the request payload and exit (no API call, no key needed)
 
-Environment:
-  GEMINI_API_KEY (preferred), GOOGLE_API_KEY, or NANOBANANA_API_KEY — paid-tier
-  key required; image models are NOT available on the API free tier.
+API key (paid tier required — image models are NOT on the API free tier):
+  Environment: GEMINI_API_KEY (preferred), GOOGLE_API_KEY, or NANOBANANA_API_KEY.
+  File fallback: same names in ~/.gemini/.env (store one safely with
+  `nb-cli-setup.sh --set-key -`). Never put keys in the skill folder — it is
+  a git-tracked directory.
   GEMINI_API_BASE_URL — override https://generativelanguage.googleapis.com
   GEMINI_API_VERSION — override v1beta (the surface that accepts these payloads)
 
@@ -280,6 +282,32 @@ def slugify(text, limit=40):
     return slug[:limit].rstrip("-") or "image"
 
 
+KEY_NAMES = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "NANOBANANA_API_KEY")
+KEY_FILE = Path.home() / ".gemini" / ".env"  # written by nb-cli-setup.sh --set-key
+
+
+def load_api_key():
+    """Environment first, then ~/.gemini/.env (the one key file both this
+    script and gemini-cli read). Never store keys in the skill folder — skill
+    dirs are typically tracked in git and often public."""
+    for name in KEY_NAMES:
+        if os.environ.get(name):
+            return os.environ[name]
+    if KEY_FILE.is_file():
+        try:
+            for line in KEY_FILE.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                v = v.strip().strip('"').strip("'")
+                if k.strip() in KEY_NAMES and v:
+                    return v
+        except OSError:
+            pass
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("prompt", nargs="?")
@@ -338,10 +366,10 @@ def main():
                           "payload": preview}, indent=2))
         sys.exit(0)
 
-    api_key = (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-               or os.environ.get("NANOBANANA_API_KEY"))
+    api_key = load_api_key()
     if not api_key:
-        die("no API key found. export GEMINI_API_KEY=...  "
+        die("no API key found. export GEMINI_API_KEY=... or store one with "
+            "nb-cli-setup.sh --set-key  "
             "(create a key at https://aistudio.google.com/apikey — billing required for image models)", 6)
 
     out_dir = Path(args.out)
