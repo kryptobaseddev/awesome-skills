@@ -222,9 +222,22 @@ def render_skills_section(registry: dict) -> str:
     return "\n".join(lines)
 
 
+_STAMP_RE = re.compile(
+    r"(Last updated: |\"generated_at\": \")\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"
+)
+
+
+def _strip_stamp(text: str) -> str:
+    """Drop the volatile generation timestamp so change detection compares
+    real content only. Without this, --check can never pass (the regenerated
+    text always carries a fresh timestamp) and the auto-update workflow
+    commits timestamp-only churn."""
+    return _STAMP_RE.sub(r"\1", text)
+
+
 def update_readme(registry: dict, *, dry_run: bool = False) -> tuple[bool, str]:
     """Replace the SKILLS-START/SKILLS-END block in README.md. Returns
-    (changed, new_text)."""
+    (changed, new_text). A change in timestamp alone does not count."""
     if not README_PATH.exists():
         raise FileNotFoundError(
             f"README.md not found at {README_PATH}. Create one with "
@@ -241,7 +254,7 @@ def update_readme(registry: dict, *, dry_run: bool = False) -> tuple[bool, str]:
     else:
         # Marker block missing — append at end
         new_text = text.rstrip() + "\n\n" + new_block + "\n"
-    changed = new_text != text
+    changed = _strip_stamp(new_text) != _strip_stamp(text)
     if changed and not dry_run:
         README_PATH.write_text(new_text, encoding="utf-8")
     return changed, new_text
@@ -269,7 +282,7 @@ def main() -> int:
     # registry.json
     new_registry_text = json.dumps(registry, indent=2) + "\n"
     existing_registry = REGISTRY_PATH.read_text(encoding="utf-8") if REGISTRY_PATH.exists() else ""
-    registry_changed = (new_registry_text != existing_registry)
+    registry_changed = _strip_stamp(new_registry_text) != _strip_stamp(existing_registry)
     if registry_changed and not (args.dry_run or args.check):
         REGISTRY_PATH.write_text(new_registry_text, encoding="utf-8")
 
