@@ -23,11 +23,15 @@ Options:
   -n, --count N        number of images to generate (sequential calls)
   -o, --out DIR        output directory                (default: ./nanobanana-output)
       --name BASE      output file basename            (default: slug of prompt)
+      --open           open saved image(s) in the system viewer (xdg-open/open)
       --thinking-level minimal | high   (gemini-3.1-flash-image only)
       --search-grounding                ground the prompt with Google Search
       --timeout SEC    per-request timeout             (default: 300)
       --json           machine-readable result on stdout (logs go to stderr)
       --dry-run        print the request payload and exit (no API call, no key needed)
+
+Output: saved file paths on stdout (one per line, or a JSON object with
+--json); a human summary with clickable file:// links on stderr.
 
 API key (paid tier required — image models are NOT on the API free tier):
   Environment: GEMINI_API_KEY (preferred), GOOGLE_API_KEY, or NANOBANANA_API_KEY.
@@ -282,6 +286,26 @@ def slugify(text, limit=40):
     return slug[:limit].rstrip("-") or "image"
 
 
+def viewer_command():
+    import platform
+    return {"Darwin": "open", "Windows": "start"}.get(platform.system(), "xdg-open")
+
+
+def open_file(path):
+    """Best-effort open in the platform image viewer; returns success."""
+    import platform
+    import subprocess
+    try:
+        if platform.system() == "Windows":
+            os.startfile(path)  # noqa — Windows-only attribute
+            return True
+        proc = subprocess.Popen([viewer_command(), str(path)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return proc.poll() is None or proc.returncode == 0
+    except OSError:
+        return False
+
+
 KEY_NAMES = ("GEMINI_API_KEY", "GOOGLE_API_KEY", "NANOBANANA_API_KEY")
 KEY_FILE = Path.home() / ".gemini" / ".env"  # written by nb-cli-setup.sh --set-key
 
@@ -319,6 +343,7 @@ def main():
     ap.add_argument("-n", "--count", type=int, default=1)
     ap.add_argument("-o", "--out", default="./nanobanana-output")
     ap.add_argument("--name")
+    ap.add_argument("--open", action="store_true", dest="open_viewer")
     ap.add_argument("--thinking-level", choices=["minimal", "high"])
     ap.add_argument("--search-grounding", action="store_true")
     ap.add_argument("--timeout", type=int, default=300)
@@ -382,8 +407,10 @@ def main():
     for n in range(args.count):
         log(f"generating {n + 1}/{args.count} with {model_id}"
             + (f" ({args.aspect or 'default'} @ {size})" if spec else ""))
+        t0 = time.monotonic()
         response, attempts, payload = call_api(model_id, payload, api_key, args.timeout)
         attempts_total += attempts
+        log(f"done in {time.monotonic() - t0:.1f}s")
         images, texts = extract_outputs(response)
         texts_all.extend(texts)
         if not images:
@@ -408,14 +435,33 @@ def main():
     if not saved:
         die("no images were produced", 1)
     cost = round(per_image * len(saved), 4) if per_image else None
-    if cost is not None:
-        log(f"estimated cost: ${cost} ({len(saved)} image(s) @ ${per_image})")
     for t in texts_all:
         log(f"model note: {t.strip()[:500]}")
+
+    opened = False
+    if args.open_viewer:
+        opened = all(open_file(p) for p in saved)
+        if not opened:
+            log("could not launch an image viewer (headless?) — use the file:// links below")
+
+    # Human summary on stderr (stdout stays machine-readable). file:// links
+    # are clickable in most terminals.
+    lines = ["", f"✓ {len(saved)} image(s) saved → {out_dir.resolve()}"]
+    lines += [f"  file://{Path(p).resolve()}" for p in saved]
+    if cost is not None:
+        lines.append(f"  estimated cost: ${cost} ({len(saved)} @ ${per_image})")
+    if opened:
+        lines.append("  opened in your image viewer")
+    else:
+        lines.append(f"  view:  {viewer_command()} '{saved[0]}'   (or pass --open next time)")
+    print("\n".join(lines), file=sys.stderr)
+
     if args.as_json:
-        print(json.dumps({"files": saved, "model": model_id, "aspect": args.aspect,
+        print(json.dumps({"files": saved, "out_dir": str(out_dir.resolve()),
+                          "model": model_id, "aspect": args.aspect,
                           "size": size, "count": len(saved), "estimated_cost_usd": cost,
-                          "retries": attempts_total, "text": " ".join(texts_all)[:2000]}))
+                          "retries": attempts_total, "opened": opened,
+                          "text": " ".join(texts_all)[:2000]}))
     else:
         for p in saved:
             print(p)

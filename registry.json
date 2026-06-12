@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-11 16:55:44",
+  "generated_at": "2026-06-11 17:14:29",
   "total_skills": 17,
   "total_categories": 12,
   "categories": [
@@ -198,8 +198,8 @@
           "description": "Generate and edit production-ready, watermark-free image assets with Google's Nano Banana models \u2014 gemini-3.1-flash-image (Nano Banana 2) and gemini-3-pro-image (Nano Banana Pro) \u2014 via the paid Gemini API and the gemini-cli nanobanana extension. Use when the user wants to create, generate, make, draw, design, edit, restore, or iterate on any image, picture, photo, graphic, illustration, logo, or visual asset; mentions Nano Banana, Gemini image generation, text-to-image, or AI images; complains about the Gemini sparkle watermark or wants a watermark removed from an image; or asks for app icons, favicons, hero banners, OG/social cards, YouTube thumbnails, marketing creatives, diagrams, seamless patterns, sprite sheets, or consistent characters. Bundles preflight, a direct-API generator with aspect-ratio and 512/1K/2K/4K control, gemini-cli setup, prompting guidance, and per-asset production recipes.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
-            "version": "1.1.0",
-            "last_updated": "2026-06-11 18:15:00",
+            "version": "1.2.0",
+            "last_updated": "2026-06-11 19:00:00",
             "category": "media"
           }
         }

@@ -129,14 +129,24 @@ if command -v gemini >/dev/null 2>&1; then
         WARN+=("gemini-cli auth type: '${GCLI_AUTH:-unset}'") ;;
     esac
   fi
-  EXT_LIST=$(gemini extensions list 2>/dev/null || true)
-  if grep -qi nanobanana <<<"$EXT_LIST"; then
+  # `gemini extensions list` prints to STDERR in gemini-cli >= 0.46 — capture
+  # both streams, and trust the install dir as ground truth.
+  EXT_LIST=$(gemini extensions list 2>&1 || true)
+  if grep -qi nanobanana <<<"$EXT_LIST" || [ -d "$HOME/.gemini/extensions/nanobanana" ]; then
     EXT_INSTALLED="true"
     PASS+=("nanobanana extension installed")
-    case "${NANOBANANA_MODEL:-}" in
+    # The pin counts whether it's exported OR in ~/.gemini/.env (gemini-cli
+    # loads that file at startup).
+    NB_MODEL="${NANOBANANA_MODEL:-}"
+    NB_MODEL_SRC="environment"
+    if [ -z "$NB_MODEL" ] && [ -f "$HOME/.gemini/.env" ]; then
+      NB_MODEL=$(sed -n 's/^NANOBANANA_MODEL=//p' "$HOME/.gemini/.env" | tail -1)
+      NB_MODEL_SRC="$HOME/.gemini/.env"
+    fi
+    case "$NB_MODEL" in
       "")          WARN+=("NANOBANANA_MODEL unset — the extension defaults to a deprecated -preview model (shut down 2026-06-25). Run nb-cli-setup.sh") ;;
-      *-preview)   WARN+=("NANOBANANA_MODEL='$NANOBANANA_MODEL' is a deprecated preview id (shut down 2026-06-25) — switch to gemini-3.1-flash-image or gemini-3-pro-image") ;;
-      *)           PASS+=("NANOBANANA_MODEL=$NANOBANANA_MODEL") ;;
+      *-preview)   WARN+=("NANOBANANA_MODEL='$NB_MODEL' is a deprecated preview id (shut down 2026-06-25) — switch to gemini-3.1-flash-image or gemini-3-pro-image") ;;
+      *)           PASS+=("NANOBANANA_MODEL=$NB_MODEL ($NB_MODEL_SRC)") ;;
     esac
   else
     WARN+=("nanobanana extension not installed (optional — only needed for the gemini-cli path; run nb-cli-setup.sh)")

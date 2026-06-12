@@ -13,8 +13,8 @@ inputs:
     required: true
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.1.0"
-  last_updated: "2026-06-11 18:15:00"
+  version: "1.2.0"
+  last_updated: "2026-06-11 19:00:00"
   category: media
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
@@ -58,14 +58,25 @@ prove billing — an un-billed key still passes and then 429s on the first real
 generation (that 429 means "enable billing", not "retry").
 
 If there's no key: send the user to https://aistudio.google.com/apikey,
-remind them to enable billing on the key's project, then either
-`export GEMINI_API_KEY=...` (session/profile) or store it persistently with
-`bash scripts/nb-cli-setup.sh --set-key -` (writes `~/.gemini/.env`,
-chmod 600 — the one file gemini-cli, the extension, and these scripts all
-read). **Never write a key into the skill folder** — it's a git-tracked
-directory and keys placed there end up in commits. Don't attempt generation
-before preflight passes — every failure mode after that is harder to
-diagnose.
+remind them to enable billing on the key's project, then **give them this
+exact command to run in their own terminal** (it needs hidden keyboard
+input, so the agent must not run it):
+
+```bash
+bash ~/.claude/skills/image-nanobanana/scripts/nb-cli-setup.sh --set-key -
+```
+
+It stores the key in `~/.gemini/.env` (chmod 600 — the one file gemini-cli,
+the extension, and these scripts all read), live-validates it, and does
+nothing else. **Never write a key into the skill folder** — it's a
+git-tracked directory and keys placed there end up in commits. Don't attempt
+generation before preflight passes — every failure mode after that is harder
+to diagnose.
+
+Which commands run where: the agent runs preflight and all generation
+commands itself; the **user** runs `--set-key -` (hidden input) and the full
+extension setup (Google shows interactive consent prompts) in their own
+terminal.
 
 ## Generating assets
 
@@ -90,12 +101,24 @@ python3 scripts/nb-generate.py "..." -n 3
 python3 scripts/nb-generate.py "make the background darker, keep everything else identical" \
   -i assets/icons/app-icon-20260611-173000.png
 
+# Pop the result straight into the user's image viewer
+python3 scripts/nb-generate.py "..." --open
+
 # Machine-readable result (paths, cost, model) on stdout
 python3 scripts/nb-generate.py "..." --json
 
 # Inspect the exact API payload without spending money or needing a key
 python3 scripts/nb-generate.py "..." -a 21:9 -s 2K --dry-run
 ```
+
+The script prints saved paths on stdout and a summary with clickable
+`file://` links + cost on stderr.
+
+**Always show the result, never just name a path.** After every generation:
+in a runtime that can render images inline (Claude Code: use the Read tool on
+the saved file), display the image to the user; otherwise pass `--open` to
+pop the system viewer, or give the user the clickable `file://` link the
+script printed. The user should see their image without hunting for it.
 
 Model aliases: `-m flash` → gemini-3.1-flash-image · `-m pro` →
 gemini-3-pro-image · `-m legacy` → gemini-2.5-flash-image. Aspect ratios:
@@ -117,12 +140,17 @@ right model/aspect/size per asset type.
 
 ## gemini-cli path (interactive)
 
-Set up once:
+Set up once — **in the user's terminal** (the extension install shows an
+interactive Google consent prompt; the script auto-skips it when run
+headless and prints the command for the user instead):
 
 ```bash
-bash scripts/nb-cli-setup.sh --model flash        # install extension + pin GA model
+bash scripts/nb-cli-setup.sh                      # extension + pin GA model + auth audit
 bash scripts/nb-cli-setup.sh --fix-auth           # also switch auth to gemini-api-key
 ```
+
+(`--set-key -` on its own only stores the key; add `--full` to combine key
+storage with the setup steps.)
 
 Then, inside gemini-cli or headless:
 
@@ -169,8 +197,8 @@ story"), load both references and compose one answer.
 | Script | Purpose | Notable flags |
 |---|---|---|
 | `scripts/nb-preflight.sh` | Verify binaries, key validity, model visibility, gemini-cli state | `--quiet` (JSON) |
-| `scripts/nb-generate.py` | Generate/edit via the API (the production path) | `-m -a -s -i -n -o --name --thinking-level --search-grounding --json --dry-run` |
-| `scripts/nb-cli-setup.sh` | Install/update extension, pin GA model, store key, audit auth | `--model flash\|pro --set-key KEY\|- --fix-auth --dry-run` |
+| `scripts/nb-generate.py` | Generate/edit via the API (the production path) | `-m -a -s -i -n -o --name --open --thinking-level --search-grounding --json --dry-run` |
+| `scripts/nb-cli-setup.sh` | Store+validate key (`--set-key` alone), or full extension/model/auth setup | `--set-key KEY\|- --model flash\|pro --fix-auth --full --dry-run` |
 
 ## Conduct
 
@@ -180,7 +208,9 @@ story"), load both references and compose one answer.
   from images the user didn't generate — regenerate through the API instead
   (watermarks.md explains why).
 - **Iterate via edit, not re-roll** — it's cheaper and preserves what's right.
-- **Always report saved file paths**; never leave outputs undisclosed.
+- **Show the image**: render it inline (Read tool) where the runtime
+  supports it, else use `--open` or the printed `file://` link — and always
+  report the saved path and output directory.
 - **Safety blocks**: a 200 response with no image means the prompt was
   blocked — rephrase and explain, don't retry verbatim.
 - **Text in images**: quote exact strings, switch to pro when text matters,

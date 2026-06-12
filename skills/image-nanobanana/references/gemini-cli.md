@@ -52,8 +52,16 @@ or store it persistently:
 
 ```bash
 bash scripts/nb-cli-setup.sh --set-key -    # prompts (hidden input), writes
-                                            # ~/.gemini/.env with chmod 600
+                                            # ~/.gemini/.env with chmod 600,
+                                            # live-validates the key — and
+                                            # does NOTHING else
 ```
+
+`--set-key` on its own deliberately skips the extension/model/auth steps (no
+surprise interactive prompts); add `--full` to combine them. The extension
+install itself is interactive (Google consent prompt + key wizard), so it
+belongs in the user's terminal — the script detects a non-interactive stdin
+and prints the command for the user instead of hanging.
 
 `~/.gemini/.env` is the one key location every consumer reads: gemini-cli
 loads it at startup (so the nanobanana extension inherits it), and
@@ -79,7 +87,7 @@ continues to work.
 
 ```bash
 gemini extensions install https://github.com/gemini-cli-extensions/nanobanana
-gemini extensions list            # verify
+gemini extensions list            # verify — NOTE: prints to stderr in >= 0.46
 gemini extensions update nanobanana
 ```
 
