@@ -1,0 +1,41 @@
+{
+  "skill_name": "moonpay-payments",
+  "description": "Realistic integration prompts that should trigger and exercise the moonpay-payments skill. Use with skill-evaluator / the skill-creator eval loop to benchmark with-skill vs baseline.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "onramp-nextjs-signed-buy",
+      "prompt": "I'm building a Next.js store and want customers to buy ETH with a credit card right on my checkout page using MoonPay. The destination wallet comes from their connected wallet. Wire it up so the wallet address can't be tampered with, and so I only fulfill the order once the payment is actually confirmed.",
+      "expected_output": "Uses the Widget on-ramp (@moonpay/moonpay-js or @moonpay/moonpay-react with dynamic ssr:false for Next.js), sets walletAddress, signs the URL SERVER-SIDE with the secret key via HMAC-SHA256 over new URL(url).search (generateUrlForSigning + updateSignature, or scripts/sign-url.js), and treats the Moonpay-Signature-V2 webhook (transaction_updated/completed) — not onTransactionCompleted — as the source of truth for fulfillment.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "webhook-verify-express",
+      "prompt": "Add a MoonPay webhook endpoint to my Express app that marks an order paid only when the transaction is genuinely completed, and make sure nobody can spoof a fake 'completed' event.",
+      "expected_output": "Verifies the Moonpay-Signature-V2 header (t=...,s=...) as HMAC-SHA256(webhookKey, timestamp + '.' + RAW body) using the dashboard webhook key (not sk_), captures the raw body (express.raw), de-duplicates events (they can repeat / arrive out of order), and is idempotent. Ideally uses scripts/verify-webhook.js.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "offramp-react-native-cashout",
+      "prompt": "Our React Native app needs to let users cash out their USDC to a bank account via MoonPay. Walk me through the off-ramp flow, especially the part where we actually move the crypto.",
+      "expected_output": "Uses the off-ramp Widget (flow: 'sell') via @moonpay/react-native-moonpay-sdk, explains the sell flow, and crucially that the integrator's app SENDS the crypto on-chain to MoonPay's deposit address (onInitiateDeposit handler returning { depositId }) within 48h, plus signing and the sell_transaction_* webhooks.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "platform-frames-headless-applepay",
+      "prompt": "I want a fully custom, co-branded crypto buy screen with Apple Pay using MoonPay where I control the entire UI rather than embedding their widget. What's the right approach?",
+      "expected_output": "Recommends the Platform + Frames product (@moonpay/platform-sdk-web), not the Widget: server mints a session token (POST /platform/v1/sessions with X-Api-Key), createClient({sessionToken}), connect the customer, getQuote, then setupApplePay/setupBuy (headless) with the opaque quote signature, handling challenge events via setupChallenge and CSP/domain allowlisting.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "key-and-auth-confusion",
+      "prompt": "My MoonPay API call keeps returning 401. I'm calling https://api.moonpay.com/v3/currencies/eth/buy_quote and the Get customer endpoint with the same Authorization: Bearer sk_live_... header. What's wrong?",
+      "expected_output": "Identifies the non-uniform Widget API auth: quote/currencies/limits use the publishable key as the apiKey QUERY param, while Get customer / payment-method-config use Authorization: Api-Key sk_live_... (NOT Bearer, NOT X-Api-Key). Distinguishes this from the Platform API which uses X-Api-Key.",
+      "files": []
+    }
+  ]
+}

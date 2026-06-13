@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-11 17:14:29",
-  "total_skills": 17,
+  "generated_at": "2026-06-12 23:08:05",
+  "total_skills": 18,
   "total_categories": 12,
   "categories": [
     {
@@ -57,6 +57,17 @@
       "name": "Payments & Commerce",
       "icon": "\ud83d\udcb3",
       "skills": [
+        {
+          "name": "moonpay-payments",
+          "path": "skills/moonpay-payments",
+          "description": "Build, scaffold, and integrate MoonPay crypto on-ramp (buy) and off-ramp (sell) payments into a website or app \u2014 the embeddable Widget (@moonpay/moonpay-js / -react / -node) and the headless Platform + Frames product (@moonpay/platform-sdk-web). Ships a generator (scripts/scaffold-moonpay.mjs) that emits a complete, runnable integration \u2014 server-side URL signing, the frontend widget, a verified webhook handler, env, and README \u2014 so you stand up a working on-ramp/off-ramp in one command, then customize. Use whenever the user wants to add, build, generate, or scaffold fiat\u2194crypto buy/sell, a crypto checkout or 'shopping-style' payment processor, embed a buy/sell widget, integrate MoonPay, do crypto onboarding/KYC, sign a MoonPay widget URL, verify MoonPay webhooks, or build headless/co-branded Apple Pay / Google Pay / card crypto payments \u2014 even if they only say 'MoonPay', 'on-ramp', 'off-ramp', or 'buy crypto in my app'. Also bundles tested signing + webhook scripts and source-cited references.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.1.0",
+            "last_updated": "2026-06-12 23:30:00",
+            "category": "payments"
+          }
+        },
         {
           "name": "payment-provider-oauth",
           "path": "skills/payment-provider-oauth",

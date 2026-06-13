@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_17 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-11 23:48:38._
+_18 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-12 23:08:05._
 
 ### 🧰 Skill Development
 
@@ -150,6 +150,7 @@ _17 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Las
 
 | Skill | Description |
 |---|---|
+| [`moonpay-payments`](skills/moonpay-payments/) | Build, scaffold, and integrate MoonPay crypto on-ramp (buy) and off-ramp (sell) payments into a website or app — the embeddable Widget (@moonpay/moonpay-js / -react / -node) and the headless Platfo… |
 | [`payment-provider-oauth`](skills/payment-provider-oauth/) | Build OAuth connections for payment providers (Stripe Connect, Square) in SvelteKit applications. Use when creating booking platforms, marketplaces, or applications where businesses need to connect… |
 
 ### 🎨 Frontend & UI
