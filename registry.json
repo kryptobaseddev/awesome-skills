@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-12 23:08:05",
-  "total_skills": 18,
+  "generated_at": "2026-06-15 16:58:27",
+  "total_skills": 19,
   "total_categories": 12,
   "categories": [
     {
@@ -159,6 +159,17 @@
       "name": "Communication & Email",
       "icon": "\ud83d\udce7",
       "skills": [
+        {
+          "name": "quo",
+          "path": "skills/quo",
+          "description": "Build, scaffold, and integrate Quo \u2014 formerly OpenPhone \u2014 telephony into a full-stack app: send & receive SMS/text messages, list and analyze calls (recordings, AI summaries, transcripts, voicemails), manage contacts, conversations, tasks, users, and phone numbers via the Quo REST API (https://api.quo.com/v1), plus signature-verified webhooks. Ships a one-command scaffolder that emits a runnable integration (Express + API client + send-SMS route + a signature-verifying webhook receiver), a preflight checker, a tested webhook verifier (Node + Python), and an importable client. Use whenever the user wants to add, build, or scaffold SMS/text messaging, programmatic calls, an OpenPhone or Quo integration, two-way SMS, call transcripts/summaries, contact sync, or Quo webhooks \u2014 even if they only say 'OpenPhone', 'Quo', or 'send a text from my app'. Bakes in the raw-API-key auth gotcha (no Bearer token), A2P 10DLC registration, the 202/one-recipient/E.164 send rules, and the whsec_ webhook signing scheme.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-06-15 17:30:00",
+            "category": "communication"
+          }
+        },
         {
           "name": "resend",
           "path": "skills/resend",

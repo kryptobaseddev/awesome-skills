@@ -118,9 +118,9 @@ categories:
     icon: "📧"
     slug: communication
     match:
-      keywords: [resend, sendgrid, twilio, smtp]
-      name_contains: [resend, sendgrid, twilio, slack]
-      tags: [email, notifications, communication]
+      keywords: [resend, sendgrid, twilio, smtp, openphone, voip, telephony]
+      name_contains: [resend, sendgrid, twilio, slack, quo, openphone]
+      tags: [email, notifications, communication, sms, voice, telephony]
 
   # ── 12. Code quality & refactoring ──
   - name: "Code Quality & Refactoring"

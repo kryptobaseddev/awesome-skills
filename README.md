@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_18 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-12 23:08:05._
+_19 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 16:58:27._
 
 ### 🧰 Skill Development
 
@@ -184,6 +184,7 @@ _18 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Las
 
 | Skill | Description |
 |---|---|
+| [`quo`](skills/quo/) | Build, scaffold, and integrate Quo — formerly OpenPhone — telephony into a full-stack app: send & receive SMS/text messages, list and analyze calls (recordings, AI summaries, transcripts, voicemail… |
 | [`resend`](skills/resend/) | Use when working with the Resend email API — sending transactional emails (single or batch), receiving inbound emails via webhooks, managing email templates, tracking delivery events, or setting up… |
 
 ### ✨ Code Quality & Refactoring
