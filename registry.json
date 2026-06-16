@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-15 18:27:33",
-  "total_skills": 20,
-  "total_categories": 13,
+  "generated_at": "2026-06-15 20:31:22",
+  "total_skills": 21,
+  "total_categories": 14,
   "categories": [
     {
       "slug": "skill-development",
@@ -224,6 +224,24 @@
           "path": "skills/security-review",
           "description": "Threat-model-driven security review of a change, feature, or subsystem. Runs a STRIDE-style pass (Spoofing, Tampering, Repudiation, Info disclosure, Denial of service, Elevation of privilege), examines the actual code, and produces a filing-ready report with severity, exploit scenario, and concrete remediation. Use when asked to \"security review\", \"threat model\", \"check for vulnerabilities\", \"audit this for security\", \"secure this\", or before shipping any change that touches auth, input handling, data access, or external surfaces.",
           "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "3d-modeling",
+      "name": "3D Modeling & Printing",
+      "icon": "\ud83e\uddca",
+      "skills": [
+        {
+          "name": "3d-parametric-models",
+          "path": "skills/3d-parametric-models",
+          "description": "Model parametric 3D geometry as code and edit mesh files programmatically. OpenSCAD (.scad) is the core for scripting solid models with named parameters; pair it with a Python mesh toolkit (trimesh/manifold3d) to inspect, repair, measure, scale, boolean, convert, and batch-generate STL/3MF \u2014 then optionally slice and print (Bambu Lab / OrcaSlicer). Use whenever the user wants to create, generate, design, model, script, parametrize, modify, repair, convert, or batch-produce a 3D model, part, or mesh: write or improve OpenSCAD/.scad code, turn a description into an STL or 3MF, make a part with adjustable/customizable dimensions, fix a non-watertight or non-manifold STL, scale/cut/boolean/convert an existing STL, render many variants, or design something to 3D print. Trigger even if they only say 'OpenSCAD', '.scad', 'STL', '3MF', 'edit/repair this STL', 'parametric model', 'CAD', 'make me a bracket/box/holder/knob', 'design for 3D printing', 'Bambu', 'Fusion 360', or 'Blender'. Bridges Fusion 360 and Blender.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-06-15 21:30:00",
+            "category": "3d-modeling"
+          }
         }
       ]
     },

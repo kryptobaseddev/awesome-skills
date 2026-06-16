@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_20 skills across 13 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 18:27:33._
+_21 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 20:31:22._
 
 ### 🧰 Skill Development
 
@@ -204,6 +204,12 @@ _20 skills across 13 categories — auto-generated from `skills/*/SKILL.md`. Las
 | Skill | Description |
 |---|---|
 | [`security-review`](skills/security-review/) | Threat-model-driven security review of a change, feature, or subsystem. Runs a STRIDE-style pass (Spoofing, Tampering, Repudiation, Info disclosure, Denial of service, Elevation of privilege), exam… |
+
+### 🧊 3D Modeling & Printing
+
+| Skill | Description |
+|---|---|
+| [`3d-parametric-models`](skills/3d-parametric-models/) | Model parametric 3D geometry as code and edit mesh files programmatically. OpenSCAD (.scad) is the core for scripting solid models with named parameters; pair it with a Python mesh toolkit (trimesh… |
 
 ### 🎬 Media & Content
 

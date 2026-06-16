@@ -167,6 +167,15 @@ categories:
       name_contains: [graphify, find-docs, research-]
       tags: [research, knowledge, search]
 
+  # ── 16b. 3D modeling, CAD & printing (specific: model/mesh/maker tooling) ──
+  - name: "3D Modeling & Printing"
+    icon: "🧊"
+    slug: 3d-modeling
+    match:
+      keywords: [openscad, scad, stl, 3mf, mesh, slicer, bambu, orcaslicer, fdm, additive, cad]
+      name_contains: [3d-parametric, parametric-models, 3d-printing, 3d-print, openscad, scad, cad, mesh]
+      tags: [3d-modeling, 3d-printing, cad, openscad, parametric, mesh, slicing, maker]
+
   # ── 17. Media & content ──
   - name: "Media & Content"
     icon: "🎬"
