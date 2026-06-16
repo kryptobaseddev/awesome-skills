@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-06-15 16:58:27",
-  "total_skills": 19,
-  "total_categories": 12,
+  "generated_at": "2026-06-15 18:27:33",
+  "total_skills": 20,
+  "total_categories": 13,
   "categories": [
     {
       "slug": "skill-development",
@@ -73,6 +73,24 @@
           "path": "skills/payment-provider-oauth",
           "description": "Build OAuth connections for payment providers (Stripe Connect, Square) in SvelteKit applications. Use when creating booking platforms, marketplaces, or applications where businesses need to connect their own payment accounts. Covers complete OAuth flows, database schema with Drizzle, token management, security best practices, webhook handling, and extensible provider abstraction for easily adding new providers. Integrates with Better-Auth authentication and includes token refresh strategies.",
           "metadata": {}
+        }
+      ]
+    },
+    {
+      "slug": "auth",
+      "name": "Authentication & Identity",
+      "icon": "\ud83d\udd10",
+      "skills": [
+        {
+          "name": "better-auth",
+          "path": "skills/better-auth",
+          "description": "Implement Better Auth (better-auth.com) \u2014 the framework-agnostic TypeScript authentication library \u2014 across ANY stack: Next.js, SvelteKit, Nuxt, SolidStart, Remix/React Router, Astro, TanStack Start, Express, Hono, Elysia, Fastify, or raw Node. Covers the betterAuth() server instance, database adapters (Drizzle, Prisma, Kysely/raw pg\u00b7mysql\u00b7sqlite, MongoDB), the CLI (generate/migrate), the client SDK (React, Vue, Svelte, Solid, vanilla), email/password + social/OAuth login (Google, GitHub, Apple\u2026), account linking, sessions, and plugins (2FA, magic link, email OTP, passkey, username, organization multi-tenancy, admin, API keys, JWT/bearer, RBAC via access control). Use whenever the user adds, configures, scaffolds, or debugs Better Auth, sign-in/sign-up, sessions, OAuth, 2FA, multi-tenant orgs, or role-based permissions in a TS/JS app \u2014 even if they only say 'better auth', 'add login', or 'auth'. Ships a preflight, a scaffolder, and a setup doctor.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-06-15 18:20:00",
+            "category": "auth"
+          }
         }
       ]
     },

@@ -1,0 +1,22 @@
+[
+  { "query": "i'm using better auth in my sveltekit app and the session cookie isn't sticking after sign in — users get logged out immediately. drizzle + postgres", "should_trigger": true },
+  { "query": "add email/password and google sign-in to my next.js 15 app router project with drizzle + postgres using better-auth, plus the route handler and client", "should_trigger": true },
+  { "query": "set up multi-tenant organizations in better auth with owner/admin/member roles where members can't delete projects but admins can — show the permission check", "should_trigger": true },
+  { "query": "my express api hangs and returns pending forever on every /api/auth/* request right after i added betterAuth, here's my server.ts", "should_trigger": true },
+  { "query": "how do i add TOTP two-factor auth with backup codes to better-auth on a next.js app, including the sign-in flow when 2fa is on", "should_trigger": true },
+  { "query": "i need an internal admin area to list and search users, ban abusive accounts, and impersonate a user to debug — we use better auth", "should_trigger": true },
+  { "query": "wire up better-auth on a hono backend consumed by a react native app — there's no browser so i want a bearer token in the Authorization header, not cookies", "should_trigger": true },
+  { "query": "switching my better-auth project from prisma to drizzle — do i need to regenerate the schema and what's the migrate workflow?", "should_trigger": true },
+  { "query": "deploying better auth to prod, frontend is app.acme.com and api is api.acme.com, login works locally but breaks in prod — cross subdomain cookie config?", "should_trigger": true },
+  { "query": "building a b2b saas in nuxt 3, i want self-hosted auth with username+password, organizations, and member invites — no third-party auth SaaS, sessions in my own postgres", "should_trigger": true },
+  { "query": "i want to add passkey / webauthn sign-in alongside email+password in my typescript app and let users manage their passkeys", "should_trigger": true },
+  { "query": "set up authentication in my next.js app with Clerk and protect the dashboard route", "should_trigger": false },
+  { "query": "migrate my app from NextAuth v4 to Auth.js v5, the session callback changed and my getServerSession calls broke", "should_trigger": false },
+  { "query": "how do i verify and decode a JWT issued by Auth0 in my express middleware and check the audience claim", "should_trigger": false },
+  { "query": "add login and signup with Supabase Auth in my react + vite app, including the email confirmation redirect", "should_trigger": false },
+  { "query": "i'm using Lucia for auth and want to add a forgot-password / reset-password flow with tokens", "should_trigger": false },
+  { "query": "configure Passport.js with the passport-google-oauth20 strategy in my express app and serialize the user into the session", "should_trigger": false },
+  { "query": "build me a polished sign-in form UI with tailwind and react-hook-form — just the front-end component, validation and error states, no backend", "should_trigger": false },
+  { "query": "set up Firebase Authentication phone-number sign-in with SMS OTP for my flutter mobile app", "should_trigger": false },
+  { "query": "i'm rolling my own auth from scratch — help me hash passwords with argon2id and design the sessions table myself, no auth library", "should_trigger": false }
+]

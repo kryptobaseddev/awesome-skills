@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_19 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 16:58:27._
+_20 skills across 13 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 18:27:33._
 
 ### 🧰 Skill Development
 
@@ -152,6 +152,12 @@ _19 skills across 12 categories — auto-generated from `skills/*/SKILL.md`. Las
 |---|---|
 | [`moonpay-payments`](skills/moonpay-payments/) | Build, scaffold, and integrate MoonPay crypto on-ramp (buy) and off-ramp (sell) payments into a website or app — the embeddable Widget (@moonpay/moonpay-js / -react / -node) and the headless Platfo… |
 | [`payment-provider-oauth`](skills/payment-provider-oauth/) | Build OAuth connections for payment providers (Stripe Connect, Square) in SvelteKit applications. Use when creating booking platforms, marketplaces, or applications where businesses need to connect… |
+
+### 🔐 Authentication & Identity
+
+| Skill | Description |
+|---|---|
+| [`better-auth`](skills/better-auth/) | Implement Better Auth (better-auth.com) — the framework-agnostic TypeScript authentication library — across ANY stack: Next.js, SvelteKit, Nuxt, SolidStart, Remix/React Router, Astro, TanStack Star… |
 
 ### 🎨 Frontend & UI
 

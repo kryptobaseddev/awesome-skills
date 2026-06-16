@@ -1,0 +1,76 @@
+{
+  "skill_name": "better-auth",
+  "description": "Realistic cross-stack prompts that should trigger and exercise the better-auth skill across multiple frameworks (Next.js, SvelteKit, Express, Hono, Nuxt), database adapters (Drizzle, Prisma, raw), social login, plugins (2FA, organization, admin), and the classic integration gotchas. Use with skill-evaluator / the skill-creator eval loop to benchmark with-skill vs baseline.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "nextjs-app-router-drizzle-email-password",
+      "prompt": "I'm on Next.js 15 (App Router) with Drizzle + Postgres and I want email/password auth. Set up Better Auth end to end — the server instance, the route handler, the client, and what to run to create the DB tables. My users keep getting logged out right after sign-up so I think I'm missing something.",
+      "expected_output": "Creates the betterAuth() server instance with drizzleAdapter(db, { provider: 'pg', schema }) and emailAndPassword.enabled. Mounts the catch-all route at app/api/auth/[...all]/route.ts via toNextJsHandler(auth) exporting POST and GET (auth.handler). Creates the client with createAuthClient from 'better-auth/react'. CRITICAL: adds the nextCookies() plugin as the LAST entry in the server plugins array — that's the fix for 'logged out right after sign-up' (cookies set via server actions aren't persisted without it). Runs npx @better-auth/cli@latest generate to emit the schema, then a Drizzle migrate (generate + migrate/push). Sets BETTER_AUTH_SECRET and BETTER_AUTH_URL. Imports are exact: betterAuth from 'better-auth', drizzleAdapter from 'better-auth/adapters/drizzle', toNextJsHandler/nextCookies from 'better-auth/next-js'.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "express-node-handler-ordering-gotcha",
+      "prompt": "Adding Better Auth to my existing Express API. I mounted it but every auth request hangs or returns weird empty bodies. Here's my server — app.use(express.json()) is near the top, then I add the auth routes after.",
+      "expected_output": "Identifies the root cause: the Better Auth handler must be mounted with toNodeHandler(auth) from 'better-auth/node' on app.all('/api/auth/*splat', ...) BEFORE express.json() — because express.json() consumes the request body stream that Better Auth needs to read itself. Fix: move the auth.all(...) mount above express.json(), or scope express.json() so it doesn't run on /api/auth. Shows getting a session server-side via auth.api.getSession({ headers: fromNodeHeaders(req.headers) }). Notes the Express v5 wildcard syntax '*splat' (vs v4 '*'). Mentions trustedOrigins for the SPA origin.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "sveltekit-hooks-cookies",
+      "prompt": "set up better auth in my sveltekit app, email + password, and protect /dashboard so only signed-in users see it",
+      "expected_output": "Server instance with sveltekitCookies(getRequestEvent) plugin. Mounts svelteKitHandler from 'better-auth/svelte-kit' in src/hooks.server.ts, populating event.locals.session/user from auth.api.getSession({ headers: event.request.headers }). Client via createAuthClient from 'better-auth/svelte'. Protects /dashboard in +page.server.ts (or +layout.server.ts) by redirecting when locals.session is null. app.d.ts types Locals. Uses the $session store / useSession on the client for reactive UI.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "add-google-github-social-account-linking",
+      "prompt": "I already have Better Auth working with email/password. Now I want to let people sign in with Google and GitHub too, and if someone signed up with email and later uses Google with the same address, link the accounts instead of erroring.",
+      "expected_output": "Adds socialProviders: { google: { clientId, clientSecret }, github: { clientId, clientSecret } } to the server config, reading creds from env. Client uses authClient.signIn.social({ provider: 'google', callbackURL }). Callback/redirect URL convention is /api/auth/callback/:provider (must be registered in each provider console). For linking: enables account.accountLinking.enabled = true and lists google/github in trustedProviders (and notes allowDifferentEmails defaults to false so same-email auto-links). Notes no schema change needed (account table already exists), and that getAccessToken can retrieve the provider token.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "add-two-factor-2fa",
+      "prompt": "Add two-factor authentication (TOTP authenticator app + backup codes) to my Better Auth setup. Next.js. Walk me through enabling it and the sign-in flow when 2FA is on.",
+      "expected_output": "Adds twoFactor() from 'better-auth/plugins' to the server plugins and twoFactorClient() from 'better-auth/client/plugins' to the client (with a redirect/onTwoFactorRedirect for the verify page). Notes 2FA adds DB tables, so re-run npx @better-auth/cli@latest generate + migrate. Enable flow: authClient.twoFactor.enable({ password }) returns a TOTP URI + backup codes; verify with twoFactor.verifyTotp. Sign-in flow: signIn.email returns twoFactorRedirect / a flag when 2FA is required, then authClient.twoFactor.verifyTotp({ code }) completes it. Mentions issuer/period config and backup codes.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "multitenant-organization-rbac",
+      "prompt": "Building a B2B SaaS. Users belong to organizations, and within an org I need owner/admin/member roles where only owner+admin can invite people and delete projects, but members can only read. Set this up with Better Auth and show how to check a permission before a destructive action.",
+      "expected_output": "Uses the organization() server plugin + organizationClient(). Defines permissions with createAccessControl({ statements }) where statements include a custom resource like project: ['create','read','delete'], then builds roles (owner, admin, member) via ac.newRole({...}) and passes { ac, roles } into BOTH the server organization plugin and the client organizationClient. Shows org.create, org.inviteMember/inviteMember, setActive, and activeOrganizationId on the session. Gates the destructive action with organization.hasPermission / checkRolePermission ({ permissions: { project: ['delete'] } }) — denying members. Notes invitation email via sendInvitationEmail and that org plugin adds organization/member/invitation tables (regen schema).",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "admin-panel-ban-impersonate",
+      "prompt": "I need an admin area where staff can list all users, search them, ban abusive ones, and impersonate a user to debug their account. How do I do this safely with Better Auth?",
+      "expected_output": "Adds admin() server plugin (defaultRole 'user', adminRoles ['admin']) + adminClient(). Server-side guards admin routes by checking the user's role / auth.api.userHasPermission before rendering. Uses admin.listUsers({ query: { searchValue, limit, offset } }), admin.banUser({ userId, banReason, banExpiresIn }), admin.impersonateUser({ userId }) and admin.stopImpersonating(). Notes the admin plugin adds role/banned/banExpires columns to user and impersonatedBy to session (regen schema), that impersonation sessions are time-bounded, and that listUsers/ban must be authorized server-side (never trust the client). May define fine-grained admin permissions via createAccessControl.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "hono-api-bearer-jwt-mobile",
+      "prompt": "My backend is a Hono API consumed by a React Native app — there's no browser, so cookies are awkward. How do I use Better Auth so the mobile app authenticates with a token in the Authorization header instead of session cookies?",
+      "expected_output": "Mounts Better Auth on Hono (app.on(['POST','GET'], '/api/auth/*', (c) => auth.handler(c.req.raw))) and sets up CORS with credentials. For token auth: adds the bearer() plugin (server) so the session token can be sent as Authorization: Bearer <token> instead of a cookie, and/or the jwt() plugin to issue verifiable JWTs (with /api/auth/token + JWKS endpoint) for the mobile client. Explains storing the returned token from the set-auth-token header on sign-in, sending it on subsequent requests, and validating via auth.api.getSession. Notes disabling/relaxing cookie reliance and using trustedOrigins.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "production-hardening-cross-subdomain",
+      "prompt": "Getting ready to deploy Better Auth to production. App is on app.example.com and the API is on api.example.com. Sessions work locally but break in prod. What do I need to lock down and configure for cross-subdomain cookies?",
+      "expected_output": "Production checklist: set a strong BETTER_AUTH_SECRET and the correct BETTER_AUTH_URL/baseURL (https), enable advanced.useSecureCookies (or rely on HTTPS), and add every browser origin to trustedOrigins. For cross-subdomain: advanced.crossSubDomainCookies.enabled = true with domain '.example.com', and defaultCookieAttributes { sameSite: 'none', secure: true, partitioned: true } when the front-end and API are on different sites. Recommends DB connection pooling, rate limiting (rateLimit with customRules on sign-in/sign-up), and a Redis secondaryStorage for sessions at scale. Identifies the local-vs-prod break as cookie domain / sameSite / secure misconfig.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "nuxt-prisma-from-scratch",
+      "prompt": "fresh nuxt 3 project, want auth with better-auth using prisma (postgres). just username+password to start. what files do i create?",
+      "expected_output": "Server instance in a shared lib using prismaAdapter(prisma, { provider: 'postgresql' }) from 'better-auth/adapters/prisma' with emailAndPassword (and optionally the username() plugin for username login). Catch-all Nitro route at server/api/auth/[...all].ts delegating to auth.handler(toWebRequest(event)). Client via createAuthClient from 'better-auth/vue', used in a composable. Adds the Better Auth models to schema.prisma (or runs the CLI generate for Prisma), then prisma migrate. Sets env (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL). Notes runtimeConfig for the base URL.",
+      "files": []
+    }
+  ]
+}
