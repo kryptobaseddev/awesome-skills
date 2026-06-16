@@ -1,0 +1,68 @@
+{
+  "skill_name": "3d-parametric-models",
+  "description": "Realistic prompts a user would type that should exercise the 3d-parametric-models skill end-to-end: author/modify/refactor parametric OpenSCAD, render to STL/3MF, validate and edit meshes, batch variants, repair downloaded files, convert formats, and (when wanted) design for a Bambu Lab printer. Assertions are objectively checkable from the produced files + transcript.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "parametric-phone-stand-bambu",
+      "prompt": "I want to 3D print an adjustable phone stand on my Bambu Lab A1. Can you design one where I can change the lean angle and the phone thickness it holds? I'd like an STL and a 3MF to drop into Bambu Studio.",
+      "expected_output": "A parametric OpenSCAD (.scad) file with named, Customizer-annotated parameters including at least an angle and a phone-thickness parameter; rendered to a watertight binary STL and a 3MF; mm units; the part sits on the build plate. The agent should validate the mesh (watertight/manifold) and note Bambu/PLA-friendly design choices.",
+      "files": [],
+      "assertions": [
+        {"text": "Produces a .scad file whose top-level parameters include an adjustable lean angle and a phone-thickness/slot-width parameter", "kind": "llm"},
+        {"text": "Produces a renderable STL or 3MF that is watertight and 2-manifold (mesh_tool.py info reports PRINTABLE)", "kind": "script"},
+        {"text": "The model is authored in millimeters and rests on the build plate (min z ~= 0)", "kind": "script"},
+        {"text": "Mentions designing within FDM constraints (e.g. overhang/support or wall-thickness consideration) appropriate for a Bambu A1", "kind": "llm"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "repair-and-measure-downloaded-stl",
+      "prompt": "I downloaded a model from Printables but OrcaSlicer keeps saying the mesh has errors / isn't watertight when I import it. Can you check what's wrong, fix it, and tell me how big it actually is and roughly how much filament it'll use?",
+      "expected_output": "Uses the mesh toolkit to diagnose (watertight/manifold), repair to a watertight+manifold mesh, report bounding-box dimensions in mm and volume, and give a filament/material estimate. Recommends regenerating from source when possible.",
+      "files": ["broken.stl"],
+      "assertions": [
+        {"text": "Reports whether the input is watertight/manifold before repair", "kind": "script"},
+        {"text": "Produces a repaired output mesh that is watertight and 2-manifold", "kind": "script"},
+        {"text": "Reports bounding-box dimensions in millimeters and an estimated volume", "kind": "script"},
+        {"text": "Uses the bundled mesh_tool.py (trimesh/manifold3d) rather than reinventing mesh repair from scratch", "kind": "llm"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "batch-size-variants",
+      "prompt": "Here's my cable-clip OpenSCAD file. I need it in three cable diameters (4mm, 6mm, 8mm) as three separate STLs I can print in one batch. Can you generate them?",
+      "expected_output": "Lists the file's parameters, then batch-renders one STL per cable diameter (3 files) using parameter overrides, without hand-editing the .scad three times. Each output is a valid watertight STL.",
+      "files": ["cable-clip.scad"],
+      "assertions": [
+        {"text": "Generates exactly three distinct STL files, one per requested cable diameter", "kind": "script"},
+        {"text": "Drives the variants via parameter override (scad_params.py batch or openscad -D), not by manually editing the source three times", "kind": "llm"},
+        {"text": "Each produced STL is watertight and 2-manifold", "kind": "script"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "improve-hardcoded-scad",
+      "prompt": "This OpenSCAD box I wrote has all the dimensions hardcoded and the lid never fits right on my printer. Can you make it properly parametric and fix the fit?",
+      "expected_output": "Refactors the .scad: hoists magic numbers into named, Customizer-annotated top-level parameters, introduces a single clearance variable that drives the lid fit, adds eps to boolean cuts, and explains that fit clearance is printer-specific (suggest printing a tolerance test). Re-renders and confirms it still validates.",
+      "files": ["box-hardcoded.scad"],
+      "assertions": [
+        {"text": "Replaces hardcoded dimensions with named top-level parameters (Customizer-annotated)", "kind": "llm"},
+        {"text": "Introduces a single clearance/tolerance parameter that controls the lid fit", "kind": "llm"},
+        {"text": "Explains that fit clearance is printer-dependent and suggests a tolerance test (gives concrete starting values like ~0.1/0.2/0.3 mm)", "kind": "llm"},
+        {"text": "Refactored file still renders to a watertight, manifold mesh", "kind": "script"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "convert-stl-to-3mf-for-bambu",
+      "prompt": "My slicer is Bambu Studio. I've got a part.stl — should I be using STL at all, and can you give me whatever format is best for multicolor on my AMS?",
+      "expected_output": "Explains STL vs 3MF (3MF carries mm units, color, materials; required for AMS multicolor), converts part.stl to part.3mf preserving units, and notes the AMS/3MF requirement for multicolor.",
+      "files": ["part.stl"],
+      "assertions": [
+        {"text": "Recommends 3MF over STL for Bambu Studio and explains why (units/color/materials, AMS multicolor requires 3MF)", "kind": "llm"},
+        {"text": "Produces a valid part.3mf converted from the STL", "kind": "script"}
+      ]
+    }
+  ]
+}

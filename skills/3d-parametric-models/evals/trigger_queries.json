@@ -1,0 +1,19 @@
+[
+  {"query": "i want to design a little wall bracket to hold my router and print it on my bambu a1 — can you make the screw hole spacing adjustable?", "should_trigger": true},
+  {"query": "write me an openscad file for a box with a lid that snaps on, parametric so I can resize it", "should_trigger": true},
+  {"query": "I grabbed an STL off printables but orcaslicer keeps saying the mesh isn't watertight when I import it. can you fix it and tell me how tall it is?", "should_trigger": true},
+  {"query": "generate a cable clip in 4mm, 6mm and 8mm versions as three separate stl files i can batch print", "should_trigger": true},
+  {"query": "convert this part.stl to 3mf so I can print it in two colors on my AMS in bambu studio", "should_trigger": true},
+  {"query": "my .scad model has all the dimensions hardcoded and the lid is always too tight — make it properly parametric and fix the fit", "should_trigger": true},
+  {"query": "design an M3 hex standoff to 3d print, with a clearance hole for a heat-set insert", "should_trigger": true},
+  {"query": "I do all my CAD in Fusion 360 but want to move to a code-based parametric workflow for printable parts — where do I start and how do User Parameters map over?", "should_trigger": true},
+
+  {"query": "my three.js scene loads a gltf model but it shows up all black in the browser, can you debug the material/lighting", "should_trigger": false},
+  {"query": "render this blender scene to a 4k animation with cycles and add motion blur", "should_trigger": false},
+  {"query": "set up a github actions pipeline that builds and pushes my docker image on every tag", "should_trigger": false},
+  {"query": "my prusa mk4 won't level the bed properly and the first layer keeps failing — what hardware should I check?", "should_trigger": false},
+  {"query": "design a postgres database schema for a marketplace that sells 3d models", "should_trigger": false},
+  {"query": "where's the cheapest place to buy PLA filament in bulk in the EU?", "should_trigger": false},
+  {"query": "i need a logo for my 3d printing youtube channel, something with a printer icon, make me an image", "should_trigger": false},
+  {"query": "explain how FDM 3d printers actually work for a slide in my middle-school science class", "should_trigger": false}
+]

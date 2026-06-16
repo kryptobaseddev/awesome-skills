@@ -1,0 +1,32 @@
+# Makefile for __NAME__ — a parametric OpenSCAD part.
+# `make` builds the default STL; see targets below. Override the binary with
+# `make OPENSCAD=/path/to/openscad` or set $OPENSCAD in your environment.
+
+OPENSCAD ?= openscad
+SCAD      = __NAME__.scad
+STL_FMT   = binstl            # binstl (small) or asciistl
+BACKEND   = $(shell $(OPENSCAD) --help 2>&1 | grep -q -- '--backend' && echo --backend=manifold)
+
+.PHONY: all stl 3mf png variants clean
+all: stl
+
+stl: __NAME__.stl
+__NAME__.stl: $(SCAD)
+	$(OPENSCAD) $(BACKEND) --export-format $(STL_FMT) -o $@ $(SCAD)
+
+3mf: __NAME__.3mf
+__NAME__.3mf: $(SCAD)
+	$(OPENSCAD) $(BACKEND) -o $@ $(SCAD)
+
+# Headless PNG preview (needs an OpenGL context; on a server: `xvfb-run -a make png`)
+png: __NAME__.png
+__NAME__.png: $(SCAD)
+	$(OPENSCAD) --render --viewall --autocenter --imgsize 1200,900 -o $@ $(SCAD)
+
+# Render every variant defined in variants.json
+variants: $(SCAD) variants.json
+	python3 scad_params.py batch $(SCAD) variants.json -d build
+
+clean:
+	rm -f __NAME__.stl __NAME__.3mf __NAME__.png
+	rm -rf build
