@@ -1,0 +1,48 @@
+{
+  "skill_name": "neon",
+  "description": "Realistic prompts that should trigger and exercise the neon skill, weighted toward the neonctl-to-neon migration and the 4.x-only surfaces. Use with skill-evaluator or the skill-creator eval loop to benchmark with-skill vs baseline.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "ci-neonctl-command-not-found",
+      "prompt": "Our GitHub Actions workflow started failing this morning with `neonctl: command not found`. The job does `npm install -g neonctl` and then a few `neonctl branches create` / `neonctl connection-string` calls against a project id we pass in. Nothing in the workflow changed. What happened and what's the smallest correct fix to the yaml?",
+      "expected_output": "Identifies the neonctl->neon rename: the CLI is now invoked as `neon`, published as the `neon` package, with `neonctl` still published as a compatibility alias package that installs BOTH bins. Gives a concrete fix (either `npm install -g neon@latest` + rename invocations, or `npm install -g neonctl@latest` to keep the old name working). Flags the Node 20.19.0+ floor for install/upgrade as a likely cause of a runner-side failure. Does not claim the neonctl npm package is deprecated or removed.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "bin-symlink-trap",
+      "prompt": "I tried to clean up my machine: `npm i -g neon@latest` then `npm uninstall -g neonctl`. Now `neon --version` says command not found, but `npm ls -g` still lists neon@4.18.1. What did I do and how do I fix it?",
+      "expected_output": "Explains that the neonctl package declares both `neon` and `neonctl` binaries, so uninstalling it removes the `neon` symlink too even though the neon package remains installed. Fix is `npm i -g neon@latest` to restore the bin link. Notes no data or credentials are lost, and that ordering the steps the other way (uninstall first, then install) avoids the gap.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "ephemeral-ci-branch",
+      "prompt": "I want a throwaway Postgres per pull request on Neon: branch off main with the schema only (no prod data), run vitest against a pooled connection string, then delete the branch. Give me the GitHub Actions steps.",
+      "expected_output": "Uses `neon branches create --schema-only`, captures the connection string with `--output json` piped through jq rather than parsing table output, uses `--pooled` for the test connection, and deletes the branch in a cleanup step that runs on failure too (if: always()) or sets --expires-at. Authenticates via NEON_API_KEY from secrets. Installs the CLI with `npm i -g neon@latest`.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "rewind-staging-keep-current",
+      "prompt": "Someone ran a bad migration against our staging branch on Neon about 3 hours ago. I want to rewind staging to before that, but I do NOT want to lose the current state — we may need to inspect what the migration did.",
+      "expected_output": "Uses `neon branches restore staging ^self@<rfc3339 timestamp>` with `--preserve-under-name` to keep the pre-restore state as a separate branch (and notes ^self restores require it). Explains the ^self / ^parent / <branch> source syntax and the history-window constraint. May mention snapshots as the better primitive going forward, and treats restoring a shared branch as something to confirm before running.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "stale-2x-unknown-command",
+      "prompt": "`neon snapshots create --branch main` tells me unknown command, but it's right there in the docs. `neon --version` prints 2.21.2.",
+      "expected_output": "Recognizes 2.x as the legacy neonctl line answering to the `neon` name, and that snapshots (plus functions, buckets, data-api, inspect, logs, env, link, checkout, profile) do not exist there. Prescribes the upgrade, checks the Node 20.19.0 floor first, and notes that credentials in ~/.config/neonctl survive the upgrade so no re-login is needed. May point at scripts/neon-preflight.sh.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "slow-db-inspection",
+      "prompt": "Our Neon Postgres has gotten noticeably slower over the past week. I'd rather not open psql and paste pg_catalog queries — is there something in the CLI that will tell me what's going on?",
+      "expected_output": "Points at `neon inspect db <query>` as read-only and safe on production, and picks relevant queries with a triage order: stalled-queries/locks for the live picture, outliers/calls/seq-scans for chronic cost, bloat/vacuum-stats/unused-indexes for maintenance debt. Notes that the pg_stat_statements-backed queries return nothing useful until that extension is enabled.",
+      "files": []
+    }
+  ]
+}

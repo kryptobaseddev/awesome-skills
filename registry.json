@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-15 20:31:22",
-  "total_skills": 21,
+  "generated_at": "2026-09-16 11:43:05",
+  "total_skills": 22,
   "total_categories": 14,
   "categories": [
     {
@@ -165,10 +165,31 @@
           "metadata": {}
         },
         {
+          "name": "neon",
+          "path": "skills/neon",
+          "description": "Neon CLI (`neon`, formerly `neonctl`) for Lakebase Postgres \u2014 projects, branches, databases, roles, connection strings, snapshots, Functions, object-storage buckets, the Data API, Managed Better Auth, logs, and Postgres health inspection. Use when the user manages Neon from the terminal or CI: creating projects or ephemeral branches, getting a DATABASE_URL, resetting/restoring/schema-diffing branches, pulling env vars, deploying Functions, taking snapshots, setting IP allowlists or VPC restrictions, or wiring Neon into an AI coding agent. ALSO use for the neonctl-to-neon rename: migrating scripts and CI off `neonctl`, 'neonctl command not found', 'is neonctl deprecated', npm i -g neon, or `set-context` now being deprecated in favor of `neon link`. Triggers on: 'neon cli', 'neonctl', 'neon branches', 'neon connection-string', 'neon link', 'neon env pull', 'neon snapshots', 'neon functions', 'neon inspect', 'NEON_API_KEY', 'neon login', 'serverless postgres cli', 'ephemeral database branch in CI'.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "2.0.0",
+            "last_updated": "2026-09-16 12:05:00",
+            "category": "databases",
+            "tags": "neon, postgres, cli, serverless, database-branching",
+            "related": "drizzle-orm",
+            "docs": "https://neon.com/docs/cli"
+          }
+        },
+        {
           "name": "neonctl",
           "path": "skills/neonctl",
-          "description": "Comprehensive Neon CLI (neonctl) management for serverless Postgres. Use when managing Neon projects, branches, databases, roles, connection strings, IP allowlists, operations, or authentication via the neonctl command-line tool. Triggers on: 'neonctl', 'neon cli', 'neon projects', 'neon branches', 'neon databases', 'neon roles', 'neon connection-string', 'neon set-context', 'neon ip-allow', 'neon operations', 'neon auth', 'neon schema-diff', 'neon branch reset', 'neon branch restore', 'NEON_API_KEY', 'neon completion', 'neon init', 'manage neon', 'neon setup', 'neonctl install'.",
-          "metadata": {}
+          "description": "DEPRECATED POINTER \u2014 this skill was renamed to `neon` when the Neon CLI itself was renamed from `neonctl` to `neon`. It exists only so existing installs receive the rename notice on their next update. Do not use it for real work: install and use the `neon` skill instead, which covers the current 4.x CLI (projects, branches, snapshots, Functions, buckets, Data API, inspect) plus the full neonctl-to-neon migration guide. If this skill triggers on a Neon or neonctl question, read the `neon` skill and answer from there.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "2.0.0",
+            "last_updated": "2026-09-16 12:20:00",
+            "category": "databases",
+            "tags": "neon, postgres, cli, deprecated, moved",
+            "superseded_by": "neon"
+          }
         }
       ]
     },

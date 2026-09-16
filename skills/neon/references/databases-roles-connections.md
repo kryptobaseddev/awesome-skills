@@ -10,6 +10,8 @@
   - [list](#roles-list)
   - [delete](#roles-delete)
 - [Connection String](#connection-string)
+- [psql](#psql)
+- [Environment variables (`env pull`)](#environment-variables-env-pull)
 
 ---
 
@@ -88,6 +90,7 @@ Branch defaults to the project's primary branch.
 | `--endpoint-type` | string | Compute type (default: `read_write`) |
 | `--extended` | boolean | Show extended connection details |
 | `--psql` | boolean | Launch psql directly (requires psql installed) |
+| `--ssl` | string | SSL mode: `require`, `verify-ca`, `verify-full`, `omit` |
 
 ### Examples
 
@@ -115,4 +118,49 @@ neon connection-string --psql -- -f schema.sql
 
 # JSON output for scripting
 neon connection-string --pooled -o json | jq -r '.connection_string'
+```
+
+---
+
+## psql
+
+```bash
+neon psql [branch] [options]
+```
+
+Opens an interactive `psql` session against a branch, resolving the connection string for you. It needs `psql` on PATH. Arguments after `--` are passed through:
+
+```bash
+neon psql                                  # context branch
+neon psql dev -- -c "SELECT version()"     # one-off query
+neon psql -- -f migrations/001.sql          # run a file
+```
+
+`neon connection-string --psql` does the same thing from the other direction; use whichever reads better in context.
+
+---
+
+## Environment variables (`env pull`)
+
+`neon env pull` writes a branch's Neon-managed variables into a local dotenv file. `neon link` and `neon checkout` run it automatically unless you pass `--no-env-pull`.
+
+```bash
+neon env pull [--file <path>] [--branch <id|name>] [--service <name>...] [--config <neon.ts>]
+```
+
+| Option | Description |
+|---|---|
+| `--file` | Target file. Defaults to an existing `.env`, otherwise `.env.local` |
+| `--branch` | Branch to pull from (defaults to context branch) |
+| `--service` | Limit to `postgres`, `auth`, `data-api`, `functions`, `object-storage`, `ai-gateway` — repeatable or comma-separated |
+| `--config` | Path to a `neon.ts` policy (defaults to walking up from cwd) |
+
+Without a `neon.ts` it writes `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, and `NEON_BRANCH`. With one, it also writes credentials for every declared service, plus `NEON_FUNCTION_<SLUG>_BASE_URL` for declared functions — derived from the branch, so the URL exists before the function is deployed.
+
+Two properties make this safe to run against a real `.env`: only Neon-managed keys are rewritten, and unrelated lines are preserved. Unset function env values are skipped rather than failing the pull — but `neon deploy`, `neon dev`, and `neon-env run` do require every declared value, so a pull that looks clean can still be followed by a deploy that complains.
+
+```bash
+neon env pull                          # everything the branch exposes
+neon env pull --service postgres       # just the database URLs
+neon env pull --file .env.development  # explicit target
 ```

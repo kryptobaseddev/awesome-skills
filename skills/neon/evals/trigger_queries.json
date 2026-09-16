@@ -1,0 +1,22 @@
+[
+  { "query": "our github actions deploy broke this morning with `neonctl: command not found` — it worked friday. the workflow does `npm install -g neonctl` then `neonctl branches create`. what changed and what's the minimal fix?", "should_trigger": true },
+  { "query": "i ran npm uninstall -g neonctl to clean up and now `neon` is gone too?? npm ls -g still shows neon@4.18.1 installed. did i break something", "should_trigger": true },
+  { "query": "is neonctl deprecated? we have about 40 shell scripts calling it and i need to tell my team whether we have to rewrite them all this quarter or if we can punt", "should_trigger": true },
+  { "query": "need an ephemeral postgres per PR for our test suite — spin up a branch from main with just the schema, hand the pooled connection string to vitest, tear it down after. we're on neon. show me the workflow yaml", "should_trigger": true },
+  { "query": "how do i get a DATABASE_URL for my neon dev branch into a local .env without copy-pasting it out of the console every time", "should_trigger": true },
+  { "query": "someone on the team ran a bad migration against our staging branch on neon about 3 hours ago. i want to rewind it but NOT lose the current state in case we need to look at it", "should_trigger": true },
+  { "query": "neon snapshots create says unknown command but its right there in the docs. neon --version prints 2.21.2", "should_trigger": true },
+  { "query": "what's the difference between neon link and set-context, the docs say set-context is deprecated but our repo uses it everywhere", "should_trigger": true },
+  { "query": "my neon postgres got slow over the last week. want to check for unused indexes and table bloat from the terminal without opening a psql session and pasting pg_catalog queries", "should_trigger": true },
+  { "query": "set up neon in this repo for claude code — mcp server, the agent skills, link the project, the whole thing", "should_trigger": true },
+  { "query": "i'm using drizzle with a neon database and my defineRelations call is throwing a type error on the many() side. schema is in src/db/schema.ts", "should_trigger": false },
+  { "query": "write a sql migration to add a composite index on (tenant_id, created_at) to the orders table and backfill the tenant_id column from the legacy accounts table", "should_trigger": false },
+  { "query": "our neon database connection keeps dropping in the vercel edge runtime, getting 'too many connections'. using @neondatabase/serverless in an api route", "should_trigger": false },
+  { "query": "compare neon vs supabase vs planetscale for a b2b saas with maybe 200 tenants, we care most about per-tenant isolation and cost predictability", "should_trigger": false },
+  { "query": "explain how postgres MVCC works and why autovacuum exists, i keep hearing about dead tuples and i don't really get it", "should_trigger": false },
+  { "query": "railway deploy is failing on the build step, it can't find the prisma client. node 20, monorepo with pnpm workspaces", "should_trigger": false },
+  { "query": "i need to install the better auth organization plugin and set up owner/admin/member roles with permission checks on the server side", "should_trigger": false },
+  { "query": "write a bash script that pg_dumps a database nightly, gzips it, uploads to s3 with the aws cli, and keeps the last 14 days", "should_trigger": false },
+  { "query": "what does `npm uninstall -g` actually do to symlinks in the global bin directory? trying to understand npm's link handling in general", "should_trigger": false },
+  { "query": "our neon bill jumped 3x last month and i can't tell why from the invoice. where do i even start looking", "should_trigger": true }
+]

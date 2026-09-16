@@ -1,156 +1,49 @@
 ---
 name: neonctl
-description: "Comprehensive Neon CLI (neonctl) management for serverless Postgres. Use when managing Neon projects, branches, databases, roles, connection strings, IP allowlists, operations, or authentication via the neonctl command-line tool. Triggers on: 'neonctl', 'neon cli', 'neon projects', 'neon branches', 'neon databases', 'neon roles', 'neon connection-string', 'neon set-context', 'neon ip-allow', 'neon operations', 'neon auth', 'neon schema-diff', 'neon branch reset', 'neon branch restore', 'NEON_API_KEY', 'neon completion', 'neon init', 'manage neon', 'neon setup', 'neonctl install'."
+description: "DEPRECATED POINTER — this skill was renamed to `neon` when the Neon CLI itself was renamed from `neonctl` to `neon`. It exists only so existing installs receive the rename notice on their next update. Do not use it for real work: install and use the `neon` skill instead, which covers the current 4.x CLI (projects, branches, snapshots, Functions, buckets, Data API, inspect) plus the full neonctl-to-neon migration guide. If this skill triggers on a Neon or neonctl question, read the `neon` skill and answer from there."
+license: MIT
+metadata:
+  author: kryptobaseddev
+  version: "2.0.0"
+  last_updated: "2026-09-16 12:20:00"
+  category: databases
+  tags: neon, postgres, cli, deprecated, moved
+  superseded_by: neon
 ---
 
-# Neonctl CLI
+# `neonctl` → `neon` (this skill moved)
 
-Neon CLI for managing serverless Postgres projects, branches, databases, roles, and compute.
+**This skill is a tombstone.** Its content now lives in the [`neon`](../neon/) skill, because the CLI it
+documents was renamed: `neonctl` is now invoked as `neon`.
 
-## Installation
+## What to do
 
-```bash
-# npm (requires Node.js 18+)
-npm i -g neonctl
-
-# Homebrew (macOS)
-brew install neonctl
-
-# bun
-bun install -g neonctl
-
-# Without installing
-npx neonctl <command>
-bunx neonctl <command>
-```
-
-Enable shell completions:
+Install the replacement and remove this one:
 
 ```bash
-# bash
-neon completion >> ~/.bashrc && source ~/.bashrc
-# zsh
-neon completion >> ~/.zshrc && source ~/.zshrc
+# symlink install (pulls future updates from git)
+ln -sfn /path/to/awesome-skills/skills/neon ~/.claude/skills/neon
+rm -rf ~/.claude/skills/neonctl
+
+# or, with the skills installer
+npx skills add neon
+npx skills remove neonctl
 ```
 
-## Authentication
+Then answer the user's question from the `neon` skill, which covers the current 4.x command surface and a
+dedicated migration reference at `references/migration-from-neonctl.md`.
 
-Priority order:
-1. `--api-key <key>` flag (highest)
-2. `NEON_API_KEY` environment variable
-3. `~/.config/neonctl/credentials.json` (created by `neon auth`)
-4. Browser-based login (fallback)
+## Why the rename, in one paragraph
 
-```bash
-# Interactive browser login
-neon auth
+Neon renamed the CLI to `neon` and moved it to the `neondatabase/neon-pkgs` repo. The old `neonctl` npm
+package is **not** deprecated — it is published in lockstep as a compatibility alias that installs both the
+`neon` and `neonctl` binaries, while the `neon` package installs only `neon`. The old 2.x line continues as
+4.x under both names, so there is no 3.x to step through, and installing or upgrading now requires Node
+20.19.0+. Credentials are unaffected: the 4.x CLI still reads `~/.config/neonctl/credentials.json`, so an
+upgrade does not log you out.
 
-# API key via env var (CI/CD preferred)
-export NEON_API_KEY=your_api_key_here
+The one trap worth repeating here, because it strands people mid-migration: the `neonctl` package declares
+**both** binaries, so `npm uninstall -g neonctl` removes the `neon` symlink too, even when the `neon`
+package is still installed. Reinstall with `npm i -g neon@latest` to restore it.
 
-# Per-command API key
-neon projects list --api-key your_api_key_here
-```
-
-## Global Options
-
-```
--o, --output [json|yaml|table]   Output format (default: table)
---api-key <key>                  API key override
---config-dir <path>              Config dir (default: ~/.config/neonctl)
---context-file <path>            Context file path
---color / --no-color             Color output (default: enabled)
---analytics / --no-analytics     Usage analytics (default: enabled)
--v, --version                    Show version
--h, --help                       Show help
-```
-
-**Tip:** `table` output truncates data. Use `--output json` for complete output.
-
-## Context (Avoid Repeating Project ID)
-
-```bash
-# Set default project context (creates .neon file)
-neon set-context --project-id <id>
-
-# Set project + org context
-neon set-context --project-id <id> --org-id <org-id>
-
-# Set context during project creation
-neon projects create --name myapp --set-context
-
-# Custom context file
-neon set-context --project-id <id> --context-file ./my-context
-neon branches list --context-file ./my-context
-
-# Clear context
-neon set-context   # or: rm .neon
-```
-
-The CLI searches up the directory tree for `.neon`, `package.json`, or `.git` to find context.
-
-## Command Quick Reference
-
-| Command | Purpose |
-|---------|---------|
-| `projects` | Create, list, update, delete, recover, get projects |
-| `branches` | Create, list, delete, rename, reset, restore, schema-diff, set-default, add-compute, get branches |
-| `databases` | Create, list, delete databases |
-| `roles` | Create, list, delete roles |
-| `connection-string` | Get connection strings (pooled, Prisma, psql) |
-| `ip-allow` | Manage IP allowlists (list, add, remove, reset) |
-| `operations` | List project operations |
-| `orgs` | List organizations |
-| `me` | Show current user info |
-
-## Detailed Command References
-
-For full syntax, flags, and examples for each command group:
-
-- **Projects & Branches**: See [references/projects-branches.md](references/projects-branches.md)
-- **Databases, Roles & Connections**: See [references/databases-roles-connections.md](references/databases-roles-connections.md)
-- **Security & Operations**: See [references/security-operations.md](references/security-operations.md)
-
-## Common Workflows
-
-### New project setup
-```bash
-neon projects create --name myapp --region-id aws-us-east-2 --set-context
-neon connection-string --pooled
-```
-
-### Feature branch workflow
-```bash
-neon branches create --name feature/auth --parent main --cu 0.5-2
-neon connection-string feature/auth --pooled --prisma
-# ... develop ...
-neon branches schema-diff main feature/auth --database mydb
-neon branches delete feature/auth
-```
-
-### Reset dev branch to match parent
-```bash
-neon branches reset dev --parent
-# Keep backup before reset
-neon branches reset dev --parent --preserve-under-name dev-backup
-```
-
-### Point-in-time restore
-```bash
-neon branches restore main ^self@2024-06-01T12:00:00Z --preserve-under-name main-backup
-```
-
-### CI/CD ephemeral branches
-```bash
-export NEON_API_KEY=${{ secrets.NEON_API_KEY }}
-BRANCH="ci-${GITHUB_SHA:0:8}"
-neon branches create --name "$BRANCH" --project-id $PROJECT_ID
-CONN=$(neon connection-string "$BRANCH" --project-id $PROJECT_ID --pooled -o json | jq -r '.connection_string')
-# Run tests against $CONN
-neon branches delete "$BRANCH" --project-id $PROJECT_ID
-```
-
-### Add read replica
-```bash
-neon branches add-compute production --type read_only --cu 0.5-3
-```
+Everything else — the full command map, CI patterns, and a migration checklist — is in the `neon` skill.

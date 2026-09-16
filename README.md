@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_21 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-06-15 20:31:22._
+_22 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-09-16 11:43:05._
 
 ### 🧰 Skill Development
 
@@ -184,7 +184,8 @@ _21 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Las
 | Skill | Description |
 |---|---|
 | [`drizzle-orm`](skills/drizzle-orm/) | Expert guidance for Drizzle ORM and drizzle-kit, covering the v1.0.0-beta (RQBv2, defineRelations, new migration folder structure, consolidated validators) and stable 0.x releases. Includes Node 24… |
-| [`neonctl`](skills/neonctl/) | Comprehensive Neon CLI (neonctl) management for serverless Postgres. Use when managing Neon projects, branches, databases, roles, connection strings, IP allowlists, operations, or authentication vi… |
+| [`neon`](skills/neon/) | Neon CLI (`neon`, formerly `neonctl`) for Lakebase Postgres — projects, branches, databases, roles, connection strings, snapshots, Functions, object-storage buckets, the Data API, Managed Better Au… |
+| [`neonctl`](skills/neonctl/) | DEPRECATED POINTER — this skill was renamed to `neon` when the Neon CLI itself was renamed from `neonctl` to `neon`. It exists only so existing installs receive the rename notice on their next upda… |
 
 ### 📧 Communication & Email
 
