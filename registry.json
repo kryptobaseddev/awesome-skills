@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-16 11:43:05",
+  "generated_at": "2026-09-16 22:29:47",
   "total_skills": 22,
   "total_categories": 14,
   "categories": [
@@ -170,7 +170,7 @@
           "description": "Neon CLI (`neon`, formerly `neonctl`) for Lakebase Postgres \u2014 projects, branches, databases, roles, connection strings, snapshots, Functions, object-storage buckets, the Data API, Managed Better Auth, logs, and Postgres health inspection. Use when the user manages Neon from the terminal or CI: creating projects or ephemeral branches, getting a DATABASE_URL, resetting/restoring/schema-diffing branches, pulling env vars, deploying Functions, taking snapshots, setting IP allowlists or VPC restrictions, or wiring Neon into an AI coding agent. ALSO use for the neonctl-to-neon rename: migrating scripts and CI off `neonctl`, 'neonctl command not found', 'is neonctl deprecated', npm i -g neon, or `set-context` now being deprecated in favor of `neon link`. Triggers on: 'neon cli', 'neonctl', 'neon branches', 'neon connection-string', 'neon link', 'neon env pull', 'neon snapshots', 'neon functions', 'neon inspect', 'NEON_API_KEY', 'neon login', 'serverless postgres cli', 'ephemeral database branch in CI'.",
           "metadata": {
             "author": "kryptobaseddev",
-            "version": "2.0.0",
+            "version": "2.1.0",
             "last_updated": "2026-09-16 12:05:00",
             "category": "databases",
             "tags": "neon, postgres, cli, serverless, database-branching",
