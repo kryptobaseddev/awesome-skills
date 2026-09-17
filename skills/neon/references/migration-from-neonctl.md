@@ -20,7 +20,7 @@ The rename is mostly cosmetic; the CLI's growth is not. Treat this as a major up
 
 - **Binary name**: `neonctl` → `neon`.
 - **Repository**: moved to [`neondatabase/neon-pkgs`](https://github.com/neondatabase/neon-pkgs/tree/main/packages/cli).
-- **Version line**: the old `neonctl` 2.x series continues as 4.x under both package names — the published versions run `…2.33.x, 2.34.x, 4.0.0…`, so there is no 3.x to step through.
+- **Version line**: the old `neonctl` 2.x series ran to **2.47.0**, then through **eleven 3.x releases (3.0.0–3.6.0)**, and is now on 4.x — under both package names, in lockstep. An install pinned to 2.x is several majors behind, not one.
 - **Node floor**: 20.19.0+ is required to *install or upgrade*. An existing install keeps working on older Node; upgrading on Node 18 fails.
 - **Scope**: 2.x managed projects, branches, databases, roles, connection strings, IP allow, and operations. 4.x adds snapshots, Functions, triggers, object-storage buckets, the Data API, Managed Better Auth (`neon-auth`), credentials, profiles, log querying, Postgres health inspection, `neon.ts` config-as-code, local Functions dev, and agent-tooling installers (`mcp`, `skills`, `plugins`).
 
@@ -103,7 +103,11 @@ Order the steps to avoid the gap entirely: uninstall `neonctl` **first**, then i
 
 ## Credentials survive the move
 
-`neon --help` reports the config directory default as `~/.config/neon`. In practice the 4.x CLI reads and refreshes `~/.config/neonctl/credentials.json`, the legacy path, and leaves `~/.config/neon/` empty. Observed directly: running `neon me` on 4.18.x updates the mtime and contents of `~/.config/neonctl/credentials.json`.
+`neon --help` reports the config directory default as `~/.config/neon`. In practice the 4.x CLI authenticates
+from `~/.config/neonctl/credentials.json`, the legacy path, and leaves `~/.config/neon/` empty — verified on
+a machine upgraded from 2.x, where `neon me` succeeds against the legacy file while the advertised directory
+stays empty. (The file is not rewritten on every call, so don't use its mtime as the check; `neon me`
+succeeding is the check.)
 
 Consequences:
 

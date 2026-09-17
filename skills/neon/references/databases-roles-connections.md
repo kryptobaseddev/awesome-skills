@@ -78,7 +78,7 @@ neon roles delete <role-name> [--branch <id|name>] [--project-id <id>]
 neon connection-string [branch[@timestamp|@LSN]] [options]
 ```
 
-Branch defaults to the project's primary branch.
+Branch defaults to the project's default branch.
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -89,7 +89,7 @@ Branch defaults to the project's primary branch.
 | `--prisma` | boolean | Prisma-compatible format (appends `connect_timeout=30`) |
 | `--endpoint-type` | string | Compute type (default: `read_write`) |
 | `--extended` | boolean | Show extended connection details |
-| `--psql` | boolean | Launch psql directly (requires psql installed) |
+| `--psql` | boolean | Launch psql directly. **Does not require psql to be installed** — if it isn't on `$PATH` the CLI falls back to a built-in TypeScript implementation |
 | `--ssl` | string | SSL mode: `require`, `verify-ca`, `verify-full`, `omit` |
 
 ### Examples
@@ -116,8 +116,11 @@ neon connection-string --psql
 # Run SQL file via psql
 neon connection-string --psql -- -f schema.sql
 
-# JSON output for scripting
-neon connection-string --pooled -o json | jq -r '.connection_string'
+# Scripting: the plain form is ALREADY a bare string — `-o json` does not wrap it
+CONN=$(neon connection-string --pooled)
+
+# The structured form, when you need the parts (host, role, password, database, options)
+neon connection-string --pooled --extended -o json | jq -r '.connection_string'
 ```
 
 ---
@@ -128,7 +131,9 @@ neon connection-string --pooled -o json | jq -r '.connection_string'
 neon psql [branch] [options]
 ```
 
-Opens an interactive `psql` session against a branch, resolving the connection string for you. It needs `psql` on PATH. Arguments after `--` are passed through:
+Opens an interactive `psql` session against a branch, resolving the connection string for you. A local `psql`
+is used when present; when it isn't, the CLI falls back to a built-in TypeScript implementation, so this
+works on a bare machine. Arguments after `--` are passed through:
 
 ```bash
 neon psql                                  # context branch
@@ -154,8 +159,15 @@ neon env pull [--file <path>] [--branch <id|name>] [--service <name>...] [--conf
 | `--branch` | Branch to pull from (defaults to context branch) |
 | `--service` | Limit to `postgres`, `auth`, `data-api`, `functions`, `object-storage`, `ai-gateway` — repeatable or comma-separated |
 | `--config` | Path to a `neon.ts` policy (defaults to walking up from cwd) |
+| `--env`, `-e` | **Selector, not an input:** pull only these named variables (`DATABASE_URL`, `NEON_BRANCH`, `NEON_AUTH_*`…). Overrides `neon.ts` and unions with `--service`. The *load-a-dotenv* meaning of `--env` belongs to `config apply`/`deploy`/`checkout`/`functions deploy` — same flag name, different job |
 
-Without a `neon.ts` it writes `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, and `NEON_BRANCH`. With one, it also writes credentials for every declared service, plus `NEON_FUNCTION_<SLUG>_BASE_URL` for declared functions — derived from the branch, so the URL exists before the function is deployed.
+With a `neon.ts` it writes credentials for every declared service, plus `NEON_FUNCTION_<SLUG>_BASE_URL` for
+declared functions — derived from the branch, so the URL exists before the function is deployed.
+
+**Without** a `neon.ts`, and with no `--service`/`--env` narrowing, it does not write a minimal trio — it
+writes **everything the branch has, plus the AI Gateway**, which mints the default AI Gateway credential.
+That is a secret landing in your working tree that you may not have asked for, so scope it (`--service
+postgres`) when all you wanted was a database URL.
 
 Two properties make this safe to run against a real `.env`: only Neon-managed keys are rewritten, and unrelated lines are preserved. Unset function env values are skipped rather than failing the pull — but `neon deploy`, `neon dev`, and `neon-env run` do require every declared value, so a pull that looks clean can still be followed by a deploy that complains.
 

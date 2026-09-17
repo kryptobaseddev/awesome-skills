@@ -124,10 +124,12 @@ else
 fi
 
 # ── 7. psql (optional) ────────────────────────────────────────────────────────
+say ""
+say "Optional tooling"
 if command -v psql >/dev/null 2>&1; then
-  pass "psql available (\`neon psql\` and --psql will work)"
+  pass "psql available (\`neon psql\` will use it)"
 else
-  note "psql not found — only affects \`neon psql\` and --psql"
+  note "psql not on PATH — \`neon psql\`/--psql still work via the CLI's built-in client"
 fi
 
 say ""

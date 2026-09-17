@@ -20,13 +20,13 @@
       "id": 3,
       "name": "ephemeral-ci-branch",
       "prompt": "I want a throwaway Postgres per pull request on Neon: branch off main with the schema only (no prod data), run vitest against a pooled connection string, then delete the branch. Give me the GitHub Actions steps.",
-      "expected_output": "Uses `neon branches create --schema-only`, captures the connection string with `--output json` piped through jq rather than parsing table output, uses `--pooled` for the test connection, and deletes the branch in a cleanup step that runs on failure too (if: always()) or sets --expires-at. Authenticates via NEON_API_KEY from secrets. Installs the CLI with `npm i -g neon@latest`.",
+      "expected_output": "Uses `neon branches create --schema-only`, captures the connection string correctly \u2014 `neon connection-string ... --pooled` already returns a BARE STRING, so piping it through `jq -r '.connection_string'` is wrong (that path only exists under `--extended`). Uses `--pooled` for tests, deletes the branch in a cleanup step that runs on failure too (if: always()) or sets --expires-at. Authenticates via NEON_API_KEY from secrets. Installs with `npm i -g neon@latest` on Node >= 20.19.0.",
       "files": []
     },
     {
       "id": 4,
       "name": "rewind-staging-keep-current",
-      "prompt": "Someone ran a bad migration against our staging branch on Neon about 3 hours ago. I want to rewind staging to before that, but I do NOT want to lose the current state — we may need to inspect what the migration did.",
+      "prompt": "Someone ran a bad migration against our staging branch on Neon about 3 hours ago. I want to rewind staging to before that, but I do NOT want to lose the current state \u2014 we may need to inspect what the migration did.",
       "expected_output": "Uses `neon branches restore staging ^self@<rfc3339 timestamp>` with `--preserve-under-name` to keep the pre-restore state as a separate branch (and notes ^self restores require it). Explains the ^self / ^parent / <branch> source syntax and the history-window constraint. May mention snapshots as the better primitive going forward, and treats restoring a shared branch as something to confirm before running.",
       "files": []
     },
@@ -40,9 +40,36 @@
     {
       "id": 6,
       "name": "slow-db-inspection",
-      "prompt": "Our Neon Postgres has gotten noticeably slower over the past week. I'd rather not open psql and paste pg_catalog queries — is there something in the CLI that will tell me what's going on?",
+      "prompt": "Our Neon Postgres has gotten noticeably slower over the past week. I'd rather not open psql and paste pg_catalog queries \u2014 is there something in the CLI that will tell me what's going on?",
       "expected_output": "Points at `neon inspect db <query>` as read-only and safe on production, and picks relevant queries with a triage order: stalled-queries/locks for the live picture, outliers/calls/seq-scans for chronic cost, bloat/vacuum-stats/unused-indexes for maintenance debt. Notes that the pg_stat_statements-backed queries return nothing useful until that extension is enabled.",
       "files": []
+    },
+    {
+      "id": 7,
+      "name": "neon-ts-functions-config",
+      "prompt": "I've got a Neon project linked and I want to add two server functions plus an object storage bucket, managed as code rather than clicking around. One function is a REST API in ./api/index.ts, the other is a cron-driven cleanup job that should run every night at 3am UTC. Show me the neon.ts and how to ship it.",
+      "expected_output": "Writes a neon.ts using defineConfig from @neon/config/v1 with a functions record keyed by SLUG (^[a-z0-9]{1,20}$, immutable after first deploy, human label in `name`), `source` relative to neon.ts, and a buckets record. Ships it with `neon deploy` (alias of config apply), after `neon link`. For the cron job it deploys the function then creates a trigger with `neon triggers create --function-slug <slug> --name <name> --cron '0 3 * * *'` \u2014 noting cron is UTC and those three flags are required. May note env values in neon.ts resolve at DEPLOY time, and buckets inject AWS_* vars needing forcePathStyle/path-style addressing.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "restore-beyond-history-window",
+      "prompt": "We need to roll our production Neon branch back to how it looked last Tuesday \u2014 about 9 days ago. We're on the Launch plan. What's the command?",
+      "expected_output": "Recognizes this is bounded by the HISTORY WINDOW, not the CLI: Launch defaults to 1 day and maxes at 7 days, so 9 days back is not reachable and no `branches restore ^self@<ts>` will work. Says so plainly rather than emitting a command that will fail. Offers what actually helps: check/raise the window in Console Settings -> Instant restore (max 7d on Launch, 30d on Scale, and raising it only helps going forward), look for an existing snapshot (`neon snapshots list`), or upgrade the plan. If it does give a command it pairs it with --preserve-under-name.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "data-api-column-404",
+      "prompt": "added a column to my orders table this morning via a drizzle migration and my neon data api still 404s on it. the rest of the endpoints work fine. what am i missing",
+      "expected_output": "Identifies the Data API schema cache: after a migration the API keeps serving the cached schema until refreshed. Fix is `neon data-api refresh-schema`. May also check `--db-schemas` exposure and note `data-api update` MERGES by default so `--replace` is needed to clear settings. Should not send the user chasing RLS or grants first.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "json-envelope-shapes",
+      "prompt": "writing a bash script to audit all our neon branches across projects \u2014 need name, created_at and whether it's protected, as tsv. keep hitting jq errors, i'm doing `neon branches list -o json | jq -r '.branches[]'` and it says cannot index array with string",
+      "expected_output": "Explains that `branches list --output json` returns a BARE ARRAY, not an object with a `branches` key, so the path is `.[]` not `.branches[]`. Gives a working jq line producing TSV. Ideally notes the envelope inconsistency across commands (projects list wraps in .projects, projects get/branches get are flat objects, connection-string is plain text not JSON) and suggests `jq type` to check. Should not invent a `--format` flag."
     }
   ]
 }

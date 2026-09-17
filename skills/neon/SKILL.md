@@ -6,8 +6,8 @@ compatibility: >-
   Requires Node.js 20.19.0+ for `npm i -g neon@latest` (the CLI keeps running on
   older Node, but upgrading on Node 18 fails). Homebrew, bun, and standalone
   binaries are also published. Authenticates via browser login or NEON_API_KEY.
-  `psql` is needed only for `neon psql` and `--psql`; `neon inspect` runs its
-  queries through the CLI itself.
+  No local `psql` is required: `neon psql` and `--psql` fall back to a built-in
+  TypeScript client, and `neon inspect` runs its queries through the CLI itself.
 metadata:
   author: kryptobaseddev
   version: "2.0.0"
@@ -80,13 +80,17 @@ neon --profile work projects list            # or: export NEON_PROFILE=work
 neon link                                          # interactive: pick/create org + project
 neon link --project-id <id> --org-id <org-id>      # non-interactive (CI, agents)
 neon link --org-id <org> --project-name my-app --region-id aws-us-east-2   # create + link
+neon link --params '{"orgId":"...","projectId":"..."}'   # same payload as one JSON blob
 neon checkout dev --create                         # pin a branch (creating it if absent)
 neon link --clear                                  # unbind
 ```
 
+`--no-checks` writes the context offline with no API calls — it then requires `--org-id` and `--project-id`
+and skips the env pull. Flags take precedence over fields in `--params`.
+
 Two behaviors worth knowing before they surprise someone: linking **pulls the branch's env vars into a local `.env`/`.env.local` by default** (`--no-env-pull` to skip), and after an interactive link the CLI **offers to scaffold a `neon.ts` config** (`--no-config` to skip). On first creation the CLI adds `.neon` to `.gitignore`; the file holds no secrets, so remove that entry if the team wants shared context.
 
-`set-context` still works but is deprecated — prefer `link`, which validates the IDs and writes a complete context. In a repo where `neon link` would clobber a teammate's context, pin a separate file with the global `--context-file <path>`.
+`set-context` still works (and still takes `--project-id`, `--branch-id`, `--org-id`) but is deprecated — prefer `link`, which validates the IDs and writes a complete context. In a repo where `neon link` would clobber a teammate's context, pin a separate file with the global `--context-file <path>`.
 
 ## Command map
 
@@ -97,21 +101,44 @@ Use this to pick a landing spot, then open the matching reference for flags and 
 | Projects, branches, schema diff | `projects`, `branches`, `diff`, `snapshots` | [projects-branches.md](references/projects-branches.md) |
 | Databases, roles, connection strings, psql | `databases`, `roles`, `connection-string`, `psql`, `env` | [databases-roles-connections.md](references/databases-roles-connections.md) |
 | IP allow, VPC, operations, logs, credentials, API keys | `ip-allow`, `vpc`, `operations`, `logs`, `credentials`, `api-keys`, `api` | [security-operations.md](references/security-operations.md) |
-| Functions, triggers, buckets, Data API, Neon Auth, inspect, `neon.ts` | `functions`, `dev`, `triggers`, `buckets`, `data-api`, `neon-auth`, `inspect`, `config`/`deploy`/`status` | [platform-surfaces.md](references/platform-surfaces.md) |
+| Functions, triggers, buckets, inspect, `neon.ts` config-as-code | `functions`, `dev`, `triggers`, `buckets`, `inspect`, `config`/`deploy`/`status`, `init`/`mcp`/`skills` | [platform-surfaces.md](references/platform-surfaces.md) |
+| Data API and Managed Better Auth (large config surfaces) | `data-api`, `neon-auth` | [data-api-and-auth.md](references/data-api-and-auth.md) |
+| The `neon.ts` file format itself — required to use `config`/`deploy`/`dev` | — | [neon-ts-config.md](references/neon-ts-config.md) |
 | Setup, agent tooling | `login`, `profile`, `link`, `checkout`, `init`, `mcp`, `skills`, `plugins`, `bootstrap`, `claim`, `ask`, `open` | this file + [migration-from-neonctl.md](references/migration-from-neonctl.md) |
 
-Aliases are pervasive and safe to use: `branch`, `db`, `cs`, `org`, `project`, `role`, `operation`, `snapshot`, `function`, `trigger`, `bucket`, `credential`, `auth` (= `login`).
+Aliases are pervasive and safe to use: `branch`, `db`, `cs`, `org`, `project`, `role`, `operation`, `snapshot`, `function`, `trigger`, `bucket`, `credential`, and `login` (= `auth`; `auth` is the canonical name, both work).
 
 ## Output and scripting
 
 `table` is the default and **it truncates** — long IDs, URIs, and timestamps get cut. Any time output is being parsed, captured, or shown as evidence, use JSON:
 
 ```bash
-neon branches list --output json | jq -r '.branches[].name'
-CONN=$(neon connection-string dev --pooled --output json | jq -r '.connection_string')
+neon branches list --output json | jq -r '.[].name'
+CONN=$(neon connection-string dev --pooled)          # already a bare string — no jq needed
 ```
 
-Global options that apply everywhere: `-o/--output json|yaml|table`, `--api-key`, `--profile`, `--config-dir`, `--context-file`, `--color/--no-color`, `--analytics/--no-analytics`, `-v/--version`, `-h/--help`. Help is available at every level — `neon branches create --help` is usually faster and more current than any doc.
+**Envelope shapes are not uniform, and guessing costs a debugging session.** Verified against 4.18.1 — and
+since Neon ships several releases a week, confirm with `jq type` rather than assuming this table is current:
+
+| Command | `--output json` returns | jq path |
+|---|---|---|
+| `branches list`, `databases list`, `roles list`, `operations list`, `snapshots list`, `orgs list` | a **bare array** | `.[].name` — *not* `.branches[]` |
+| `projects list` | object with `projects` and `shared_with_you` | `.projects[].id` |
+| `projects get`, `branches get`, `me` | a **flat object**, no wrapper | `.history_retention_seconds` — *not* `.project....` |
+| `connection-string` | **plain text, not JSON** — `-o json` changes nothing | use it directly |
+| `connection-string --extended` | object: `connection_string`, `host`, `role`, `password`, `database`, `options` | `.connection_string` |
+
+When in doubt, pipe one call through `jq type` before building a script around it.
+
+Two traps in the same area. `projects list` does include org-owned projects, but only for your default org —
+a second organization's projects are absent until you pass `--org-id`, so a cross-org audit must iterate
+`neon orgs list` or it silently reports a subset and looks like it worked. And `projects list --org-id <id>`
+**returns a bare array** rather than the `{projects, shared_with_you}` object the bare call returns, which
+breaks the very loop you just wrote.
+
+Global options that apply everywhere: `-o/--output json|yaml|table`, `--api-key`, `--profile`, `--config-dir`, `--context-file`, `--color/--no-color`, `--analytics/--no-analytics`, `-v/--version`, `-h/--help`.
+
+Help is available at every level, and on a CLI shipping releases this often it is the authority: `neon branches create --help` beats any table here or on the docs site. The references were read from 4.18.1 — if a flag doesn't behave as documented, check `--help` before concluding the command is broken. `neon api --list` and `neon api <path> --describe` do the same job for Platform API routes.
 
 Analytics are on by default and collect command/option names, not payloads or project IDs. `--no-analytics` opts out per command.
 
@@ -153,7 +180,9 @@ neon branches reset dev --parent --preserve-under-name dev-backup   # keep an es
 neon branches restore main ^self@2026-06-01T12:00:00Z --preserve-under-name main-backup
 ```
 
-`<source>` is `^self`, `^parent`, or another branch, optionally `@timestamp` or `@lsn`. Restoring `main` in place is a production-affecting operation — confirm intent and keep the backup branch.
+`<source>` is `^self`, `^parent`, or another branch, optionally `@timestamp` or `@lsn`; `^self` restores **require** `--preserve-under-name`. Restoring `main` in place is a production-affecting operation — confirm intent and keep the backup branch.
+
+How far back you can reach is capped by the project's **history window** (Free 6h, Launch 1d default / 7d max, Scale 1d / 30d max), not by the command. Check it before promising a rewind — `neon projects get <id> -o json | jq .history_retention_seconds` — and see [projects-branches.md](references/projects-branches.md) for why widening it won't recover history that already aged out.
 
 ### Ephemeral database per CI job
 
@@ -161,7 +190,7 @@ neon branches restore main ^self@2026-06-01T12:00:00Z --preserve-under-name main
 export NEON_API_KEY=${{ secrets.NEON_API_KEY }}
 BRANCH="ci-${GITHUB_SHA:0:8}"
 neon branches create --name "$BRANCH" --project-id "$PROJECT_ID" --schema-only
-CONN=$(neon connection-string "$BRANCH" --project-id "$PROJECT_ID" --pooled -o json | jq -r '.connection_string')
+CONN=$(neon connection-string "$BRANCH" --project-id "$PROJECT_ID" --pooled)
 # run tests against $CONN
 neon branches delete "$BRANCH" --project-id "$PROJECT_ID"
 ```
@@ -182,6 +211,24 @@ Without a `neon.ts`, this writes `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, and `N
 ```bash
 neon branches add-compute production --type read_only --cu 0.5-3
 ```
+
+## Traps worth knowing before you act
+
+Each of these produces a confident wrong answer if you don't know it, and each is cheap to check. The
+reference has the detail; this table exists so an agent that never opens one still doesn't fall in.
+
+| Symptom | Actual cause | Check / fix |
+|---|---|---|
+| "Unknown command" for `snapshots`, `functions`, `env`, `link`… | CLI is 2.x answering to the name `neon` | `neon --version`; upgrade — [migration](references/migration-from-neonctl.md) |
+| `neon: command not found` right after `npm uninstall -g neonctl` | That package declares **both** bins, so the `neon` symlink went with it | `npm i -g neon@latest` |
+| A restore timestamp is rejected | Outside the plan's **history window**; widening it is not retroactive | `history_retention_seconds`; check `neon snapshots list` — an existing snapshot outlives the window |
+| Data API 404s a newly added column (`PGRST204`) | Stale schema cache — not RLS, not grants | `neon data-api refresh-schema` |
+| A parsed value is truncated or a URI is cut off | `table` output truncates by design | `--output json` |
+| `jq: Cannot index array with string "branches"` | List commands return a **bare array**; `connection-string` returns plain text, not JSON | See the envelope table above; `jq type` settles it |
+| A cron trigger fires at the wrong hour | `--cron` is **UTC** | Convert; `triggers create` also requires `--function-slug` and `--name` |
+| `neon dev`/`deploy` fails on env that `env pull` accepted | `env pull` skips unset function values; `dev`/`deploy` require them | Supply the value or `--env <file>` |
+| A preview branch runs a nightly job nobody scheduled | Triggers are **inherited** from the parent branch | `neon triggers list` on the new branch |
+| Commands target the wrong project | A `.neon` context file in a parent directory | `neon link` / `--context-file`; the preflight script reports it |
 
 ## Guidance when acting on someone's account
 

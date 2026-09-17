@@ -4,9 +4,13 @@ Everything the 4.x CLI manages beyond Postgres itself. None of this existed in `
 "unknown command" here usually means an old CLI rather than a wrong command — see
 [migration-from-neonctl.md](migration-from-neonctl.md).
 
-Several of these surfaces are in Beta (Functions, Triggers, Object Storage, branch Logs). Beta here means
-the shape can move between releases; when a flag doesn't behave as documented, `--help` on the installed
-binary is the authority.
+Flags below were read from `neon --help` at 4.18.1. **The installed binary's `--help` is the authority, not
+this page and not the docs site** — Neon ships several releases a week (4.18.1 and 4.21.0 were days apart),
+and several of these surfaces are in Beta (Functions, Triggers, Object Storage, branch Logs), so shapes move.
+Check `--help` before concluding a documented flag is broken.
+
+The Data API and Managed Better Auth have large configuration surfaces of their own and live in
+[data-api-and-auth.md](data-api-and-auth.md).
 
 ## Table of Contents
 
@@ -15,8 +19,6 @@ binary is the authority.
 - [Local development (`neon dev`)](#local-development-neon-dev)
 - [Triggers](#triggers)
 - [Object storage buckets](#object-storage-buckets)
-- [Data API](#data-api)
-- [Managed Better Auth (`neon-auth`)](#managed-better-auth-neon-auth)
 - [Postgres health inspection](#postgres-health-inspection)
 - [Agent tooling](#agent-tooling)
 
@@ -35,9 +37,33 @@ neon config plan      # what apply would change — dry run
 neon config apply     # reconcile the branch to the policy        (alias: neon deploy)
 ```
 
-`neon deploy` and `neon status` are aliases, not separate implementations, so documentation for either
-applies to both. Running `plan` before `apply` is worth the extra command whenever the branch holds
-anything you would miss.
+`neon deploy` and `neon status` are aliases, not separate implementations. Running `plan` before `apply` is
+worth the extra command whenever the branch holds anything you would miss.
+
+**`config init`**
+
+| Flag | Meaning |
+|---|---|
+| `--install` / `--no-install` | Install `@neon/config` and `@neon/env` if missing (on by default; `--no-install` just prints the command) |
+| `--from-branch` | Seed `neon.ts` from a branch's **live** state instead of prompting — the fast path for adopting config-as-code on an existing project |
+| `--services` | Limit the scaffold to named services |
+| `--branch`, `--project-id` | Target selection |
+
+**`config apply` / `neon deploy`**
+
+| Flag | Meaning |
+|---|---|
+| `--update-existing` | **Auto-confirms** overriding existing remote settings on the branch (default false). Without it `apply` stops and asks; with it, it overwrites silently — so it is the flag that makes a CI apply non-interactive, and the one that removes your last check against clobbering someone's manual change |
+| `--allow-protected` | **Auto-confirms** applying to a branch marked protected (default false). Protection exists to force that pause; this skips it |
+| `--env` | Load a `.env` before evaluating `neon.ts`, so Function env values resolve |
+| `--env-pull` / `--no-env-pull` | Pull env vars after applying |
+
+**`config status` / `neon status`**
+
+| Flag | Meaning |
+|---|---|
+| `--config-json` | Emit the live state as JSON |
+| `--current-branch` | **Prints only the linked branch name** from the local `.neon` file and makes no API call; exits non-zero when nothing is pinned. It is a context probe, not a status report — useful as a guard at the top of a script |
 
 `neon env pull` reads `neon.ts` when present, which is what lets it emit per-service credentials rather
 than just `DATABASE_URL`.
@@ -49,27 +75,46 @@ than just `DATABASE_URL`.
 **Beta.** Server-side functions deployed per branch.
 
 ```bash
-neon functions deploy <slug>     # deploy from a local directory
+neon functions deploy <slug> [options]
 neon functions list
-neon functions get <slug>
+neon functions get <slug> [--list-env-variables]
 neon functions delete <slug>
+```
 
+**`functions deploy`**
+
+| Flag | Meaning |
+|---|---|
+| `--src` | Source: a directory containing `index.ts`/`index.js`/`index.mjs` (first match is the entry), or a path to the entry file |
+| `--runtime` | Runtime — currently only `nodejs24` |
+| `--env` | `KEY=VALUE`, repeatable |
+| `--wait` / `--no-wait` | Wait for the build to finish (on by default) — `--no-wait` returns as soon as the deploy is queued, which is what you want in a fan-out script |
+| `--bundle` / `--no-bundle` | Bundle `--src` with esbuild. `--no-bundle` zips a prebuilt directory (root must contain `index.mjs` or `index.js`) |
+| `--branch`, `--project-id` | Target selection |
+
+Custom domains:
+
+```bash
 neon functions domains list
-neon functions domains register <domain>   # point a domain you own at a function
+neon functions domains register <domain> --slug <function-slug>
 neon functions domains delete <domain>
 ```
 
 Functions are branch-scoped, so a preview branch gets its own copy and its own invocation URL. `neon env
-pull` writes that URL as `NEON_FUNCTION_<SLUG>_BASE_URL`, derived from the branch — the value exists
-before the function is deployed, which makes it safe to wire into config ahead of the first deploy.
+pull` writes that URL as `NEON_FUNCTION_<SLUG>_BASE_URL`, derived from the branch — the value exists before
+the function is deployed, which makes it safe to wire into config ahead of the first deploy.
 
 ---
 
 ## Local development (`neon dev`)
 
 ```bash
-neon dev
+neon dev [--source <path>] [--port <n>]
 ```
+
+Watches for changes and hot-reloads. By default it serves **every** function declared in `neon.ts`, each on
+its own dev server, using the per-function `dev.port` (auto-assigned when omitted). `--port` applies only in
+**single-function mode**, i.e. together with `--source`, and fails if the port is taken.
 
 Runs Neon Functions locally against a dev server. Unlike `env pull`, `dev` requires every env value the
 declared functions read — a missing `process.env.*` that `env pull` quietly skipped will stop `dev` (and
@@ -82,14 +127,32 @@ declared functions read — a missing `process.env.*` that `env pull` quietly sk
 **Beta.** Cron-scheduled invocation of a deployed function — a scheduler without a separate service.
 
 ```bash
-neon triggers create --function <slug> --schedule "<cron>"
+neon triggers create --function-slug <slug> --name <name> --cron "<expr>" [options]
 neon triggers list
 neon triggers get <id>
-neon triggers update <id>
+neon triggers update <id> [--cron ... | --enabled ... | --function-slug ... | --function-path ...]
 neon triggers disable <id>     # pause without losing the definition
 neon triggers enable <id>
 neon triggers delete <id>
 ```
+
+**`triggers create`** — three flags are **required**: `--function-slug`, `--name`, `--cron`.
+
+| Flag | Meaning |
+|---|---|
+| `--function-slug` | **Required.** Slug of the function to invoke |
+| `--name` | **Required.** Trigger name, unique per branch |
+| `--cron` | **Required.** Five-field **UTC** cron expression, e.g. `'*/15 * * * *'` |
+| `--function-path` | Path the invocation is sent to (default `/`) — lets one function serve several triggers via routing |
+| `--enabled` | Whether it runs (default true); create it disabled to stage a schedule before arming it |
+| `--branch`, `--project-id` | Target selection |
+
+The cron expression is interpreted in **UTC**, not the machine's local zone — the usual cause of a job that
+fires at the wrong hour.
+
+**Triggers cannot be declared in `neon.ts`** — it has no `triggers:` key, so cron is an imperative step that
+`neon deploy` will not reproduce. Script the `triggers create` call next to the deploy if the schedule needs
+to be reproducible.
 
 Deploy the function first, then point a trigger at it. Triggers are **inherited by child branches**: one
 created on a parent shows up on children with `Inherited: true` and `source_branch_id` pointing back to the
@@ -104,76 +167,36 @@ new long-lived branch before assuming it's inert.
 **Beta.** S3-style buckets that belong to a branch.
 
 ```bash
-neon buckets create <name>
+neon buckets create <name> [--access-level private|public_read]
 neon buckets list
 neon buckets delete <name>
 
-neon buckets object list <target>        # folders collapsed, like `aws s3 ls`
-neon buckets object list <target> --recursive
-neon buckets object put <target>         # upload a local file
-neon buckets object get <target>         # download to a local file
-neon buckets object delete <target>      # one object, or everything under a prefix
+neon buckets object list <target> [--recursive] [--delimiter <d>] [--cursor <c>] [--limit <n>]
+neon buckets object put <target> --file <local-path> [--content-type <type>]
+neon buckets object get <target>
+neon buckets object delete <target> [--recursive]
 ```
 
-`object delete` accepting a prefix is the sharp edge: a trailing-slash target removes every key beneath it,
-with no undo. Confirm the prefix with `object list` first when the target isn't an exact key.
+`--access-level` defaults to `private`; `public_read` makes every object in the bucket world-readable, so
+it is a deliberate choice rather than a convenience. `object list` collapses folders like `aws s3 ls`
+unless `--recursive` is passed, `--delimiter` changes what counts as a folder separator, and `--cursor` /
+`--limit` page through a large bucket.
+
+`object put` **requires `--file`** — the target is the remote key, the local path is a separate flag.
+
+Deleting a prefix requires `--recursive` **and** a prefix ending in `/`; a trailing slash on its own does
+nothing. That is a guard rail, not a hazard — but once `--recursive` is passed there is no undo, so confirm
+the prefix with `object list` first.
 
 Access from applications is best granted with scoped `storage:read` / `storage:write` credentials rather
 than an account API key — see [security-operations.md](security-operations.md#scoped-branch-credentials).
 
----
-
-## Data API
-
-A REST interface over a database. Requires CLI 2.22.2+.
-
-```bash
-neon data-api create
-neon data-api get
-neon data-api update            # merges with current settings by default
-neon data-api refresh-schema    # re-read the schema cache after a migration
-neon data-api delete
-```
-
-Project, branch, and database resolve from the context file, auto-select when there's only one, and prompt
-otherwise. `refresh-schema` is the one to remember operationally: after a migration changes tables, the
-Data API keeps serving the cached schema until it's refreshed.
-
----
-
-## Managed Better Auth (`neon-auth`)
-
-Neon's hosted Better Auth. Enabled per branch.
-
-```bash
-neon neon-auth enable
-neon neon-auth status
-neon neon-auth disable
-
-neon neon-auth domain list
-neon neon-auth domain add <domain>
-neon neon-auth domain delete <domain>
-neon neon-auth domain allow-localhost enable|disable|get
-
-neon neon-auth oauth-provider list|add|update|delete
-neon neon-auth config email-password get|update
-neon neon-auth config email-provider get|update|test
-neon neon-auth config organization get|update
-neon neon-auth config webhook get|update
-neon neon-auth plugins list
-neon neon-auth plugins get <plugin-name>
-
-neon neon-auth user create
-neon neon-auth user set-role <user-id>
-neon neon-auth user delete <user-id>
-```
-
-`domain allow-localhost enable` is for development; leaving it on for a production branch means localhost
-origins stay trusted. `config email-provider test` sends through the saved SMTP settings and is the fastest
-way to prove email delivery works before users hit it.
-
-For the library itself (schema, plugins, client SDK) see the `better-auth` skill — this command group only
-manages the hosted configuration.
+**Using a bucket from application code.** Declaring `buckets` in `neon.ts` makes `neon env pull` write
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3` and `AWS_REGION`, so any S3 client
+works — with one required setting: Neon Object Storage supports **path-style addressing only**. Set
+`forcePathStyle: true` in the AWS SDK for JavaScript, or `endpoint_url` in boto3 / the `aws` CLI.
+Virtual-hosted-style (`bucket.host/key`) requests fail, and the resulting error rarely names addressing as
+the cause.
 
 ---
 
@@ -184,6 +207,9 @@ Read-only diagnostic queries. Nothing is modified, so these are safe against pro
 ```bash
 neon inspect db <query> [--branch <id|name>] [--database-name <db>] [--role-name <role>] [--db-url <url>]
 ```
+
+`--db-url` runs the query against an arbitrary connection string, which is how you inspect a database the
+CLI has no project context for.
 
 | Query | Answers |
 |---|---|
@@ -217,26 +243,48 @@ neon mcp                  # just the hosted MCP server (https://mcp.neon.tech/mc
 neon skills               # just Neon's agent skills
 neon plugins              # skills + MCP as a plugin, where the agent supports marketplaces
 neon bootstrap [dir]      # scaffold from a starter template, then install tooling and link
-neon ask "<question>"     # ask the Neon assistant from the terminal
+neon ask --prompt "<q>"   # ask the Neon assistant from the terminal
 neon open                 # open the linked project in the Console
 ```
 
-All of them run interactively by default and non-interactively with flags — `--agent <name>` (repeatable),
-`--yes`, `--global`, `--skill`. In a headless or scripted environment, pass flags; without them these
-commands block on prompts.
+**`neon init`** — the umbrella. `--agent <name>` (repeatable) picks targets, `--template` / `--skip-template`
+control scaffolding, `--link` / `--no-link` control project linking, `--config` / `--no-config` control
+`neon.ts`, and `--project-id` / `--org-id` / `--project-name` / `--region-id` / `--branch` forward to `link`.
+
+**`neon mcp`**
+
+| Flag | Meaning |
+|---|---|
+| `--read-only` | Install the MCP server restricted to read-only tools — the right default when pointing an agent at anything production-adjacent |
+| `--oauth` | Authenticate via OAuth instead of a minted API key |
+| `--category` | Narrow which tool categories the agent sees, to keep the tool list small |
+| `--project` | Write project-level config instead of global. **`mcp` has no `--global`** — that flag exists on `skills` and `plugins` only |
+| `--agent`, `--project-id`, `--yes` | Target selection and non-interactive operation |
+
+**`neon skills`** — `--skill <name>` (repeatable) limits it to named skills; `--agent`/`-a`, `--global` and `--yes` select targets. The `update` subcommand is narrower: **`neon skills update` accepts only `--yes` and `--global`** — passing `--agent` there errors, because agent selection lives on `neon skills` itself.
+
+**`neon bootstrap`** — `--list-templates` shows what's available; `--template`, `--git`, `--install`,
+`--agent-setup`, `--link`, `--default` control the scaffold.
+
+All of these run interactively by default and non-interactively with flags. In a headless or scripted
+environment, pass flags; without them these commands block on prompts.
 
 ```bash
 neon init -y --agent cursor --project-id <id> --org-id <org-id>
-neon skills update --agent claude-code --yes
+neon skills update --yes            # note: no --agent on `update`
+neon mcp --agent claude-code --read-only --yes    # --project for project-level config
 ```
 
 `neon claim` is the outlier: it creates a temporary project **without an account**, then hands it to a human
 to claim. Useful for demos, tutorials, and agent-created throwaway databases.
 
+Both `--env-pull` (on `create`) and `--open` (on `accept`) **default to true**, so the flags you actually
+reach for are `--no-env-pull` (don't write a dotenv) and `--no-open` (headless).
+
 ```bash
-neon claim create
+neon claim create [--no-env-pull]
 neon claim status [project-id]
-neon claim accept [project-id]    # opens the URL where a human signs in and takes ownership
+neon claim accept [project-id] [--no-open]   # URL where a human signs in and takes ownership
 neon claim list
 neon claim delete [project-id]
 ```

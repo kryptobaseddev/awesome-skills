@@ -57,7 +57,7 @@ neon projects create --name myapp --region-id aws-us-west-2 --cu 0.5-3
 neon projects create --name myapp --set-context --database appdb --role appadmin
 ```
 
-Default Postgres version: 17. Pass `--pg-version` to pick another major (14–19); 19 has limited availability.
+Default Postgres version for projects created via the CLI is **18**. Pass `--pg-version` to pick another major (14–19); 19 has limited availability. Older docs and captured sample output still show 17 — trust `pg_version` in the actual create response.
 
 ### projects list
 ```bash
@@ -66,7 +66,7 @@ neon projects list [options]
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `--org-id` | string | Filter by organization |
+| `--org-id` | string | List that organization's projects. The bare listing **does** include org-owned projects (each carries an `org_id`), but only for your default org — a second org's projects are missing until you pass its ID, so a cross-org audit must iterate `neon orgs list`. **Note the shape change: with `--org-id` the command returns a bare array instead of the `{projects, shared_with_you}` object** |
 | `--recoverable-only` | boolean | Show only deleted projects within recovery window |
 
 ### projects get
@@ -168,12 +168,36 @@ neon branches reset dev --parent --preserve-under-name dev-backup-june
 
 ### branches restore
 Rewind a branch to a specific point in time or another branch's state.
+
+**How far back you can go is bounded by the project's history window**, not by the CLI. Defaults and caps
+are per plan: Free 6 hours (also capped at 1 GB of history), Launch 1 day default / 7 days max, Scale 1 day
+default / 30 days max. A timestamp outside the window is rejected — so "restore to last Tuesday" is a plan
+question before it is a command question. The same bound applies to `snapshots create --timestamp/--lsn`,
+Time Travel queries, and branching from a past state. The window is set in the Console under
+**Settings → Instant restore**; widening it increases metered History usage.
+
+Read the current value without leaving the terminal — it is `history_retention_seconds` on the project:
+
+```bash
+neon projects list --output json | jq '.projects[] | {name, history_retention_seconds}'
+neon projects get <project-id> --output json | jq .history_retention_seconds   # 86400 = 1 day (flat, no .project wrapper)
+```
+
+**Widening the window is not retroactive.** Raising it — or upgrading the plan — only preserves history from
+that point forward; change history that has already aged out is gone and no setting brings it back. This is
+the single most common wrong move after discovering the window is too short, so say it before someone
+upgrades a plan expecting last week's data to reappear.
+
+**An already-taken snapshot is not bound by the window.** The window limits how far back you can *create* a
+restore point (`restore ^self@<ts>`, `snapshots create --timestamp/--lsn`); a snapshot captured earlier
+remains restorable after that point has aged out. That makes `neon snapshots list` the first thing to check
+when a needed timestamp is out of range.
 ```bash
 neon branches restore <target> <source>[@timestamp|@lsn] [--preserve-under-name <name>]
 ```
 
 Source formats:
-- `^self@<timestamp|lsn>` — Earlier state of same branch (**requires** `--preserve-under-name`)
+- `^self@<timestamp|lsn>` — Earlier state of same branch. **`--preserve-under-name` is required here**, even though both `--help` and the docs' own flag table list it as optional — the requirement is conditional and enforced at runtime, so a `^self` restore without it fails rather than being rejected by argument parsing
 - `^parent[@timestamp|lsn]` — Parent branch at head or specific point
 - `<branch-id|name>[@timestamp|lsn]` — Another branch's state
 
@@ -289,7 +313,21 @@ Restoring produces a restored branch. Without `--finalize` the restore is a prev
 
 ```bash
 neon snapshots schedule get [--branch <id|name>]
-neon snapshots schedule set [--branch <id|name>] ...
+neon snapshots schedule set [--branch <id|name>] --frequency <f> [--hour <0-23>] [--day <1-31>] [--month <1-12>] [--retention <seconds>]
+neon snapshots schedule set --schedule '[{"frequency":"daily","hour":3,"retention_seconds":604800}]'
 ```
 
-Automatic snapshot schedules are per branch, so a project's default branch and its long-lived staging branch are configured independently.
+| Flag | Meaning |
+|---|---|
+| `--frequency` | How often to snapshot; combines with `--hour`/`--day`/`--month` into a single-entry schedule |
+| `--hour` | Hour of day, 0–23 (UTC) |
+| `--day` | Day of week/month, 1–31 |
+| `--month` | Month of year, 1–12 |
+| `--retention` | How long to keep each snapshot, in **seconds**, minimum 3600. Omit to keep indefinitely |
+| `--schedule` | Full schedule as JSON, for multi-entry schedules — the only way to express more than one cadence |
+
+`--retention` in seconds is easy to misread: a week is `604800`, not `7`. Omitting it means snapshots
+accumulate forever, which is a storage bill rather than an error.
+
+Automatic snapshot schedules are per branch, so a project's default branch and its long-lived staging
+branch are configured independently.
