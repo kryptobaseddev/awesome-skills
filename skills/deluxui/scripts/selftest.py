@@ -26,6 +26,11 @@ EXPECT = [
     "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
     "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
     "S-RETRY-SAFETY", "S-COMMIT-DISCLOSURE", "S-COMMIT-REVIEW", "S-AI-PROVENANCE",
+    # reading quality + visual craft
+    "S-TYPE-TINY", "S-TYPE-LEADING", "S-TYPE-ALLCAPS", "S-TYPE-JUSTIFY",
+    "S-TYPE-TRACKING-WIDE", "S-TYPE-CRAMPED", "S-SLOP-EYEBROW",
+    "S-CRAFT-DEPTH", "S-CRAFT-TYPESYSTEM", "S-CRAFT-DECOR", "S-CRAFT-PALETTE-WARM",
+    "S-CRAFT-MOTION", "S-CRAFT-RHYTHM", "S-CRAFT-VOICE",
 ]
 
 
@@ -34,9 +39,12 @@ def run(tmp: Path, which: str) -> set[str]:
         shutil.copy(FIX / name, tmp / name)
     for suf in (".tsx", ".css"):
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
-    p0 = FIX / f"{which}-p0.tsx"
-    if p0.exists():
-        shutil.copy(p0, tmp / "checkout.tsx")
+    for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
+                        (f"{which}-craft.tsx", "landing.tsx"),
+                        (f"{which}-craft.css", "landing.css")):
+        src = FIX / extra
+        if src.exists():
+            shutil.copy(src, tmp / dest)
     out = subprocess.run([sys.executable, str(HERE / "ux_check.py"), str(tmp), "--json"],
                          capture_output=True, text=True)
     data = json.loads(out.stdout)

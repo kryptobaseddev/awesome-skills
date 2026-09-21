@@ -89,6 +89,30 @@ detectors:
   S-SLOP-EMOJI:      {engine: source,  rules: [CONTENT-001, VIS-007], confidence: high}
   S-SLOP-COPY:       {engine: source,  rules: [CONTENT-003], confidence: high}
   S-SLOP-UNIFORM:    {engine: source,  rules: [VIS-006, VIS-002], confidence: low}
+  S-SLOP-EYEBROW:    {engine: element, rules: [VIS-006, VIS-002], confidence: low}
+  S-TYPE-TRACKING:   {engine: source,  rules: [VIS-006], confidence: low}
+  S-SLOP-PALETTE:    {engine: source,  rules: [VIS-001, VIS-006], confidence: low}
+
+  # --- Reading quality (scripts/checks/typography.py) ---
+  S-TYPE-TINY: {engine: source, rules: [NUM-015], confidence: medium}
+  S-TYPE-MEASURE: {engine: source, rules: [NUM-016], confidence: low}
+  S-TYPE-LEADING: {engine: source, rules: [NUM-010], confidence: low}
+  S-TYPE-ALLCAPS: {engine: source, rules: [VIS-002, CONTENT-001], confidence: low}
+  S-TYPE-JUSTIFY: {engine: source, rules: [VIS-002], confidence: low}
+  S-TYPE-TRACKING-WIDE: {engine: source, rules: [VIS-002], confidence: low}
+  S-TYPE-CRAMPED: {engine: source, rules: [NUM-005, VIS-002], confidence: low}
+  S-TYPE-EDGE: {engine: source, rules: [LAY-002], confidence: low}
+
+  # --- Visual craft tells (scripts/checks/craft.py). Low confidence by design:
+  # a deliberate choice looks identical to a reflex from outside, and what
+  # separates them is whether anyone can say why.
+  S-CRAFT-DEPTH: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-TYPESYSTEM: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-DECOR: {engine: source, rules: [VIS-006, NUM-001], confidence: low}
+  S-CRAFT-PALETTE-WARM: {engine: source, rules: [VIS-001, VIS-006], confidence: low}
+  S-CRAFT-MOTION: {engine: source, rules: [NUM-018, VIS-006], confidence: low}
+  S-CRAFT-RHYTHM: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-VOICE: {engine: source, rules: [CONTENT-001, VIS-002], confidence: low}
   S-CONTENT-I18N:    {engine: source,  rules: [CONTENT-004], confidence: medium,
                       not_run_when: "No i18n setup detected in the project."}
   S-CONTENT-FORMAT:  {engine: source,  rules: [CONTENT-005, CONTENT-006], confidence: medium}

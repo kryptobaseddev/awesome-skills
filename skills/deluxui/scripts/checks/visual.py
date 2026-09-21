@@ -132,17 +132,36 @@ def glass(f, p):
     return out
 
 
+def _css_card_classes(css: str) -> set[str]:
+    """Class names whose own rule makes them a card: a radius plus a boundary.
+    Without this the check only ever works on utility-first codebases, and a
+    semantic `.card` nested three deep sails through."""
+    found = set()
+    for m in re.finditer(r"\.([\w-]+)\s*(?:,[^{]*)?\{([^{}]*)\}", css):
+        body = m.group(2)
+        if re.search(r"border-radius\s*:", body) and \
+           re.search(r"box-shadow\s*:|border(?:-\w+)?\s*:", body):
+            found.add(m.group(1))
+    return found
+
+
 @check("S-SLOP-CARDNEST", exts=SRC)
 def nested_cards(f, p):
     out = []
     CARD = re.compile(r"(?:^|\s)(?:rounded-\w+|border|shadow)\b")
+    css_cards = _css_card_classes(p.css_text or "") | _css_card_classes(f.text)
+
+    def is_card(tag):
+        cls = tag.classes()
+        return bool(CARD.search(" ".join(cls))) or bool(set(cls) & css_cards)
+
     for t in f.tags:
-        if not CARD.search(" ".join(t.classes())):
+        if not is_card(t):
             continue
         depth = 1
         for a in (t.parent, getattr(t.parent, "parent", None),
                   getattr(getattr(t.parent, "parent", None), "parent", None)):
-            if a is not None and CARD.search(" ".join(a.classes())):
+            if a is not None and is_card(a):
                 depth += 1
         if depth >= 3:
             out.append(finding("S-SLOP-CARDNEST", f, t.line, " ".join(t.classes())[:90],
@@ -200,4 +219,103 @@ def uniform_treatment(f, p):
                            "card floats, none of them is the important one. Reserve the "
                            "heaviest treatment for the one surface that should dominate.",
                            "low"))
+    return out
+
+
+# ------------------------------------------------------------------ typographic tells
+@check("S-SLOP-EYEBROW")
+def eyebrow_label(f, p):
+    """The small uppercase wide-tracked label above a heading. One is a design
+    choice; one above every section is a rhythm nobody asked for, and it is a
+    reliable signature of generated marketing pages."""
+    out = []
+    # The same treatment is written two ways: Tailwind utilities on the element,
+    # or a semantic class whose rule lives in a stylesheet. Catch both, or this
+    # only ever works on utility-first codebases.
+    if f.ext in CSS:
+        for m in re.finditer(r"\{([^{}]*)\}", f.text):
+            body = m.group(1)
+            if not re.search(r"text-transform\s*:\s*uppercase", body):
+                continue
+            tracked = re.search(r"letter-spacing\s*:\s*0?\.(?:0[89]|[1-9])\d*\s*em", body)
+            small = re.search(r"font-size\s*:\s*(?:1[0-2]px|0\.[5-7]\d*rem)", body)
+            if not (tracked and small):
+                continue
+            out.append(finding("S-SLOP-EYEBROW", f, f.text[:m.start()].count("\n") + 1,
+                               " ".join(body.split())[:70],
+                               "An uppercase, wide-tracked, small-size rule -- the eyebrow "
+                               "label above a heading. It adds hierarchy carrying no "
+                               "information, and uppercase plus wide tracking is measurably "
+                               "slower to read (VIS-006, VIS-002).", "low"))
+        return out[:4]
+    hits = []
+    for t in f.tags:
+        cls = " ".join(t.classes())
+        style = str(t.attr("style") or "")
+        upper = "uppercase" in cls or "text-transform:uppercase" in style.replace(" ", "")
+        tracked = re.search(r"tracking-(?:wide|wider|widest)|letter-spacing\s*:\s*0?\.[12]",
+                            cls + style)
+        small = re.search(r"text-(?:xs|\[1[01]px\])|font-size\s*:\s*1[01]px", cls + style)
+        if upper and (tracked or small):
+            hits.append(t)
+    if len(hits) >= 1:
+        t = hits[0]
+        n = len(hits)
+        out.append(finding("S-SLOP-EYEBROW", f, t.line, " ".join(t.classes())[:80],
+                           f"{'An' if n == 1 else f'{n}'} uppercase wide-tracked micro-label "
+                           "above the heading. It adds a line of hierarchy that carries no "
+                           "information, and uppercase plus wide tracking is measurably "
+                           "slower to read (VIS-006, VIS-002).",
+                           "low" if n == 1 else "medium"))
+    return out
+
+
+@check("S-TYPE-TRACKING")
+def extreme_tracking(f, p):
+    """Negative tracking on display type is a look. Past about -0.03em it starts
+    closing counters and colliding diagonals, and at small sizes it is simply
+    harder to read."""
+    out = []
+    for m in re.finditer(r"letter-spacing\s*:\s*(-0?\.\d+)\s*em|"
+                         r"tracking-\[(-0?\.\d+)em\]|(-tracking-(?:tight|tighter))",
+                         f.text):
+        raw = m.group(1) or m.group(2)
+        if raw is not None:
+            if float(raw) > -0.035:
+                continue
+            desc = f"{raw}em"
+        else:
+            if "tighter" not in m.group(3):
+                continue
+            desc = m.group(3)
+        out.append(finding("S-TYPE-TRACKING", f, f.text[:m.start()].count("\n") + 1,
+                           m.group(0),
+                           f"Tracking of {desc} closes letter counters and collides "
+                           "diagonals. Tighten display type if you must, but check it at "
+                           "the smallest size it renders (VIS-006).", "low"))
+    return out[:6]
+
+
+@check("S-SLOP-PALETTE")
+def generated_palette(f, p):
+    """Violet-to-blue is the palette a model reaches for when no palette was
+    decided. A genuinely violet brand is fine -- what gives it away is the
+    combination used as the whole identity, with no brand token behind it."""
+    out = []
+    cool = len(re.findall(r"\b(?:violet|purple|indigo|fuchsia)-[456]00\b", f.text))
+    blue = len(re.findall(r"\b(?:blue|sky|cyan)-[456]00\b", f.text))
+    hexes = re.findall(r"#(?:8b5cf6|a855f7|6366f1|7c3aed|3b82f6|0ea5e9|06b6d4)\b",
+                       f.text, re.I)
+    branded = re.search(r"--color-(?:brand|primary|accent)\b|\bbrand-\d00\b", f.text)
+    score = (cool >= 2 and blue >= 1) or len(hexes) >= 3
+    if not score or branded:
+        return out
+    m = re.search(r"\b(?:violet|purple|indigo|fuchsia)-[456]00\b|#(?:8b5cf6|6366f1|3b82f6)",
+                  f.text, re.I)
+    out.append(finding("S-SLOP-PALETTE", f, f.text[:m.start()].count("\n") + 1,
+                       m.group(0),
+                       "The violet-and-blue palette, used as the identity with no brand "
+                       "token behind it. It is the most recognisable generated-UI signature "
+                       "there is. Pick colours from the product, then name them as tokens "
+                       "(VIS-001, VIS-006).", "low"))
     return out
