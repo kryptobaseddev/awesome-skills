@@ -1,0 +1,39 @@
+:root { --brand: oklch(0.6 0.2 250); --surface: #fff; --ink: #111; --muted: #666;
+        --radius: 14px; --gap: 8px; --shadow: 0 1px 2px rgba(0,0,0,.08); }
+.title { font-family: "Playfair Display", serif; font-size: 3rem; }
+.body  { font-family: "Inter", sans-serif; font-size: 16px; }
+.note  { font-family: "Space Grotesk", sans-serif; font-size: 15px; }
+.code  { font-family: "JetBrains Mono", monospace; font-size: 14px; }
+.label { font-family: "Söhne", sans-serif; font-size: 13.5px; }
+.card  { border-radius: 32px; box-shadow: 0 0 24px rgba(80, 120, 255, 0.55); }
+.panel { box-shadow: 6px 6px 0 #111; }
+.hero  { background: repeating-linear-gradient(45deg, #eee 0 10px, #fff 10px 20px); }
+.enter { transition: opacity 400ms ease-in-out; }
+.pop   { animation-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+.stack { z-index: 9999; }
+
+/* A real design system's worth of tokens and components -- and not one line
+   theming the browser's own surfaces. */
+:root {
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-8: 48px; --space-10: 64px;
+  --text-xs: 12px; --text-sm: 14px; --text-base: 16px; --text-lg: 18px;
+  --text-xl: 20px; --text-2xl: 24px; --text-3xl: 30px; --text-4xl: 36px;
+  --color-canvas: #ffffff; --color-surface: #f7f7f8; --color-elevated: #ffffff;
+  --color-ink: #111114; --color-muted: #6b6b76; --color-border: #e4e4e9;
+  --color-interactive: #2b5cff; --color-success: #128a4b; --color-warning: #a8630a;
+  --color-danger: #c62828; --color-selected: #eaf0ff;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+  --leading-tight: 1.2; --leading-normal: 1.5; --leading-loose: 1.7;
+}
+.btn { padding: var(--space-2) var(--space-4); border-radius: 8px;
+       background: var(--color-interactive); color: #fff; font-weight: 500; }
+.btn:hover { filter: brightness(0.94); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.input { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
+         border-radius: 8px; background: var(--color-canvas); color: var(--color-ink); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.table th { text-align: left; color: var(--color-muted); font-weight: 500; }
+.table td { border-top: 1px solid var(--color-border); padding: var(--space-2); }
+.badge { border-radius: 999px; padding: 2px var(--space-2); font-size: var(--text-xs); }
+.dialog { background: var(--color-elevated); border-radius: 14px; padding: var(--space-6); }

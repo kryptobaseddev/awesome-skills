@@ -283,6 +283,28 @@ detectors:
       screenshot diff shows that pixels moved; it cannot show that a flow still
       works. Record which existing flows were exercised and how.
 
+  # --- Craft floor (scripts/checks/craftfloor.py). Numeric ceilings and habits
+  # derived from the impeccable skill's craft floor (Apache-2.0,
+  # github.com/pbakaus/impeccable), re-expressed as measurements with thresholds
+  # in thresholds.yaml. Mostly low confidence: a deliberate choice and a reflex
+  # look identical from outside, and the number is the only part that is a fact.
+  S-CRAFT-HERO-SCALE: {engine: source, rules: [VIS-002, VIS-006], confidence: medium}
+  S-CRAFT-TYPE-FLAT: {engine: source, rules: [VIS-002, NUM-015], confidence: low}
+  S-CRAFT-FAMILIES: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-BALANCE: {engine: source, rules: [VIS-002], confidence: low}
+  S-CRAFT-HALO: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-HARD-SHADOW: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-CARD-RADIUS: {engine: source, rules: [VIS-006, VIS-001], confidence: low}
+  S-CRAFT-HIDDEN-AT-REST: {engine: source, rules: [LAY-010, A11Y-010, PERF-003], confidence: medium}
+  S-CRAFT-EASING: {engine: source, rules: [NUM-018, VIS-006], confidence: low}
+  S-CRAFT-SURFACES: {engine: source, rules: [VIS-001, VIS-006], confidence: low}
+  S-CRAFT-SECTION-NUMBERS: {engine: source, rules: [VIS-006, CONTENT-001], confidence: low}
+  S-CRAFT-ICON-TILE: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-STRIPES: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-GRADIENT-TEXT: {engine: source, rules: [VIS-006, NUM-001], confidence: medium}
+  S-CRAFT-ZINDEX: {engine: source, rules: [VIS-001], confidence: low}
+  S-CRAFT-GRAY-ON-COLOR: {engine: element, rules: [VIS-001, NUM-001], confidence: low}
+
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
   M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
   M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}

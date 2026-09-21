@@ -30,6 +30,12 @@ EXPECT = [
     "S-SLOP-EMOJI", "S-SLOP-COPY", "S-TOKEN-HEX", "S-TOKEN-ARBITRARY",
     "S-DS-NEWDEP", "S-CONTENT-ERRORTEXT", "S-PERF-IMGDIM",
     "S-CANVAS-A11Y", "S-3D-PERF", "S-MEDIA-CAPTIONS", "S-COLOR-ONLY",
+    # craft floor
+    "S-CRAFT-HERO-SCALE", "S-CRAFT-FAMILIES", "S-CRAFT-HALO", "S-CRAFT-HARD-SHADOW",
+    "S-CRAFT-CARD-RADIUS", "S-CRAFT-HIDDEN-AT-REST", "S-CRAFT-EASING",
+    "S-CRAFT-SECTION-NUMBERS", "S-CRAFT-ICON-TILE", "S-CRAFT-STRIPES",
+    "S-CRAFT-GRADIENT-TEXT", "S-CRAFT-ZINDEX", "S-CRAFT-GRAY-ON-COLOR",
+    "S-CRAFT-TYPE-FLAT", "S-CRAFT-BALANCE", "S-CRAFT-SURFACES",
     # P0 family
     "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
     "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
@@ -49,7 +55,9 @@ def run(tmp: Path, which: str) -> set[str]:
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
     for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
                         (f"{which}-craft.tsx", "landing.tsx"),
-                        (f"{which}-craft.css", "landing.css")):
+                        (f"{which}-craft.css", "landing.css"),
+                        (f"{which}-craftfloor.tsx", "hero.tsx"),
+                        (f"{which}-craftfloor.css", "hero.css")):
         src = FIX / extra
         if src.exists():
             shutil.copy(src, tmp / dest)
