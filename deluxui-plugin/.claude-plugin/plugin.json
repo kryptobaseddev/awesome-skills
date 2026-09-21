@@ -1,6 +1,6 @@
 {
   "name": "deluxui",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "UX engineering with a verdict: a 190-rule interface contract, a static analyzer, a browser tier that forces the offline/empty/failed states nobody tests, and a release gate where NOT_RUN never counts as a pass.",
   "author": {
     "name": "kryptobaseddev",

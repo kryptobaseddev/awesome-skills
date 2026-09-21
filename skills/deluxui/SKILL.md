@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "2.3.0"
-  last_updated: "2026-09-21 11:04:31"
+  version: "3.0.0"
+  last_updated: "2026-09-21 11:47:08"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -66,6 +66,7 @@ Read this table first — each row is a failure that reaches real users.
 | **The static tier is heuristic.** | It scans source text and is wrong sometimes. Every finding carries a confidence. The runtime tier is what settles arguments. |
 | **Creating is easier than reading.** | This is why agents turn mature apps into a collage of unrelated screens. The preserve ladder exists to make that cost visible. |
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
+| **Design craft is checked against a declaration, never against taste.** | `.deluxui/design.contract.yaml` states the type roles, colour roles, one depth metaphor, radii and motion band *before* the code is written. The `S-CONTRACT-*` checks then compare the artifact to it. With no contract they report NOT_RUN — an undeclared system cannot be conformed to, and "is this beautiful?" has no decision procedure while "does this match what was declared?" does. |
 | **The 20 UX laws are reasoning, not verdicts.** | They carry `MUST`/`MUST_NOT`/`verify:` clauses and look like enforceable contracts, and nothing reads them. Roughly 14 of the 19 have a `verify:` clause an existing detector already covers — but the rule ID is what the gate adjudicates, so cite `NUM-004`, not `LAW-02`, when you mean a result. |
 | **169 of the 190 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The report audits itself.** | `GOV-005/006/008`, the `QA-*` and several `MEASURE-*` rules are about the report, not the product — no scan of an app can tell you whether the agent describing it invented a result. `ux_report.py` checks that every PASS names a detector that ran, that unknowns are declared, and that project config has not been used to weaken a standard. |
@@ -98,6 +99,8 @@ Match the request to a mode, then read that workflow file. Do not read all of th
 | Mode | The user is asking for | Read | Tiers |
 |---|---|---|---|
 | `init` | Set this up / first time in this repo | `references/workflows/init.md` | — |
+| `design` | **Greenfield.** No design yet — originate a world, then build from it | `references/workflows/design.md` | static + runtime |
+| `uplift` | **Brownfield.** A design exists — derive its contract, then raise it | `references/workflows/uplift.md` | all three |
 | `create` | A new screen, flow or component | `references/workflows/create.md` | static + runtime |
 | `improve` | Make it better, polish, redesign, simplify | `references/workflows/improve.md` | static + runtime + baseline |
 | `critique` | What is wrong with this? (no edits) | `references/workflows/critique.md` | static |
@@ -188,6 +191,9 @@ Each reference is self-contained. Read the one you need.
 | Task | Reference |
 |---|---|
 | The full execution loop, step by step | `references/loop.md` |
+| What the visitor came to do, and what it changes | `references/design/visitor-modes.md` |
+| The craft floor: every number, and which detector decides it | `references/design/craft-floor.md` |
+| The visual contract a project declares | `assets/templates/design.contract.yaml` |
 | Identity lock, preserve vs depart, variants | `references/preserve.md` |
 | The AI-tell catalogue and why each one reads as generated | `references/anti-slop.md` |
 | Everything in this skill, indexed | `references/index.md` |
