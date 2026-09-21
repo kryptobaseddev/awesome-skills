@@ -177,6 +177,8 @@ detectors:
   R-BASELINE-DIFF:   {engine: visual,   rules: [GOV-004], confidence: medium,
                       not_run_when: "No baseline screenshot recorded before the change."}
   R-MEASURE:         {engine: computed, rules: [NUM-016], confidence: high}
+  R-STICKY-OBSTRUCTION: {engine: computed, rules: [LAY-008, NUM-011], confidence: high}
+  R-ORIENTATION:     {engine: computed, rules: [LAY-004], confidence: high}
   R-CONSOLE:         {engine: computed, rules: [STATE-001], confidence: high}
   R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high}
   R-STATE-ERROR:     {engine: runtime_state, rules: [STATE-001, STATE-006, UX-009], confidence: high,
@@ -203,6 +205,39 @@ detectors:
   S-FORM-PASTE-BLOCK: {engine: source, rules: [FORM-015], confidence: medium}
   S-UX-FAKE-INTERACTIVE: {engine: element, rules: [UX-011], confidence: low}
 
+  # --- Behaviour, races and felt performance (scripts/checks/behavior.py) ---
+  S-NAV-DEEPLINK: {engine: source, rules: [NAV-003], confidence: low}
+  S-NAV-LIST-CONTEXT: {engine: source, rules: [NAV-004], confidence: low}
+  S-NAV-ERROR-ROUTE: {engine: source, rules: [NAV-008], confidence: low,
+                      not_run_when: "No component inventory to inspect."}
+  S-NAV-FOCUS-STEAL: {engine: source, rules: [NAV-010, A11Y-006], confidence: medium}
+  S-STATE-RACE: {engine: source, rules: [STATE-007, COMP-018], confidence: medium}
+  S-STATE-CANCEL: {engine: source, rules: [STATE-012], confidence: medium}
+  S-COMP-TOOLTIP-CRITICAL: {engine: element, rules: [COMP-012], confidence: medium}
+  S-COMP-ZERO-VS-MISSING: {engine: source, rules: [COMP-016], confidence: low}
+  S-COMP-PAGINATION: {engine: source, rules: [COMP-019], confidence: medium}
+  S-COMP-DRAG-ALT: {engine: source, rules: [COMP-020, A11Y-009], confidence: medium}
+  S-FORM-DERIVED-STALE: {engine: source, rules: [FORM-008], confidence: low}
+  S-FORM-REDUNDANT: {engine: element, rules: [FORM-011], confidence: low}
+  S-FORM-EXCESSIVE: {engine: element, rules: [FORM-001], confidence: low}
+  S-PERF-SKELETON-ARIA: {engine: element, rules: [PERF-008], confidence: medium}
+  S-PERF-LONG-LIST: {engine: source, rules: [PERF-006, PERF-007], confidence: low}
+  S-PERF-BLOCKING: {engine: source, rules: [PERF-004, NUM-013], confidence: low}
+  S-A11Y-TIMEOUT: {engine: source, rules: [A11Y-008], confidence: medium}
+
+  # --- Localisation, data honesty, generated output (checks/presentation.py) ---
+  S-CONTENT-RTL: {engine: source, rules: [CONTENT-007], confidence: low,
+                  not_run_when: "Project ships a single locale."}
+  S-CHART-TRUTH: {engine: source, rules: [CONTENT-009, COMP-015], confidence: medium,
+                  not_run_when: "No charting library in the project dependencies."}
+  S-AI-UNCERTAINTY: {engine: source, rules: [AI-002, AI-004, AI-006], confidence: medium,
+                     not_run_when: "No model SDK in the project dependencies."}
+  S-AI-STREAM-A11Y: {engine: source, rules: [AI-005], confidence: medium,
+                     not_run_when: "No model SDK in the project dependencies."}
+  S-VIS-STATE-COVERAGE: {engine: source, rules: [VIS-004], confidence: medium}
+  S-UX-PREFERENCE-CONTROL: {engine: source, rules: [UX-014], confidence: low}
+  S-UX-CONTROL-ALIGNMENT: {engine: element, rules: [UX-013], confidence: low}
+
   # --- Report self-audit (scripts/ux_report.py). These check THIS DOCUMENT,
   # not the product. GOV-005/006/008 are properties of the agent's honesty, and
   # no scan of someone's app can establish them -- but whether every PASS here
@@ -215,11 +250,25 @@ detectors:
   A-SCOPE-STATED: {engine: report, rules: [QA-002, QA-003, GOV-009, A11Y-013], confidence: high}
   A-NO-INVENTED-METRICS: {engine: report, rules: [MEASURE-002, MEASURE-005, MEASURE-007],
                           confidence: high}
+  A-BASIS-CLASSED: {engine: report, rules: [GOV-003, GOV-001], confidence: high}
+  A-EXCEPTIONS-VALID: {engine: report, rules: [GOV-007, QA-006], confidence: high}
+  A-CONTEXT-DECLARED: {engine: report, rules: [CTX-002, CTX-003, CTX-004, MEASURE-006],
+                       confidence: high}
+  A-PERF-TIER: {engine: report, rules: [PERF-002, PERF-009, PERF-010, MEASURE-001,
+                                        MEASURE-003, MEASURE-004], confidence: high}
 
   # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
   M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
   M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}
-  M-CONTENT-REVIEW:  {engine: manual, rules: [CONTENT-002, CONTENT-008, UX-002]}
+  M-CONTENT-REVIEW:  {engine: manual, rules: [CONTENT-002, CONTENT-008, UX-002, NAV-005]}
+  # Judgement rules. No checker can settle "is this the right amount of
+  # complexity to reveal" or "is the density right for this task". Listing them
+  # here is the honest alternative to a heuristic that would be wrong often
+  # enough to be ignored.
+  M-DESIGN-REVIEW:   {engine: manual, rules: [UX-004, UX-006, UX-007, UX-008, UX-010,
+                                              UX-012, VIS-003, VIS-009, LAY-001,
+                                              NAV-006, CTX-005]}
+  M-A11Y-PROCESS:    {engine: manual, rules: [A11Y-012, QA-004]}
   M-DESTRUCTIVE-WALK: {engine: manual, rules: [UX-003, UX-005, TRUST-006, FORM-013]}
   M-FIELD-PERF:      {engine: manual, rules: [NUM-012, PERF-005]}

@@ -1,6 +1,6 @@
 ---
 name: deluxui
-description: "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 131 checks bound to cited rule IDs and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'."
+description: "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 163 checks bound to cited rule IDs and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'."
 license: MIT
 compatibility: >-
   Python 3.9+ with pyyaml for the static tier and the report. The runtime tier
@@ -66,7 +66,7 @@ Read this table first — each row is a failure that reaches real users.
 | **The static tier is heuristic.** | It scans source text and is wrong sometimes. Every finding carries a confidence. The runtime tier is what settles arguments. |
 | **Creating is easier than reading.** | This is why agents turn mature apps into a collage of unrelated screens. The preserve ladder exists to make that cost visible. |
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
-| **123 of the 190 rules have an automated detector; 67 do not.** | Every P0 rule is automated. The rest need the manual tier or a human reading the code, and they report NOT_RUN until someone does. Coverage is not conformance. |
+| **169 of the 190 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The report audits itself.** | `GOV-005/006/008`, the `QA-*` and several `MEASURE-*` rules are about the report, not the product — no scan of an app can tell you whether the agent describing it invented a result. `ux_report.py` checks that every PASS names a detector that ran, that unknowns are declared, and that project config has not been used to weaken a standard. |
 
 ## Orient
@@ -202,7 +202,7 @@ Each reference is self-contained. Read the one you need.
 
 | Script | Purpose |
 |---|---|
-| `scripts/ux_check.py` | **Static tier.** 100 source checks bound to rule IDs. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--stdin` for editor hooks. |
+| `scripts/ux_check.py` | **Static tier.** 124 source checks bound to rule IDs. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--stdin` for editor hooks. |
 | `scripts/ux_browser.sh` | **Runtime tier.** Drives agent-browser across your viewport matrix, measures contrast, targets, focus and vitals, and forces aborted, empty and offline states. |
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones. |

@@ -35,7 +35,10 @@ def _reflow(raws, out):
     for name, d in raws.items():
         if "__layout_" not in name or "offenders" not in d:
             continue
-        vp = int(name.rsplit("_", 1)[-1].removesuffix(".json"))
+        suffix = name.rsplit("_", 1)[-1].removesuffix(".json")
+        if not suffix.isdigit():
+            continue        # the landscape capture is read by _orientation
+        vp = int(suffix)
         if d.get("page_overflows"):
             worst = min(worst or vp, vp)
             for o in d["offenders"][:5]:
@@ -161,6 +164,44 @@ def _measure(raws, out):
                     "loses the return sweep and people re-read lines (NUM-016).", hits[:12])
 
 
+def _obstruction(raws, out):
+    hits = []
+    seen = False
+    for name, d in raws.items():
+        if not name.endswith("__obstruction.json") or "probe" not in d:
+            continue
+        seen = True
+        for h in d.get("viewport_hogs", []):
+            hits.append(f"a sticky layer takes {h['pct']}% of the viewport height "
+                        f"(class \"{h['cls']}\")")
+        for o in d.get("focus_obscured", []):
+            hits.append(f"focused {o['tag']} \"{o['label']}\" is painted over by "
+                        f"\"{o['behind']}\"")
+    if not seen:
+        return ("NOT_RUN", "Obstruction probe produced no output.", [])
+    if not hits:
+        return ("PASS", "No sticky layer hides a focused control or dominates the "
+                        "viewport.", [])
+    return ("FAIL", f"{len(hits)} sticky-layer problems. A focused control hidden "
+                    "behind a header fails SC 2.4.11, and a bar taking a quarter of a "
+                    "phone screen leaves very little to read in.", hits[:10])
+
+
+def _orientation(raws, out):
+    for name, d in raws.items():
+        if "__layout_landscape.json" not in name or "offenders" not in d:
+            continue
+        if d.get("page_overflows"):
+            return ("FAIL", "The layout scrolls sideways in landscape at 844x390 -- "
+                            "a common phone orientation, and one fixed-height layouts "
+                            "usually fail (LAY-004).",
+                    [f"<{o['tag']} class=\"{o['cls']}\"> reaches {o['right']}px"
+                     for o in d["offenders"][:6]])
+        return ("PASS", "Landscape phone orientation reflows without horizontal "
+                        "scrolling.", [])
+    return ("NOT_RUN", "Landscape orientation was not captured.", [])
+
+
 def _console(raws, texts, out):
     hits = [f"{k}: {v.strip()[:160]}" for k, v in texts.items()
             if k.endswith("__errors.txt") and v.strip()]
@@ -226,6 +267,8 @@ RUNTIME = {
     "R-MOTION": _motion,
     "R-VITALS": _vitals,
     "R-MEASURE": _measure,
+    "R-STICKY-OBSTRUCTION": _obstruction,
+    "R-ORIENTATION": _orientation,
     "R-CONSOLE": None,
     "R-STATE-ERROR": _state("abort", "An aborted request", None),
     "R-STATE-EMPTY": _state("empty", "An empty result set", None),
@@ -388,6 +431,60 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None):
             "No percentage improvement or user-research claim appears that a tier did "
             "not produce. Lab vitals are reported as NOT_RUN for the same reason.")
 
+    # --- GOV-003: every result must carry its class and its source
+    unclassed = [r["rule_id"] for r in results
+                 if r["status"] not in ("NOT_APPLICABLE",)
+                 and (not r.get("class") or not r.get("basis"))]
+    if unclassed:
+        out["A-BASIS-CLASSED"] = ("FAIL",
+            f"{len(unclassed)} results carry no class or no source: "
+            + ", ".join(unclassed[:8]))
+    else:
+        out["A-BASIS-CLASSED"] = ("PASS",
+            "Every result states whether it comes from a standard, a platform, "
+            "research or a project default, and names its source.")
+
+    # --- GOV-007: an exception may lower a PROJECT rule, never a STANDARD
+    exc = config.get("exceptions") or {}
+    bad_exc = []
+    by_id = {r["rule_id"]: r for r in results}
+    for rid in exc:
+        rec = by_id.get(rid)
+        if rec and rec.get("class") == "STANDARD":
+            bad_exc.append(rid)
+    if bad_exc:
+        out["A-EXCEPTIONS-VALID"] = ("FAIL",
+            "Exceptions claimed against STANDARD-class rules, which cannot be "
+            "waived by project policy: " + ", ".join(bad_exc))
+    else:
+        out["A-EXCEPTIONS-VALID"] = ("PASS",
+            f"{len(exc)} recorded exception(s), none against a standard."
+            if exc else "No exceptions claimed.")
+
+    # --- CTX-002/003/004: the product's own facts were declared, not assumed
+    feats = config.get("features") or []
+    gated = [r for r in results if r["status"] == "NOT_APPLICABLE"]
+    if not feats and gated:
+        out["A-CONTEXT-DECLARED"] = ("FAIL",
+            f"{len(gated)} rules were ruled NOT_APPLICABLE but the project declares "
+            "no features. Applicability was assumed rather than stated.")
+    else:
+        out["A-CONTEXT-DECLARED"] = ("PASS",
+            f"Applicability derives from {len(feats)} declared feature(s); "
+            f"{len(gated)} rules ruled out on that basis." if feats
+            else "No feature gating applied; every rule treated as applicable.")
+
+    # --- PERF-002/009/010: lab numbers are never reported as field evidence
+    vit = (runtime.get("detectors") or {}).get("R-VITALS", {})
+    if vit and vit.get("status") == "PASS":
+        out["A-PERF-TIER"] = ("FAIL",
+            "R-VITALS reported PASS. A single lab run cannot establish NUM-012, "
+            "which is a 75th-percentile field metric across real users and devices.")
+    else:
+        out["A-PERF-TIER"] = ("PASS",
+            "Performance is reported as lab measurement only; field evidence is "
+            "marked NOT_RUN and needs real-user data.")
+
     if any("non-overridable" in v or "not in the overridable" in v for v in violations):
         out["A-CONFIG-AUTHORITY"] = ("FAIL", "; ".join(violations))
     elif violations:
@@ -464,7 +561,12 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
                "A-CONFIG-AUTHORITY": ["GOV-008"],
                "A-EVIDENCE-MAP": ["QA-001", "QA-005", "GOV-002"],
                "A-SCOPE-STATED": ["QA-002", "QA-003", "GOV-009", "A11Y-013"],
-               "A-NO-INVENTED-METRICS": ["MEASURE-002", "MEASURE-005", "MEASURE-007"]}
+               "A-NO-INVENTED-METRICS": ["MEASURE-002", "MEASURE-005", "MEASURE-007"],
+               "A-BASIS-CLASSED": ["GOV-003", "GOV-001"],
+               "A-EXCEPTIONS-VALID": ["GOV-007", "QA-006"],
+               "A-CONTEXT-DECLARED": ["CTX-002", "CTX-003", "CTX-004", "MEASURE-006"],
+               "A-PERF-TIER": ["PERF-002", "PERF-009", "PERF-010", "MEASURE-001",
+                               "MEASURE-003", "MEASURE-004"]}
     for did, rids in A_RULES.items():
         st, note = audit[did]
         for r in results:

@@ -75,10 +75,17 @@ for route in "${ROUTE_LIST[@]}"; do
   probe contrast "$OUT/raw/${R}__contrast.json"
   probe focus    "$OUT/raw/${R}__focus.json"
   probe measure  "$OUT/raw/${R}__measure.json"
+  probe obstruction "$OUT/raw/${R}__obstruction.json"
   ab snapshot    > "$OUT/raw/${R}__a11ytree.txt" 2>/dev/null
   ab vitals --json > "$OUT/raw/${R}__vitals.json" 2>/dev/null
   ab console     > "$OUT/raw/${R}__console.txt" 2>/dev/null
   ab errors      > "$OUT/raw/${R}__errors.txt" 2>/dev/null
+
+  # --- landscape phone (LAY-004): where fixed heights and sticky bars collide
+  ab set viewport 844 390 >/dev/null
+  ab wait 250 >/dev/null
+  probe layout "$OUT/raw/${R}__layout_landscape.json"
+  ab set viewport "$LAST_VP" 900 >/dev/null
 
   # --- user setting overrides: 200% text (NUM-008) and text spacing (NUM-010)
   for mode in zoom spacing; do
