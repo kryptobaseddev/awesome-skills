@@ -47,6 +47,17 @@ EXPECT = [
     "S-TYPE-TRACKING-WIDE", "S-TYPE-CRAMPED", "S-SLOP-EYEBROW",
     "S-CRAFT-DEPTH", "S-CRAFT-TYPESYSTEM", "S-CRAFT-DECOR", "S-CRAFT-PALETTE-WARM",
     "S-CRAFT-MOTION", "S-CRAFT-RHYTHM", "S-CRAFT-VOICE",
+    # native platform -- iOS
+    "S-IOS-SAFEAREA", "S-IOS-NAVSTRUCTURE", "S-IOS-EDGESWIPE", "S-IOS-DYNAMICTYPE",
+    "S-IOS-SYSTEMFONT", "S-IOS-MINSIZE", "S-IOS-TARGET44", "S-IOS-SEMANTICCOLOR",
+    "S-IOS-DARKMODE", "S-IOS-TINT", "S-IOS-MATERIALS", "S-IOS-NATIVECONTROLS",
+    "S-IOS-SFSYMBOLS", "S-IOS-MODALITY", "S-IOS-GROUPEDLIST", "S-IOS-TRANSITION",
+    "S-IOS-REDUCEMOTION", "S-IOS-LARGETITLE",
+    # native platform -- Android
+    "S-AND-ADAPTIVENAV", "S-AND-SYSTEMBACK", "S-AND-INSETS", "S-AND-TYPESCALE",
+    "S-AND-SYSTEMFONT", "S-AND-SP", "S-AND-ROLETOKENS", "S-AND-DYNAMICCOLOR",
+    "S-AND-DARKTHEME", "S-AND-ELEVATION", "S-AND-MATERIAL", "S-AND-FAB",
+    "S-AND-TOAST", "S-AND-REDUCEMOTION", "S-AND-TARGET48",
 ]
 
 
@@ -77,6 +88,17 @@ def run(tmp: Path, which: str) -> set[str]:
             "    </main>\n  );\n}\n")
     for suf in (".tsx", ".css"):
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
+    # Native platform fixtures. The ios/ and android/ directories are what
+    # detect_platforms() reads, so the platform families are applicable here for
+    # the same reason they would be in a real app -- the tree says so.
+    (tmp / "ios").mkdir(exist_ok=True)
+    (tmp / "android").mkdir(exist_ok=True)
+    for extra, dest in ((f"{which}-ios.swift", "ios/ContentView.swift"),
+                        (f"{which}-android.kt", "android/HomeScreen.kt"),
+                        (f"{which}-native.tsx", "Toolbar.native.tsx")):
+        src = FIX / extra
+        if src.exists():
+            shutil.copy(src, tmp / dest)
     for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
                         (f"{which}-craft.tsx", "landing.tsx"),
                         (f"{which}-craft.css", "landing.css"),
@@ -243,10 +265,11 @@ def contract_checks():
     # fast path can bail before importing yaml and the check modules. If the two
     # drift, the hook silently stops seeing a whole file type.
     import ux_check
-    from checks._util import SOURCE_EXT, STYLE_EXT
-    drift = ux_check.HOOK_EXT ^ (SOURCE_EXT | STYLE_EXT)
+    from checks._util import NATIVE_EXT, SOURCE_EXT, STYLE_EXT
+    drift = ux_check.HOOK_EXT ^ (SOURCE_EXT | STYLE_EXT | NATIVE_EXT)
     if drift:
-        fails.append(f"HOOK_EXT has drifted from SOURCE_EXT|STYLE_EXT: {sorted(drift)}")
+        fails.append("HOOK_EXT has drifted from SOURCE_EXT|STYLE_EXT|NATIVE_EXT: "
+                     f"{sorted(drift)}")
 
     # A single-file scan must never report a rule as PASS.
     reg, det = ux_check.load_rules()

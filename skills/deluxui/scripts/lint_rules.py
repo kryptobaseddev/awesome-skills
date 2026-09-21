@@ -22,7 +22,7 @@ SKILL = HERE.parent
 RULES = SKILL / "references" / "rules"
 
 RULE_RE = re.compile(r"\b((?:GOV|CTX|UX|NUM|VIS|LAY|NAV|FORM|COMP|STATE|A11Y|PERF|"
-                     r"CONTENT|TRUST|AI|MEASURE|QA|TEST|LAW)-\d{2,3})\b")
+                     r"CONTENT|TRUST|AI|MEASURE|QA|IOS|AND|TEST|LAW)-\d{2,3})\b")
 
 
 def main() -> int:
@@ -90,6 +90,23 @@ def main() -> int:
     for did in unimplemented:
         if did not in ux_report.UNIMPLEMENTED:
             errors.append(f"{did} is unimplemented but gives no reason to report")
+
+    # --- a manual detector without a question is an invitation to sign something
+    # nobody performed. "Design review: PASS" certified eleven rules once; the
+    # question is what makes a manual result a result rather than a mood.
+    for did, d in det["detectors"].items():
+        if d["engine"] != "manual":
+            continue
+        q = (d.get("question") or "").strip()
+        if len(q) < 60:
+            errors.append(f"{did} is a manual detector with no usable question. State "
+                          f"what the person has to DO, specifically enough that another "
+                          f"person could tell whether they did it.")
+        if len(d["rules"]) > 4:
+            errors.append(f"{did} puts {len(d['rules'])} rules behind one signature "
+                          f"({', '.join(d['rules'])}). Split it: one attestation "
+                          f"certifying many separate judgements is the laundering "
+                          f"GOV-006 exists to prevent.")
 
     # --- prose may not invent rule IDs
     cited = {}

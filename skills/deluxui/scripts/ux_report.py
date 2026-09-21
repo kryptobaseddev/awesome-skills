@@ -351,6 +351,58 @@ def _baseline(raws, out):
     return ("NOT_RUN", "No baseline comparison was interpretable.", [])
 
 
+# ----------------------------------------------------------------- native tier
+# scripts/ux_native.sh writes raw/native-ios.json and raw/native-android.json.
+# A missing file, or one reporting the tool absent, is NOT_RUN -- never PASS.
+# This is the one place in the whole tool where the temptation to fudge is
+# strongest, because on a Linux machine `xcrun` will never exist and it would be
+# convenient to call that "not applicable". It is not: the iPhone build is still
+# unverified, and only a Mac can change that.
+def _native(platform: str, want_pairs: bool):
+    label = "iOS" if platform == "ios" else "Android"
+    tool = "xcrun simctl" if platform == "ios" else "adb"
+    appearance = "Dark Mode and a large Dynamic Type size" if platform == "ios" \
+        else "the dark theme and an enlarged font scale"
+
+    def probe(raws, out_dir):
+        d = raws.get(f"native-{platform}.json")
+        if not d:
+            return ("NOT_RUN", f"No {label} capture recorded. Run scripts/ux_native.sh "
+                               f"--{platform} against a booted target.", [])
+        if not d.get("available"):
+            return ("NOT_RUN", f"{tool} unavailable: "
+                               f"{d.get('reason', 'reason not recorded')}. The {label} "
+                               f"build is unverified -- this is not a pass and not a "
+                               f"not-applicable.", [])
+        caps = [c for c in (d.get("captures") or []) if (c.get("bytes") or 0) > 0]
+        device = d.get("device") or "an unnamed target"
+        if not caps:
+            return ("FAIL", f"{tool} ran on {device} and produced no usable capture. "
+                            f"Errors: {'; '.join(d.get('errors') or ['none reported'])}",
+                    [f"no {label} screenshot produced"])
+        kinds = {c.get("kind") for c in caps}
+        if not want_pairs:
+            classes = sorted({c.get("device_class") for c in caps if c.get("device_class")})
+            return ("PASS", f"{len(caps)} capture(s) from {device}"
+                            + (f", device classes: {', '.join(classes)}" if classes else ""),
+                    [])
+        missing = []
+        if not {"light"} & kinds:
+            missing.append("a light-appearance capture")
+        if not {"dark"} & kinds:
+            missing.append("a dark-appearance capture")
+        if not {"large-type"} & kinds:
+            missing.append("an enlarged-text capture")
+        if missing:
+            return ("FAIL", f"{tool} ran on {device} but the pass is incomplete: "
+                            f"missing {', '.join(missing)}. {appearance} belong in the "
+                            f"pass, because that is where a fixed layout truncates.",
+                    [f"missing: {m}" for m in missing])
+        return ("PASS", f"{label} verified in both appearances and at an enlarged text "
+                        f"size on {device} ({len(caps)} captures).", [])
+    return probe
+
+
 # Declared runtime detectors. None means "declared but not implemented yet" --
 # it reports NOT_RUN with that reason rather than quietly vanishing.
 RUNTIME = {
@@ -376,6 +428,10 @@ RUNTIME = {
     "R-PIXEL-CONTRAST": None,
     "R-BASELINE-DIFF": _baseline,
     "R-FORCED-COLORS": None,
+    "R-IOS-CAPTURE": _native("ios", want_pairs=False),
+    "R-IOS-APPEARANCE": _native("ios", want_pairs=True),
+    "R-AND-CAPTURE": _native("android", want_pairs=False),
+    "R-AND-THEME": _native("android", want_pairs=True),
 }
 UNIMPLEMENTED = {
     "R-STATE-SLOW": "Response throttling is not wired into the driver yet.",
@@ -673,6 +729,16 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
     det = det_doc["detectors"]
     static = load(static_json, {}) or {}
     runtime = load(runtime_json, {}) or {}
+    # Platforms the static tier MEASURED, unioned in. The iOS and Android rule
+    # families gate on `feature: ios` / `feature: android`, and requiring someone
+    # to declare what the tree already states is how forty rules stay invisible
+    # in the project that most needs them. A declared feature still works and
+    # still wins where they disagree -- this only removes the need to remember.
+    measured = ((static.get("project") or {}).get("platforms") or []) \
+        if isinstance(static, dict) else []
+    for plat in measured:
+        if plat not in features:
+            features = list(features) + [plat]
     manual = {}
     if manual_yaml and manual_yaml.exists():
         manual = yaml.safe_load(manual_yaml.read_text()) or {}
@@ -683,8 +749,23 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
     for k, v in (runtime.get("detectors") or {}).items():
         dstat[k] = (v["status"], v.get("note", ""))
     attested = set()
+    # Every manual detector, answered or not. Left out entirely they vanished
+    # from the report, which read as though nothing needed a human -- so the
+    # sheet's questions are seeded as NOT_RUN first and any recorded answer
+    # overwrites its row. An unanswered question now says what to do about it.
+    for k, d in det.items():
+        if d.get("engine") == "manual" and k not in dstat:
+            q = " ".join((d.get("question") or "").split())
+            dstat[k] = ("NOT_RUN", "Nobody has answered this yet. " + (q or
+                        "No question recorded for this check.")
+                        + f"  Record it: scripts/manual_sheet.py --write, then "
+                          f"fill in {k}.")
     for k, v in (manual.get("attestations") or {}).items():
         st, why, ok = vet_attestation(k, v if isinstance(v, dict) else {})
+        if st == "NOT_RUN":
+            q = " ".join((det.get(k, {}).get("question") or "").split())
+            if q:
+                why = f"{why}  The question is: {q}"
         dstat[k] = (st, why)
         if ok and st == "PASS":
             attested.add(k)

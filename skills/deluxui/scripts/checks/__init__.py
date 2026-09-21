@@ -53,6 +53,12 @@ class Project:
     css_text: str = ""
     cssvars: dict = field(default_factory=dict)   # --custom-property -> raw value
     has_container_queries: bool = False
+    # Platforms this project actually ships to, measured from the tree rather
+    # than declared: an ios/ or android/ directory, an Xcode or Gradle project,
+    # a pubspec, or a react-native / expo dependency. The platform rule families
+    # gate on this, so a web-only project reports them NOT_APPLICABLE instead of
+    # carrying forty rows nobody can act on.
+    platforms: set = field(default_factory=set)
     tailwind_major: int = 0    # 3 or 4; utilities changed meaning between them
 
 
@@ -96,4 +102,4 @@ def finding(detector, f, line, snippet, fix, confidence="medium"):
 # Importing the modules is what populates ALL.
 from . import (a11y, forms, states, responsive, visual, content, designsystem,  # noqa: E402,F401
                ecosystem, safety, commitment, typography, craft, craftfloor, contract,  # noqa: E402,F401
-               components, behavior, presentation)  # noqa: E402,F401
+               components, behavior, presentation, platform)  # noqa: E402,F401

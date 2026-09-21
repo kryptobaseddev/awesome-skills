@@ -9,7 +9,7 @@ meta:
   generated_note: Rule text is derived from the rulebook. Severity, class and detector bindings are deluxui
     additions. The rulebook stays the citable source.
   counts:
-    rules: 190
+    rules: 228
     tests: 20
     laws: 20
     # 19 of the 20 laws are enforceable (LAW-17 is an alias of LAW-16). Each is
@@ -21,7 +21,7 @@ meta:
     laws_shaped_as_contracts: 19
     laws_with_a_live_detector: 14
     laws_manual_only: 5
-    sources: 47
+    sources: 49
   status_vocabulary:
   - PASS
   - FAIL
@@ -2416,6 +2416,522 @@ rules:
     the broken path.
   acceptance: Legacy issues have explicit scope, impact, owner, and regression assessment.
   applies_when: always
+- id: IOS-001
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Lay out inside the safe-area insets on every screen.
+  acceptance: No control, text or gesture target sits under the notch, Dynamic Island, home indicator or a rounded
+    corner, on every device class shipped.
+  applies_when:
+    feature: ios
+- id: IOS-002
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: 'Use the system navigation structure: tab bar for 2 to 5 top-level sections, navigation stack for
+    hierarchy, sheet for a self-contained task.'
+  acceptance: Tab bar items are sections rather than actions. No second global navigation metaphor coexists with
+    it.
+  applies_when:
+    feature: ios
+- id: IOS-003
+  section: 13. Native iOS platform
+  levels:
+  - MUST_NOT
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: MUST NOT disable, overlay or reinterpret the left-edge back gesture.
+  acceptance: The edge-swipe back works on every pushed screen, including ones with a custom back button.
+  applies_when:
+    feature: ios
+- id: IOS-004
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Use large titles on top-level screens, collapsing to inline on scroll, and inline titles on deep
+    detail screens.
+  acceptance: Title display mode matches the screen's depth rather than being set once globally.
+  applies_when:
+    feature: ios
+- id: IOS-005
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Use the system text styles so text follows the user's reading size.
+  acceptance: No hard-coded point size carries body, label or control text. Layout survives the largest accessibility
+    text size.
+  applies_when:
+    feature: ios
+- id: IOS-006
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Keep body, labels and controls on the system face; a brand face may carry display moments.
+  acceptance: A custom face appears in display roles only, and the substituted metrics were checked at accessibility
+    sizes.
+  applies_when:
+    feature: ios
+- id: IOS-007
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Keep an 11 pt floor for any text a user is expected to read.
+  acceptance: No text style resolves below 11 pt at the default reading size.
+  applies_when:
+    feature: ios
+- id: IOS-008
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Use semantic system colors for label, background, separator and tint roles.
+  acceptance: Raw component values do not carry a semantic role, so Dark Mode and increased-contrast modes resolve
+    without a second code path.
+  applies_when:
+    feature: ios
+- id: IOS-009
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Treat Dark Mode as a designed appearance, not an inversion.
+  acceptance: Both appearances were viewed. Neither forces the other, and asset catalogs carry both variants where
+    images encode colour.
+  applies_when:
+    feature: ios
+- id: IOS-010
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Let one tint colour drive interactive elements.
+  acceptance: Tint marks what is actionable. Decoration uses another role.
+  applies_when:
+    feature: ios
+- id: IOS-011
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Use system materials for blur and translucency behind bars and sheets.
+  acceptance: No hand-rolled blur-plus-opacity stack stands in for a system material.
+  applies_when:
+    feature: ios
+- id: IOS-012
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Use the platform controls for switches, steppers, segmented controls, pickers, action sheets, alerts,
+    context menus and swipe actions.
+  acceptance: A reimplemented control is justified by a named requirement the platform control cannot meet, and
+    carries the same accessibility contract.
+  applies_when:
+    feature: ios
+- id: IOS-013
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Use SF Symbols for iconography.
+  acceptance: Icons align to the text baseline, follow Dynamic Type, and come from one set rather than a web icon
+    library.
+  applies_when:
+    feature: ios
+- id: IOS-014
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: 'Choose modality deliberately: sheet for a focused dismissible sub-task, full-screen cover for immersion.'
+  acceptance: Cancel and Done are unambiguous. Swipe-to-dismiss is honoured unless unsaved work requires a guard,
+    and then the guard exists.
+  applies_when:
+    feature: ios
+- id: IOS-015
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: Use grouped or inset lists for settings-shaped content.
+  acceptance: Settings-shaped content uses the platform list rather than a bespoke card stack.
+  applies_when:
+    feature: ios
+- id: IOS-016
+  section: 13. Native iOS platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S47
+  - S15
+  requirement: 'Use the system transitions: push slides, sheets rise, dismissal reverses the entrance.'
+  acceptance: No custom transition contradicts the navigation model the gesture implies.
+  applies_when:
+    feature: ios
+- id: IOS-017
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S47
+  - S15
+  requirement: Honour Reduce Motion.
+  acceptance: With Reduce Motion on, parallax and large slides become a crossfade or an instant cut. Nothing is
+    unreachable as a result.
+  applies_when:
+    feature: ios
+- id: IOS-018
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P1
+  basis:
+  - S00
+  - S47
+  requirement: Produce screenshot evidence from a Simulator or device, never a browser.
+  acceptance: Evidence names the device and the identifier that produced it, and covers every device class shipped.
+  applies_when:
+    feature: ios
+- id: IOS-019
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P1
+  basis:
+  - S00
+  - S47
+  requirement: Include Dark Mode and a large Dynamic Type size in the verification pass.
+  acceptance: Evidence exists for both appearances and for at least one accessibility text size.
+  applies_when:
+    feature: ios
+- id: IOS-020
+  section: 13. Native iOS platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P2
+  basis:
+  - S00
+  - S47
+  requirement: State whether evidence came from a Simulator or from hardware.
+  acceptance: Posture, gesture and performance claims name the hardware they were measured on, or are not made.
+  applies_when:
+    feature: ios
+- id: AND-001
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: 'Match navigation to window size: navigation bar on compact width, rail or drawer on expanded width.'
+  acceptance: A phone bottom bar does not ship unchanged on a tablet. The breakpoint uses a window size class rather
+    than a device check.
+  applies_when:
+    feature: android
+- id: AND-002
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Honour the system Back gesture and Back button.
+  acceptance: Back leaves every screen. No handler consumes Back without providing the navigation the user asked
+    for.
+  applies_when:
+    feature: android
+- id: AND-003
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Go edge-to-edge and apply the window insets.
+  acceptance: Status bar, navigation bar, display cutout and IME insets are all applied, so no content or control
+    hides behind system chrome or the keyboard.
+  applies_when:
+    feature: android
+- id: AND-004
+  section: 14. Native Android platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S48
+  - S16
+  requirement: Use a top app bar for screen context, paired with a FAB when the screen has one primary action.
+  acceptance: The bar carries the screen's identity and its overflow actions rather than being reinvented per screen.
+  applies_when:
+    feature: android
+- id: AND-005
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Map text to the Material type scale roles.
+  acceptance: Text takes a role from the scale. Sizes are not hand-picked per screen.
+  applies_when:
+    feature: android
+- id: AND-006
+  section: 14. Native Android platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S48
+  - S16
+  requirement: Keep body, labels and controls on the system face, theming a brand face in through the type scale.
+  acceptance: A brand face is introduced through the theme, not per call site, and remains legible at the smallest
+    role used.
+  applies_when:
+    feature: android
+- id: AND-007
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Size text in sp so it follows the system font-size setting.
+  acceptance: No text size is expressed in dp or px. Layout survives a large system font scale.
+  applies_when:
+    feature: android
+- id: AND-008
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Use Material colour roles rather than literal colour values.
+  acceptance: Colour comes from a role that resolves light, dark and contrast variants. Literals do not carry semantic
+    meaning.
+  applies_when:
+    feature: android
+- id: AND-009
+  section: 14. Native Android platform
+  levels:
+  - MAY
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S48
+  - S16
+  requirement: Derive the scheme from Dynamic Color where it fits, with a static fallback.
+  acceptance: Dynamic Color is applied on supported versions and a designed static scheme covers the rest.
+  applies_when:
+    feature: android
+- id: AND-010
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Treat the dark theme as a designed scheme, not an inversion.
+  acceptance: Both themes were viewed. Surface, text and state colours were chosen for each.
+  applies_when:
+    feature: android
+- id: AND-011
+  section: 14. Native Android platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S48
+  - S16
+  requirement: Convey elevation through Material's surface tonal levels.
+  acceptance: Elevation reads through tonal surface levels, with shadow only where the spec uses it. No arbitrary
+    drop shadow substitutes.
+  applies_when:
+    feature: android
+- id: AND-012
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Use Material components rather than porting iOS controls or inventing equivalents.
+  acceptance: No Cupertino-shaped switch, dialog or picker appears on Android. A custom control names the requirement
+    Material could not meet.
+  applies_when:
+    feature: android
+- id: AND-013
+  section: 14. Native Android platform
+  levels:
+  - SHOULD
+  class: PLATFORM
+  severity: P2
+  basis:
+  - S48
+  - S16
+  requirement: Use one FAB for one primary action.
+  acceptance: At most one FAB per screen, and it carries the screen's primary action rather than a secondary one.
+  applies_when:
+    feature: android
+- id: AND-014
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Use snackbars for transient feedback and dialogs only for decisions that must interrupt.
+  acceptance: Transient feedback that may need an action is a snackbar rather than a toast. No dialog interrupts
+    for something a snackbar could carry.
+  applies_when:
+    feature: android
+- id: AND-015
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PLATFORM
+  severity: P1
+  basis:
+  - S48
+  - S16
+  requirement: Use the Material motion patterns and honour the system remove-animations setting.
+  acceptance: Container transform, shared-axis and fade-through use standard easing and duration, and collapse to
+    a crossfade or cut when animations are off.
+  applies_when:
+    feature: android
+- id: AND-016
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P1
+  basis:
+  - S00
+  - S48
+  requirement: Produce screenshot evidence from an emulator or a connected device, never a browser.
+  acceptance: Evidence names the device and serial that produced it, and covers every device class shipped.
+  applies_when:
+    feature: android
+- id: AND-017
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P1
+  basis:
+  - S00
+  - S48
+  requirement: Include the dark theme and an increased font scale in the verification pass.
+  acceptance: Evidence exists for both themes and for at least one enlarged font scale.
+  applies_when:
+    feature: android
+- id: AND-018
+  section: 14. Native Android platform
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P2
+  basis:
+  - S00
+  - S48
+  requirement: State whether evidence came from an emulator or from hardware.
+  acceptance: Gesture, refresh-rate and performance claims name the hardware they were measured on, or are not made.
+  applies_when:
+    feature: android
 tests:
 - id: TEST-001
   section: 18. Required verification matrix
@@ -3212,6 +3728,20 @@ sources:
     type: official_explanation
     url: https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html
     supports: Timing adjustment and applicable exceptions
+  S47:
+    author_or_publisher: Apple Developer
+    title: Human Interface Guidelines
+    type: official_platform_guidance
+    url: https://developer.apple.com/design/human-interface-guidelines
+    supports: iOS and iPadOS structure, navigation, typography, colour, controls and motion.
+      Platform guidance adopted as project policy, not a legal standard.
+  S48:
+    author_or_publisher: Google
+    title: Material Design 3
+    type: official_platform_guidance
+    url: https://m3.material.io
+    supports: Android structure, adaptive navigation, type scale, colour roles, shape, elevation,
+      components and motion. Platform guidance adopted as project policy, not a legal standard.
   S00:
     publisher: This project
     title: Original engineering policy

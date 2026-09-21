@@ -26,7 +26,8 @@ sys.dont_write_bytecode = True
 # path is stashed for main(). HOOK_EXT must stay in step with SOURCE_EXT|STYLE_EXT;
 # selftest.py asserts that it does.
 HOOK_EXT = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro",
-            ".html", ".htm", ".css", ".scss", ".sass", ".less"}
+            ".html", ".htm", ".css", ".scss", ".sass", ".less",
+            ".swift", ".kt", ".kts", ".dart"}
 _HOOK_PATH = None
 if "--stdin" in sys.argv:
     try:
@@ -42,8 +43,8 @@ import yaml
 import rulepack
 import uxconfig
 from checks import ALL, FileCtx, Project
-from checks._util import (SOURCE_EXT, STYLE_EXT, collect_css_vars, css_of,
-                          iter_files, is_generated, read, scan_tags)
+from checks._util import (NATIVE_EXT, SOURCE_EXT, STYLE_EXT, collect_css_vars,
+                          css_of, iter_files, is_generated, read, scan_tags)
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "references" / "rules"
 
@@ -72,6 +73,7 @@ def detect_project(root: Path) -> Project:
         except (ValueError, OSError):
             pass
     p.has_tailwind = bool(p.tailwind_major) or any("tailwind" in d for d in p.deps)
+    p.platforms = detect_platforms(root, p.deps)
     p.has_i18n = any(re.search(r"i18n|intl|lingui|polyglot|translate", d) for d in p.deps)
     p.cssvars = collect_css_vars(root)
     if not p.tailwind_major and p.cssvars:
@@ -93,6 +95,35 @@ def detect_project(root: Path) -> Project:
     return p
 
 
+def detect_platforms(root: Path, deps: set) -> set:
+    """Which platforms this project ships to, measured rather than declared.
+
+    An `ios/` directory next to an `android/` one is the React Native and Flutter
+    shape; an .xcodeproj or Package.swift is native Apple; a build.gradle or
+    settings.gradle(.kts) is native Android; a pubspec.yaml is Flutter, which
+    ships to both unless its platform directories say otherwise. Declaring
+    `features: [ios]` in ux.config.yaml still works and is unioned in -- this
+    only removes the need to declare what the tree already states."""
+    out = set()
+    cross = bool(deps & {"react-native", "expo"}) or (root / "pubspec.yaml").exists()
+    if (root / "ios").is_dir() or any(root.glob("*.xcodeproj")) \
+            or any(root.glob("*.xcworkspace")) or (root / "Package.swift").exists():
+        out.add("ios")
+    if (root / "android").is_dir() or (root / "build.gradle").exists() \
+            or (root / "build.gradle.kts").exists() \
+            or (root / "settings.gradle").exists() or (root / "settings.gradle.kts").exists():
+        out.add("android")
+    if cross and not out:
+        # A cross-platform project whose native directories are generated at
+        # build time (Expo prebuild, managed workflow) still ships to both.
+        out |= {"ios", "android"}
+    return out
+
+
+_RN_IMPORT = re.compile(r"""from\s+["'](?:react-native|expo(?:-\w+)?|"""
+                        r"""@react-navigation/[\w-]+|react-native-\w[\w-]*)["']""")
+
+
 def classify(text: str) -> str:
     """Only Remotion gets its own surface. A page that happens to embed a 3D
     canvas is still an interface -- the 3D checks opt into "ui" as well, so
@@ -100,6 +131,11 @@ def classify(text: str) -> str:
     That mistake is exactly the kind of quiet gap this tool exists to prevent."""
     if re.search(r"from\s+[\"']remotion[\"']|@remotion/", text):
         return "video"
+    # React Native in a .tsx is a native surface, not a web one. Left as "ui" it
+    # collected web findings that cannot apply -- an <Image> with no alt, a
+    # <Pressable> with no href -- while the platform checks never saw it.
+    if _RN_IMPORT.search(text):
+        return "native"
     return "ui"
 
 
@@ -131,7 +167,8 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
         files.append(FileCtx(path=f, rel=rel,
                              text=txt, ext=ext,
                              tags=scan_tags(txt) if ext in SOURCE_EXT else [],
-                             surface=classify(txt), css=css_of(f, txt)))
+                             surface="native" if ext in NATIVE_EXT else classify(txt),
+                             css=css_of(f, txt)))
 
     findings, status = [], {}
     for did, chk in sorted(ALL.items()):
@@ -376,6 +413,7 @@ def main(argv=None):
                           "container_queries": p.has_container_queries,
                           "theme_vars": len(p.cssvars), "token_sources": p.token_sources[:10],
                           "components_found": len(p.inventory),
+                          "platforms": sorted(p.platforms),
                           "dependency_count": len(p.deps)}, indent=1))
         return 0
 
@@ -394,7 +432,12 @@ def main(argv=None):
             "root": str(root),
             "project": {"tailwind_major": project.tailwind_major,
                         "theme_vars": len(project.cssvars),
-                        "components": len(project.inventory)},
+                        "components": len(project.inventory),
+                        # Measured platforms. ux_report unions these into
+                        # `features`, so the iOS and Android rule families become
+                        # applicable because the tree says so, not because
+                        # somebody remembered to declare them.
+                        "platforms": sorted(project.platforms)},
             "detectors": {k: {"status": v[0], "note": v[1]} for k, v in status.items()},
             "rules": {k: {"status": v[0], "note": v[1]} for k, v in rules.items()},
             "findings": [f.__dict__ for f in findings],

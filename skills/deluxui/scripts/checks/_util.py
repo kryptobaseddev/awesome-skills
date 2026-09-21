@@ -14,6 +14,12 @@ from pathlib import Path
 DATA = Path(__file__).parent / "data"
 SOURCE_EXT = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro", ".html", ".htm"}
 STYLE_EXT = {".css", ".scss", ".sass", ".less"}
+# Native platform source. These are scanned as a separate *surface* rather than
+# as more source files, because every web check would otherwise run on Swift and
+# report nonsense -- a .swift file has no <img> to be missing an alt attribute.
+# Checks in checks/platform.py declare surfaces=("native",) and get these; every
+# other check keeps its default of ("ui",) and never sees them.
+NATIVE_EXT = {".swift", ".kt", ".kts", ".dart"}
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", ".nuxt",
              "out", "coverage", "vendor", "__pycache__", ".venv", "venv", ".turbo",
              ".output", "storybook-static", ".cache",
@@ -53,7 +59,7 @@ def iter_files(root: Path, exts=None, extra_skip=()):
     """`extra_skip` carries `exclude:` from the project config -- a directory
     name or a path fragment. Without it a project had no way to keep a directory
     out of the report at all."""
-    exts = exts or (SOURCE_EXT | STYLE_EXT)
+    exts = exts or (SOURCE_EXT | STYLE_EXT | NATIVE_EXT)
     extra = tuple(s for s in (extra_skip or ()) if s)
     if root.is_file():
         if root.suffix in exts:

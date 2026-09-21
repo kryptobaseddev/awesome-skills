@@ -31,6 +31,13 @@ engines:
     description: Decoded pixels from a screenshot. Ground truth when CSS cannot resolve a colour.
     available_when: agent-browser is installed and a URL is reachable.
     confidence_ceiling: high
+  native_runtime:
+    tier: runtime
+    description: A built app running on a Simulator, an emulator or a physical device.
+    available_when: >-
+      xcrun simctl (iOS) or adb (Android) is on PATH, a target is booted or attached,
+      and the app under test is installed on it.
+    confidence_ceiling: high
   report:
     tier: report
     description: Checks the produced report rather than the product under test.
@@ -269,6 +276,11 @@ detectors:
     engine: manual
     rules: [VIS-008]
     confidence: high
+    question: >-
+      Turn on Windows High Contrast, or the OS forced-colors mode, and open the
+      screens this change touched. Name anything that vanished, any icon that
+      lost meaning, any focus ring that disappeared, and any border the mode
+      removed because it was painted as a background.
     not_run_when: >-
       Nobody has viewed the interface in a forced-colors mode and recorded what
       happened. The agent-browser driver cannot emulate forced-colors, so this
@@ -279,6 +291,10 @@ detectors:
     engine: manual
     rules: [GOV-004]
     confidence: high
+    question: >-
+      Run the flows this change touched, not the screens it changed. Name each
+      flow you completed end to end and its outcome. A screenshot diff is not an
+      answer to this question.
     not_run_when: >-
       No regression evidence recorded for the flows this change touched. A
       screenshot diff shows that pixels moved; it cannot show that a flow still
@@ -349,17 +365,271 @@ detectors:
     confidence: low
     not_run_when: The visual contract declares no motion.duration_ms band.
 
-  M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
-  M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
-  M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}
-  M-CONTENT-REVIEW:  {engine: manual, rules: [CONTENT-002, CONTENT-008, UX-002, NAV-005]}
+
+  # ------------------------------------------------- native platform (static)
+  # iOS and Android conformance read from Swift, Kotlin, Dart and React Native
+  # source. Every one of these gates on a measured platform (an ios/ or android/
+  # directory, an Xcode or Gradle project, a pubspec, or a react-native
+  # dependency), so a web-only project reports the whole family NOT_APPLICABLE
+  # rather than carrying forty rows nobody can act on.
+  S-IOS-SAFEAREA:      {engine: source, rules: [IOS-001], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-NAVSTRUCTURE:  {engine: source, rules: [IOS-002], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-EDGESWIPE:     {engine: source, rules: [IOS-003], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-DYNAMICTYPE:   {engine: source, rules: [IOS-005], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-SYSTEMFONT:    {engine: source, rules: [IOS-006], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MINSIZE:       {engine: source, rules: [IOS-007], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TARGET44:      {engine: source, rules: [NUM-006], confidence: medium,
+                        not_run_when: "Project does not ship to iOS.", laws: [LAW-02]}
+  S-IOS-SEMANTICCOLOR: {engine: source, rules: [IOS-008], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-DARKMODE:      {engine: source, rules: [IOS-009], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TINT:          {engine: source, rules: [IOS-010], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MATERIALS:     {engine: source, rules: [IOS-011], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-NATIVECONTROLS: {engine: source, rules: [IOS-012], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-SFSYMBOLS:     {engine: source, rules: [IOS-013], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MODALITY:      {engine: source, rules: [IOS-014], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-GROUPEDLIST:   {engine: source, rules: [IOS-015], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TRANSITION:    {engine: source, rules: [IOS-016], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-REDUCEMOTION:  {engine: source, rules: [IOS-017], confidence: medium,
+                        not_run_when: "Project does not ship to iOS.", laws: [LAW-07]}
+  S-IOS-LARGETITLE:    {engine: source, rules: [IOS-004], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+
+  S-AND-ADAPTIVENAV:   {engine: source, rules: [AND-001], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SYSTEMBACK:    {engine: source, rules: [AND-002], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-INSETS:        {engine: source, rules: [AND-003], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TOPBAR:        {engine: source, rules: [AND-004], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TYPESCALE:     {engine: source, rules: [AND-005], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SYSTEMFONT:    {engine: source, rules: [AND-006], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SP:            {engine: source, rules: [AND-007], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-ROLETOKENS:    {engine: source, rules: [AND-008], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-DYNAMICCOLOR:  {engine: source, rules: [AND-009], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-DARKTHEME:     {engine: source, rules: [AND-010], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-ELEVATION:     {engine: source, rules: [AND-011], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-MATERIAL:      {engine: source, rules: [AND-012], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-FAB:           {engine: source, rules: [AND-013], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TOAST:         {engine: source, rules: [AND-014], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-REDUCEMOTION:  {engine: source, rules: [AND-015], confidence: medium,
+                        not_run_when: "Project does not ship to Android.", laws: [LAW-07]}
+  S-AND-TARGET48:      {engine: source, rules: [NUM-007], confidence: medium,
+                        not_run_when: "Project does not ship to Android.", laws: [LAW-02]}
+
+  # ------------------------------------------------ native platform (runtime)
+  # scripts/ux_native.sh drives a Simulator or an emulator. On a machine with
+  # neither -- which is most Linux machines for iOS -- these report NOT_RUN with
+  # the tool that was missing. That is the point: a screenshot from a browser is
+  # not evidence about an iPhone, so the honest answer is that nobody looked.
+  R-IOS-CAPTURE:
+    engine: native_runtime
+    rules: [IOS-018]
+    confidence: high
+    not_run_when: >-
+      No Simulator capture recorded. `xcrun simctl` was unavailable, no device was
+      booted, or scripts/ux_native.sh was not run. A browser screenshot of a React
+      Native web build is not evidence about iOS.
+  R-IOS-APPEARANCE:
+    engine: native_runtime
+    rules: [IOS-019, IOS-009, IOS-005]
+    confidence: high
+    not_run_when: >-
+      No paired light/dark and large-Dynamic-Type captures recorded for iOS.
+  R-AND-CAPTURE:
+    engine: native_runtime
+    rules: [AND-016]
+    confidence: high
+    not_run_when: >-
+      No emulator or device capture recorded. `adb` was unavailable, no device was
+      attached, or scripts/ux_native.sh was not run.
+  R-AND-THEME:
+    engine: native_runtime
+    rules: [AND-017, AND-010, AND-007]
+    confidence: high
+    not_run_when: >-
+      No paired light/dark and enlarged-font-scale captures recorded for Android.
+
+  # ---------------------------------------------------------------- manual tier
+  # A human did it and said so. Every manual detector carries the question the
+  # person has to answer, because "reviewed: PASS" is not a result -- it is a
+  # claim with no procedure behind it. scripts/manual_sheet.py emits these
+  # questions as a fill-in sheet, and ux_report prints the question next to any
+  # manual rule still NOT_RUN so the gap is actionable rather than mysterious.
+  M-SCREENREADER:
+    engine: manual
+    rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]
+    question: >-
+      Complete one primary task using a screen reader only, screen off or eyes
+      closed. Name the reader and version, the task, and anything you could not
+      reach, identify or dismiss.
+  M-KEYBOARD-TASK:
+    engine: manual
+    rules: [A11Y-002, UX-003]
+    question: >-
+      Complete one primary task and one destructive task with the keyboard
+      alone, mouse unplugged. Name where focus went missing, where it was
+      trapped, and whether you could cancel or undo without the mouse.
+  M-TOUCH-DEVICE:
+    engine: manual
+    rules: [LAY-009]
+    question: >-
+      Use the product one-handed on a real phone, thumb only. Name the controls
+      you could not hit accurately, and anything the on-screen keyboard covered
+      that you needed.
+  M-CONTENT-REVIEW:
+    engine: manual
+    rules: [CONTENT-002, CONTENT-008, UX-002, NAV-005]
+    question: >-
+      Read every string on one flow aloud, including error and empty states. Name
+      any that says what went wrong without saying what to do, uses internal
+      vocabulary, or would not survive translation.
+
   # Judgement rules. No checker can settle "is this the right amount of
   # complexity to reveal" or "is the density right for this task". Listing them
   # here is the honest alternative to a heuristic that would be wrong often
   # enough to be ignored.
-  M-DESIGN-REVIEW:   {engine: manual, rules: [UX-004, UX-006, UX-007, UX-008, UX-010,
-                                              UX-012, VIS-003, VIS-009, LAY-001,
-                                              NAV-006, CTX-005], laws: [LAW-01, LAW-05, LAW-14, LAW-19]}
-  M-A11Y-PROCESS:    {engine: manual, rules: [A11Y-012, QA-004]}
-  M-DESTRUCTIVE-WALK: {engine: manual, rules: [UX-003, UX-005, TRUST-006, FORM-013]}
-  M-FIELD-PERF:      {engine: manual, rules: [NUM-012, PERF-005], laws: [LAW-20]}
+  #
+  # These were ONE detector over eleven rules. That made a single signature
+  # certify eleven separate judgements, which is the same laundering GOV-006
+  # exists to stop -- one person writing "reviewed the design, looks right"
+  # turned eleven unexamined rules into PASS. Each judgement now carries its own
+  # question, and the reviewer answers the ones they actually performed. Eleven
+  # NOT_RUN entries are an accurate report; one PASS covering eleven was not.
+  M-JUDGE-CONSISTENCY:
+    engine: manual
+    rules: [UX-004]
+    question: >-
+      Open the same action in at least two places it appears (save, delete,
+      filter, add). Do the control, its label, its position and its confirmation
+      behave the same way in each? Name the places compared.
+  M-JUDGE-RECALL:
+    engine: manual
+    rules: [UX-006]
+    laws: [LAW-05]
+    question: >-
+      Walk one multi-step task end to end without notes. Was any identifier,
+      code or value from an earlier screen needed later and not shown? Name the
+      task and the step where recall was required, or state that none was.
+  M-JUDGE-EXPERT-PATH:
+    engine: manual
+    rules: [UX-007]
+    question: >-
+      Perform the most repeated task in this product ten times as an experienced
+      user would. Is there a shortcut, default or bulk path, and does it still
+      confirm destructive steps and stay keyboard-reachable? Name the task.
+  M-JUDGE-COMPETITION:
+    engine: manual
+    rules: [UX-008]
+    laws: [LAW-01]
+    question: >-
+      On the primary screen, list every element competing for first attention.
+      Does each support the current task or essential context? Name anything
+      prominent that does not, or state that the hierarchy is clean.
+  M-JUDGE-HELP:
+    engine: manual
+    rules: [UX-010]
+    question: >-
+      From inside a half-filled form, find help for the field you are on. Is it
+      in the same place it was on the previous screen, and did entered work
+      survive? Name where help lives.
+  M-JUDGE-PROGRESSIVE:
+    engine: manual
+    rules: [UX-012]
+    question: >-
+      Find the advanced or optional controls on one consequential screen. Are
+      they discoverable without documentation, and does every cost, risk or
+      prerequisite appear before the commit action rather than after it?
+  M-JUDGE-ALIGNMENT:
+    engine: manual
+    rules: [VIS-003]
+    laws: [LAW-14]
+    question: >-
+      Put the longest real label and the largest supported text size on one
+      dense screen at once. Does the alignment system hold, or do labels,
+      controls and repeated items drift? Name the screen.
+  M-JUDGE-DENSITY:
+    engine: manual
+    rules: [VIS-009]
+    question: >-
+      Load a representative number of real records -- not three. How many fit
+      without scrolling, and did fitting them cost target size, readability or
+      a column the task needs? Give the count and the viewport.
+  M-JUDGE-CONTENT-PRIORITY:
+    engine: manual
+    rules: [LAY-001]
+    question: >-
+      State the content priority for one screen in order, before looking at the
+      layout. Then check the narrowest supported width: are the primary task and
+      its essential context both still reachable? Name the priority order.
+  M-JUDGE-NAV-PATTERN:
+    engine: manual
+    rules: [NAV-006]
+    laws: [LAW-19]
+    question: >-
+      For each tab set, menu, accordion and nav list on the screen, name the
+      interaction purpose it serves and the keyboard contract it owes (arrow
+      keys vs Tab, roles, expanded state). Does the pattern chosen match?
+  M-JUDGE-BRAND-PRESERVED:
+    engine: manual
+    rules: [CTX-005]
+    question: >-
+      Diff the component and token changes in this work. Does every visual
+      change trace to a stated requirement rather than to preference? Name any
+      change that exists only to look different, or state that none does.
+  M-A11Y-PROCESS:
+    engine: manual
+    rules: [A11Y-012, QA-004]
+    question: >-
+      Name the accessibility check that runs without anyone remembering to run
+      it -- the CI job, the review step, the release gate -- and point at its
+      last result. An intention is not a process.
+  M-DESTRUCTIVE-WALK:
+    engine: manual
+    rules: [UX-003, UX-005, TRUST-006, FORM-013]
+    question: >-
+      Actually delete something, cancel something, and trigger one irreversible
+      or external action. For each: was the consequence stated before the act,
+      and could you recover afterwards? Name what you destroyed and how you got
+      it back, or that you could not.
+  M-FIELD-PERF:
+    engine: manual
+    rules: [NUM-012, PERF-005]
+    laws: [LAW-20]
+    question: >-
+      Load the heaviest real screen on a mid-range device over a throttled
+      connection, with a realistic data volume. Give the device, the network
+      profile, and what the user saw in the first two seconds.
+  M-NATIVE-HARDWARE:
+    engine: manual
+    rules: [IOS-020, AND-018]
+    question: >-
+      For every posture, gesture, refresh-rate or performance claim in this work,
+      name the physical device it was measured on. A Simulator and an emulator
+      give breadth; they do not give any of those. If no hardware was used, say
+      so and withdraw the claims that needed it.

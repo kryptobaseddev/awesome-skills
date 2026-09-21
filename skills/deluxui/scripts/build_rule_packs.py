@@ -76,6 +76,27 @@ PACKS = {
   "Consequence disclosure, dark patterns, permissions and the honest handling of "
   "generated output. The AI rules apply only when the product actually has a "
   "generative feature -- declare it with `--feature ai_features`."),
+ ("IOS",): ("13-ios.md", "Native iOS platform",
+  "iOS and iPadOS conformance: safe areas, the system navigation model, Dynamic "
+  "Type, semantic colours, the platform controls, and what counts as evidence. "
+  "These apply when the project ships to Apple hardware -- SwiftUI, UIKit, React "
+  "Native, Expo or Flutter -- and `ux_check.py` decides that by looking at the "
+  "tree rather than asking. The recurring failure is a web app wearing an app's "
+  "clothes: reinvented navigation, web-shaped controls, hover-dependent "
+  "affordances, and point sizes that ignore the reading size the user chose.\n\n"
+  "`scripts/ux_native.sh --ios` drives a Simulator for the evidence rules. On a "
+  "machine without Xcode it records that fact and the rules report NOT_RUN -- a "
+  "browser screenshot of a web build is not evidence about an iPhone."),
+ ("AND",): ("14-android.md", "Native Android platform",
+  "Material Design 3 conformance: adaptive navigation, the system Back "
+  "contract, window insets, the type scale, colour roles, tonal elevation and "
+  "the Material components. These apply when the project ships to Android, "
+  "decided from the tree. The recurring failure is an iOS app wearing Android's "
+  "skin -- a bottom bar copied to a tablet, a back arrow that ignores the "
+  "system gesture, Cupertino-shaped controls, and text sized in dp so the "
+  "system font setting does nothing.\n\n"
+  "`scripts/ux_native.sh --android` drives an emulator or device for the "
+  "evidence rules."),
  ("MEASURE", "QA"): ("12-measurement-qa.md", "Measurement and verification quality",
   "How to know whether any of this worked, and what counts as evidence. QA-001 "
   "onwards is the answer to 'can I just say it passed'."),
