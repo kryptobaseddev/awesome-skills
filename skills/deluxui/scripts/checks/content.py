@@ -5,22 +5,53 @@ from . import check, finding
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 
-VAGUE_ERROR = re.compile(
-    r"(?:Something went wrong|An error occurred|Oops[,!.]?\s*something|"
-    r"Error occurred|Unknown error|An unexpected error|Try again later|"
-    r"Failed to load|Request failed)(?=[\"'`.!<\s]|$)|"
-    r"Error:\s*(?:undefined|null|\[object Object\])", re.I)
+# The defect is a message whose WHOLE content is vague. Substring matching also
+# hits `error: undefined` in an object literal and "Update request failed with
+# HTTP 503", which is a perfectly good message -- it names the status.
+# Multi-word only. A bare "error" or "failed" is a status enum value in most
+# codebases, not a message anyone reads.
+VAGUE_PHRASE = re.compile(
+    r"^(?:oops[,!.]?\s*)?"
+    r"(?:something went wrong(?:\s*,?\s*please try again)?|"
+    r"an?\s+(?:unknown|unexpected)\s+error(?:\s+(?:occurred|has occurred))?|"
+    r"an error (?:occurred|has occurred)|unknown error|unexpected error|"
+    r"(?:please\s+)?try again(?:\s+later)?|request failed|failed to load)"
+    r"[\s.!]*$", re.I)
+_STRING = re.compile(r"[\"'`]([^\"'`\n{}]{4,80})[\"'`]")
+_JSX_TEXT = re.compile(r">\s*([A-Z][^<>{}\n]{4,80}?)\s*<")
+_DEV_LOG = re.compile(r"\b(?:console|logger|log|debug|trace|Sentry|captureException)\s*\.")
 
 
 @check("S-CONTENT-ERRORTEXT", exts=SRC)
 def vague_errors(f, p):
+    """A message that names neither what failed nor what to do next leaves the
+    user with no move. UX-009 asks for the affected action and a real next step.
+
+    Gated on the file rendering something: a fallback string in an IPC layer or
+    a normaliser is a different concern from the message a user reads."""
+    if not f.tags:
+        return []
     out = []
-    for m in VAGUE_ERROR.finditer(f.text):
-        line = f.text[:m.start()].count("\n") + 1
-        out.append(finding("S-CONTENT-ERRORTEXT", f, line, m.group(0),
-                           "This tells the user nothing they can act on. Name the operation "
-                           "that failed and the next step: what to retry, what to change, or "
-                           "who to contact (UX-009, CONTENT-002).", "high"))
+    for rx in (_STRING, _JSX_TEXT):
+        for m in rx.finditer(f.text):
+            phrase = m.group(1).strip()
+            if not VAGUE_PHRASE.match(phrase):
+                continue
+            line = f.text[:m.start()].count("\n") + 1
+            line_text = f.text.split("\n")[line - 1]
+            if _DEV_LOG.search(line_text):
+                continue                      # a developer log is not UI copy
+            out.append(finding("S-CONTENT-ERRORTEXT", f, line, phrase,
+                               "This names neither what failed nor what to do about it, "
+                               "so the user has no move. Say which operation failed and "
+                               "give a real next step -- retry, change something, or who "
+                               "to contact (UX-009, CONTENT-002).", "high"))
+    if any("[object Object]" in ln for ln in f.text.split("\n")):
+        line = next(i for i, ln in enumerate(f.text.split("\n"), 1)
+                    if "[object Object]" in ln)
+        out.append(finding("S-CONTENT-ERRORTEXT", f, line, "[object Object]",
+                           "An object is being rendered as a string. The user sees "
+                           "'[object Object]' where the reason should be.", "high"))
     return out
 
 
