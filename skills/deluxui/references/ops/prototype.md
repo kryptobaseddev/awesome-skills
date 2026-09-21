@@ -42,8 +42,50 @@ What it emits is not a picture of components. It is components:
 - an **activity list**, because a confirmation that exists only in a toast is gone
   in ten seconds along with anything the user needed to refer back to
 
+Notes stay editable for as long as the review is open: note mode is sticky, a pin
+reopens its note, and the panel edits or withdraws one. A reviewer working out
+what they think will rewrite a sentence three times, and that third version is
+usually the one worth reading.
+
 If the contract declares a typeface this project does not ship, the page says so
 on its own face. Judging type in a fallback nobody chose wastes the review.
+
+## The wrapper is a template, not output
+
+Every prototype uses the same shell, so a reviewer learns the chrome once and
+then only has to think about the screen:
+
+```
+assets/templates/prototype-shell.html
+```
+
+It has named slots — `{{title}}`, `{{tokens}}`, `{{css}}`, `{{depth}}`,
+`{{banners}}`, `{{header}}`, `{{sections}}`, `{{script}}`, `{{density}}` — and
+`ux_proto.py` fills them from the contract. Edit that file and every prototype
+the project generates from then on inherits the change. Its own documentation
+block is stripped before filling, so it never reaches the output.
+
+The built-in systems are sections with stable ids — `states`, `controls`, `tabs`,
+`form`, `table`, `durable` — and a real product screen is another one:
+
+```bash
+cat > screens.html <<'HTML'
+  <section class="proto-section" id="reschedule">
+    <h2>Reschedule</h2>
+    <div class="card"> ... only tokens: --role, --t*, --s*, --r-ctl ... </div>
+  </section>
+HTML
+python3 scripts/ux_proto.py --write .deluxui/proto/index.html --sections screens.html
+python3 scripts/ux_proto.py --write .deluxui/proto/index.html --shell my-shell.html
+```
+
+Two rules for anything added, and both are checkable rather than advisory:
+
+1. **Only declared values.** Every colour a `--role`, every size a `--t*`, every
+   gap a `--s*`, every radius `--r-ctl` or `--r-card`. A literal is a departure
+   and `ux_check.py` names it with the line.
+2. **Every state, not the happy one.** A section that renders one state teaches
+   the reviewer nothing about the four they will actually meet.
 
 ## Put it in front of a person
 

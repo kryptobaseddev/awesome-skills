@@ -33,6 +33,7 @@ sprint.
 """
 from __future__ import annotations
 import argparse
+import re
 import sys
 from datetime import date
 from pathlib import Path
@@ -222,8 +223,7 @@ DEPTH_SHADOW = (".card{box-shadow:0 1px 2px color-mix(in oklab,var(--ink) 10%,tr
                 "dialog,.toast{box-shadow:0 18px 50px "
                 "color-mix(in oklab,var(--ink) 30%,transparent)}\n")
 
-BODY = r"""
-<div class="wrap">
+HEADER = r"""
   <h1>__TITLE__</h1>
   <p class="muted">A working prototype generated from this project's design
     contract. Every colour, size, radius and duration here is a declared value —
@@ -241,8 +241,10 @@ BODY = r"""
     </div>
     <span class="muted" style="font-size:var(--t1)">Contract __SHA__ · __DATE__</span>
   </div>
+"""
 
-  <h2>The states nobody opens</h2>
+SECTIONS = r"""
+  <section class="proto-section" id="states"><h2>The states nobody opens</h2>
   <p>The happy path is the smallest part of the work. Switch between them and see
      what a person actually meets.</p>
   <div class="seg" role="group" aria-label="List state" id="statepicker">
@@ -256,7 +258,9 @@ BODY = r"""
 
   <div id="list" style="margin-top:var(--s3)"></div>
 
-  <h2>Controls</h2>
+  </section>
+
+  <section class="proto-section" id="controls"><h2>Controls</h2>
   <div class="card">
     <div class="row">
       <button type="button">Primary action</button>
@@ -275,7 +279,9 @@ BODY = r"""
     </div>
   </div>
 
-  <h2>Tabs</h2>
+  </section>
+
+  <section class="proto-section" id="tabs"><h2>Tabs</h2>
   <div class="card">
     <div role="tablist" aria-label="Job sections">
       <button role="tab" id="t1" aria-selected="true" aria-controls="p1" tabindex="0">Details</button>
@@ -292,7 +298,9 @@ BODY = r"""
       <p>One part on order, expected Thursday.</p></div>
   </div>
 
-  <h2>A form that behaves</h2>
+  </section>
+
+  <section class="proto-section" id="form"><h2>A form that behaves</h2>
   <div class="card">
     <form id="f" novalidate>
       <div class="summary" id="summary" hidden>
@@ -323,7 +331,9 @@ BODY = r"""
     </form>
   </div>
 
-  <h2>A table that is a table</h2>
+  </section>
+
+  <section class="proto-section" id="table"><h2>A table that is a table</h2>
   <div class="card">
     <div class="tscroll" role="region" tabindex="0" aria-label="Scheduled jobs">
       <table id="jobs">
@@ -342,7 +352,9 @@ BODY = r"""
       are shown differently.</p>
   </div>
 
-  <h2>Where a confirmation goes to live</h2>
+  </section>
+
+  <section class="proto-section" id="durable"><h2>Where a confirmation goes to live</h2>
   <div class="card">
     <p class="muted" style="margin:0 0 var(--s2)">A toast is gone in ten seconds.
       Anything someone may need to refer back to has to survive it, so every
@@ -361,7 +373,7 @@ BODY = r"""
       <button type="button" class="btn-danger" id="reallydelete">Delete the job</button>
     </div>
   </dialog>
-</div>
+  </section>
 """
 
 SCRIPT = r"""
@@ -549,11 +561,41 @@ function toast(text, onUndo) {
 """
 
 
-def build(c, title: str, density: str) -> str:
+SHELL = Path(__file__).resolve().parent.parent / "assets" / "templates" / "prototype-shell.html"
+
+
+# The template documents its own slots, which means the documentation contains
+# the slot markers -- and a naive fill replaced them there too, pasting a whole
+# copy of the page inside an HTML comment and doubling every output. The doc
+# block is removed before filling, which is also right on its own terms: a 2KB
+# comment explaining the template has no business in every prototype it makes.
+_DOC = re.compile(r"<!--(?:(?!-->).)*?deluxui prototype shell.*?-->\s*", re.S)
+
+
+def shell_text(path: Path | None = None) -> str:
+    """The wrapper. A template on disk, so a project can change the chrome once
+    and have every prototype it generates inherit it."""
+    p = path or SHELL
+    try:
+        return _DOC.sub("", p.read_text(), count=1)
+    except OSError:
+        # The script stays usable on its own; the template is the editable copy,
+        # not a dependency to be broken by a partial install.
+        return ("<!doctype html>\n<html lang=\"en\" data-theme=\"light\"><head>"
+                "<meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                "<title>{{title}}</title><style>\n{{tokens}}\n{{css}}\n{{depth}}\n"
+                "</style></head><body data-density=\"{{density}}\">{{banners}}"
+                "<div class=\"wrap\">{{header}}{{sections}}</div>{{script}}"
+                "</body></html>\n")
+
+
+def build(c, title: str, density: str, shell: Path | None = None,
+          extra_sections: str = "") -> str:
     depth = DEPTH_SHADOW if c.depth == "shadow" else DEPTH_BORDER
-    body = (BODY.replace("__TITLE__", title)
-            .replace("__SHA__", c.sha())
-            .replace("__DATE__", str(date.today())))
+    header = (HEADER.replace("__TITLE__", title)
+              .replace("__SHA__", c.sha())
+              .replace("__DATE__", str(date.today())))
     und = c.undeclared
     missing = faces(c)
     banner = ""
@@ -567,28 +609,20 @@ def build(c, title: str, density: str) -> str:
                    f'the fallback. Judge the type once it is shipped, or change the '
                    f'contract to the face that is actually rendering.</p>')
     if und:
-        banner = (f'<p style="background:color-mix(in oklab,var(--danger) 12%,'
-                  f'var(--canvas));border-left:4px solid var(--danger);'
-                  f'padding:var(--s2) var(--s3);margin:0 0 var(--s4);max-width:none">'
-                  f'<strong>{len(und)} contract fields are undeclared</strong> '
-                  f'({", ".join(und)}). Those parts of this prototype are '
-                  f'placeholders, not proposals — reviewing it does not decide '
-                  f'them.</p>')
-    return f"""<!doctype html>
-<html lang="en" data-theme="light"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{title}</title>
-<style>
-{tokens(c)}
-{CSS}
-{depth}
-</style></head>
-<body data-density="{density}">
-{banner}{body}
-{SCRIPT}
-</body></html>
-"""
+        banner += (f'<p style="background:color-mix(in oklab,var(--danger) 12%,'
+                   f'var(--canvas));border-left:4px solid var(--danger);'
+                   f'padding:var(--s2) var(--s3);margin:0 0 var(--s4);max-width:none">'
+                   f'<strong>{len(und)} contract fields are undeclared</strong> '
+                   f'({", ".join(und)}). Those parts of this prototype are '
+                   f'placeholders, not proposals \u2014 reviewing it does not decide '
+                   f'them.</p>')
+    out = shell_text(shell)
+    for slot, value in (("title", title), ("tokens", tokens(c)), ("css", CSS),
+                        ("depth", depth), ("banners", banner), ("header", header),
+                        ("sections", SECTIONS + (extra_sections or "")),
+                        ("script", SCRIPT), ("density", density)):
+        out = out.replace("{{" + slot + "}}", value)
+    return out
 
 
 def main(argv=None) -> int:
@@ -599,9 +633,23 @@ def main(argv=None) -> int:
     ap.add_argument("--density", default="comfortable",
                     choices=["comfortable", "compact"])
     ap.add_argument("--contract")
+    ap.add_argument("--shell", metavar="PATH",
+                    help="a different wrapper (default: assets/templates/"
+                         "prototype-shell.html)")
+    ap.add_argument("--sections", metavar="PATH",
+                    help="an HTML fragment appended after the built-in systems -- "
+                         "this is where a real product screen goes")
     a = ap.parse_args(argv)
     c = ux_image.load_contract(a.contract)
-    out = build(c, a.title, a.density)
+    extra = ""
+    if a.sections:
+        try:
+            extra = "\n" + Path(a.sections).read_text()
+        except OSError as e:
+            sys.stderr.write(f"could not read {a.sections}: {e}\n")
+            return 2
+    out = build(c, a.title, a.density,
+                Path(a.shell) if a.shell else None, extra)
     if a.write:
         p = Path(a.write)
         p.parent.mkdir(parents=True, exist_ok=True)

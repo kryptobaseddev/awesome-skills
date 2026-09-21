@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "4.1.1"
-  last_updated: "2026-09-21 15:47:00"
+  version: "4.2.0"
+  last_updated: "2026-09-21 16:10:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -249,6 +249,7 @@ Each reference is self-contained. Read the one you need.
 | What the visitor came to do, and what it changes | `references/design/visitor-modes.md` |
 | The craft floor: every number, and which detector decides it | `references/design/craft-floor.md` |
 | The visual contract a project declares | `assets/templates/design.contract.yaml` |
+| The prototype wrapper every generated prototype uses, with its named slots | `assets/templates/prototype-shell.html` |
 | Identity lock, preserve vs depart, variants | `references/preserve.md` |
 | The AI-tell catalogue and why each one reads as generated | `references/anti-slop.md` |
 | **The 33 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
@@ -284,7 +285,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_forcedcolors.py` | **R-FORCED-COLORS.** Two passes, normal and forced, diffed — a forced-colors defect is something that carried meaning before and does not after, which no single pass can see. |
 | `scripts/ux_axe.py` | **R-AXE.** axe-core from the project's node_modules, a cache, or a pinned CDN. Suppresses contrast and target-size, which deluxui measures directly against the project's own thresholds. |
 | `scripts/ux_slow.py` | **R-STATE-SLOW.** Makes the request slow rather than absent, and asks what the interface says while it waits. Flight is defined by content, not by readyState. |
-| `scripts/ux_proto.py` | **A working prototype, generated.** Real states you can switch between, a form that validates, a dialog that traps focus, a destructive action with a working undo, tabs with arrow keys, a table with tabular figures. Everything from the contract, so `ux_check.py` over its output is a positive control on the generator. |
+| `scripts/ux_proto.py` | **A working prototype, generated.** Fills `assets/templates/prototype-shell.html` — a real template with named slots, so the chrome is the same in every prototype and `--sections` appends a product screen to it. Real states you can switch between, a form that validates, a dialog that traps focus, a destructive action with a working undo, tabs with arrow keys, a table with tabular figures. Everything from the contract, so `ux_check.py` over its output is a positive control on the generator. |
 | `scripts/ux_review.py` | **Two live variants, side by side, with the human's words on them.** Hosts a file or proxies a running app, injects the selection script, and drops the frame-blocking headers — same origin, so an Alt-click inside the frame is readable. Notes land in `.deluxui/requests/` as they are typed and print in your terminal. Five outcomes; only three are approvals. |
 | `scripts/ux_select.py` | **A person pointing, recorded.** Injects a selection overlay into the page the browser already has open, over CDP — no server, no framework adapter. A click captures the element, its computed type, colour, spacing, radius and shadow, its box and its viewport, and asks what is wrong with it in the operations' own vocabulary. Writes `.deluxui/requests/REQ-NNN.yaml`. |
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |

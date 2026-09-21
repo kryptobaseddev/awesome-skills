@@ -88,6 +88,12 @@ class Review:
         self.question = question
         self.surface = surface
         self.notes: list[dict] = []
+        self.seq = 0
+        # The highest REQ number already on disk, fixed once at start. Deriving
+        # each filename from the next free slot meant deleting REQ-002 and adding
+        # another note produced a second, unrelated REQ-002 -- one id, two
+        # different work items, and the agent's log showing it twice.
+        self.base = _highest(REQUESTS, "REQ")
         self.decision: dict | None = None
         self.done = threading.Event()
         self.lock = threading.Lock()
@@ -95,9 +101,36 @@ class Review:
 
     def add_note(self, rec: dict) -> dict:
         with self.lock:
-            rec["n"] = len(self.notes) + 1
+            # Numbers are never reused. A pin that changes meaning because an
+            # earlier note was deleted is worse than a gap in the sequence.
+            self.seq += 1
+            rec["n"] = self.seq
             rec["at"] = now()
             self.notes.append(rec)
+            return rec
+
+    def find(self, n: int) -> dict | None:
+        with self.lock:
+            return next((x for x in self.notes if x.get("n") == n), None)
+
+    def update_note(self, n: int, text: str, chip: str) -> dict | None:
+        with self.lock:
+            rec = next((x for x in self.notes if x.get("n") == n), None)
+            if rec is None:
+                return None
+            rec["text"] = text
+            if chip:
+                rec["chip"] = chip
+            rec["edited_at"] = now()
+            rec["edits"] = int(rec.get("edits") or 0) + 1
+            return rec
+
+    def remove_note(self, n: int) -> dict | None:
+        with self.lock:
+            rec = next((x for x in self.notes if x.get("n") == n), None)
+            if rec is None:
+                return None
+            self.notes = [x for x in self.notes if x.get("n") != n]
             return rec
 
     def sha(self) -> str:
@@ -134,45 +167,59 @@ INJECT = r"""
 (() => {
   if (window.__uxReview) return;
   const VARIANT = "__VARIANT__";
-  const CHIPS = __CHIPS__;
-  const S = window.__uxReview = { on: true };
+  const CHIPS = {chips};
+  // `armed` is sticky. It used to clear itself after one capture while the
+  // parent's button stayed pressed, so note mode looked on, was off, and the
+  // second note could not be left at all.
+  const S = window.__uxReview = { armed: false, pins: new Map(), version: 2 };
 
   const css = document.createElement('style');
   css.textContent = `
   .uxr-hi{position:fixed;pointer-events:none;z-index:2147483644;
     outline:2px solid #2f6fed;outline-offset:1px;background:rgba(47,111,237,.08)}
-  .uxr-pin{position:absolute;z-index:2147483645;width:22px;height:22px;
-    border-radius:999px;background:#b4451f;color:#fff;font:700 12px/22px system-ui;
-    text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.35);cursor:pointer}
-  .uxr-box{position:fixed;z-index:2147483646;width:300px;background:#fff;color:#16181d;
+  .uxr-pin{position:absolute;z-index:2147483645;min-width:22px;height:22px;
+    padding:0 6px;border-radius:999px;background:#b4451f;color:#fff;
+    font:700 12px/22px system-ui;text-align:center;cursor:pointer;border:0;
+    box-shadow:0 1px 6px rgba(0,0,0,.35)}
+  .uxr-pin:focus-visible{outline:3px solid #2f6fed;outline-offset:2px}
+  .uxr-flash{animation:uxrflash 1.2s ease-out 2}
+  @keyframes uxrflash{0%,100%{box-shadow:0 0 0 0 rgba(180,69,31,0)}
+    40%{box-shadow:0 0 0 6px rgba(180,69,31,.55)}}
+  @media (prefers-reduced-motion:reduce){.uxr-flash{animation:none;
+    outline:3px solid #b4451f;outline-offset:2px}}
+  .uxr-box{position:fixed;z-index:2147483646;width:310px;background:#fff;color:#16181d;
     font:14px/1.5 system-ui,sans-serif;border:1px solid #d5d5d0;border-radius:10px;
     box-shadow:0 10px 34px rgba(0,0,0,.22);padding:12px}
   .uxr-box p{margin:0 0 8px;font:12px/1.4 ui-monospace,monospace;color:#5d6068;
     word-break:break-all}
-  .uxr-box textarea{width:100%;min-height:86px;font:inherit;padding:8px;
+  .uxr-box textarea{width:100%;min-height:88px;font:inherit;padding:8px;
     border:1px solid #cfcfca;border-radius:7px;resize:vertical}
   .uxr-chips{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
   .uxr-chips button{font:12px system-ui;padding:4px 8px;border-radius:999px;
-    border:1px solid #dcdcd8;background:#f6f6f4;cursor:pointer;min-height:28px}
+    border:1px solid #dcdcd8;background:#f6f6f4;cursor:pointer;min-height:30px}
   .uxr-chips button[aria-pressed=true]{background:#2f6fed;color:#fff;border-color:#2f6fed}
   .uxr-row{display:flex;gap:8px;margin-top:8px}
   .uxr-row button{flex:1;min-height:40px;font:600 14px system-ui;border:0;
     border-radius:7px;cursor:pointer}
   .uxr-save{background:#2f6fed;color:#fff}.uxr-cancel{background:#ececea}
+  .uxr-del{background:#fbeae8;color:#a8231b;flex:0 0 auto;padding:0 12px}
   .uxr-box :focus-visible,.uxr-chips :focus-visible{outline:3px solid #2f6fed;
     outline-offset:2px}
   @media (prefers-color-scheme:dark){
     .uxr-box{background:#1d1c19;color:#f3efe6;border-color:#3b382f}
     .uxr-box textarea{background:#26241f;color:#f3efe6;border-color:#4a453a}
     .uxr-chips button{background:#26241f;color:#f3efe6;border-color:#413d34}
-    .uxr-cancel{background:#3a362e;color:#f3efe6}}`;
+    .uxr-cancel{background:#3a362e;color:#f3efe6}
+    .uxr-del{background:#3a221f;color:#ffb4ab}}`;
   document.documentElement.appendChild(css);
 
   const hi = document.createElement('div'); hi.className = 'uxr-hi';
-  let box = null, armed = false;
+  let box = null;
 
-  const ours = n => n && n.closest && (n.closest('.uxr-box') || n.classList
-                 && (n.classList.contains('uxr-hi') || n.classList.contains('uxr-pin')));
+  const ours = n => n && n.closest && (n.closest('.uxr-box') || (n.classList &&
+                 (n.classList.contains('uxr-hi') || n.classList.contains('uxr-pin'))));
+  const tell = (m) => { try { parent.postMessage(Object.assign({uxreview:1}, m), '*'); }
+                        catch (e) {} };
 
   function selectorFor(el){
     if (el.id) return '#'+el.id;
@@ -205,64 +252,141 @@ INJECT = r"""
       viewport:{w:innerWidth,h:innerHeight,dpr:devicePixelRatio},
       url:location.href};
   }
-  function pin(info, n){
-    const d=document.createElement('div'); d.className='uxr-pin'; d.textContent=n;
-    d.style.left=(info.box.x+info.box.w-11)+'px'; d.style.top=(info.box.y-11)+'px';
-    d.title='note '+n; document.body.appendChild(d);
+
+  function findEl(info){
+    // The element a note is about, after a re-render. The selector first, the
+    // recorded box as a fallback -- a note pinned to something that has moved is
+    // still a note about that thing.
+    try { const el = document.querySelector(info.selector); if (el) return el; }
+    catch (e) {}
+    if (!info.box) return null;
+    const el = document.elementFromPoint(
+      Math.min(innerWidth-2, Math.max(1, info.box.x - scrollX + info.box.w/2)),
+      Math.min(innerHeight-2, Math.max(1, info.box.y - scrollY + info.box.h/2)));
+    return el && !ours(el) ? el : null;
   }
-  function open(info, ev){
+
+  function pin(n, info){
+    let d = S.pins.get(n);
+    if (!d) {
+      d = document.createElement('button');
+      d.type = 'button'; d.className = 'uxr-pin';
+      d.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation();
+                            tell({kind:'pin', n}); };
+      document.body.appendChild(d);
+      S.pins.set(n, d);
+    }
+    d.textContent = n;
+    d.title = 'Note ' + n + ' — click to edit it';
+    d.setAttribute('aria-label', 'Note ' + n + ' on ' + (info.element_text || info.tag));
+    d.dataset.sel = info.selector;
+    d.style.left = (info.box.x + info.box.w - 11) + 'px';
+    d.style.top  = (info.box.y - 11) + 'px';
+  }
+  function unpin(n){ const d = S.pins.get(n); if (d) { d.remove(); S.pins.delete(n); } }
+
+  function open(info, ev, existing){
     close();
-    box=document.createElement('div'); box.className='uxr-box';
-    box.innerHTML='<p></p><textarea placeholder="What is wrong with this? Your own words."></textarea>'
-      +'<div class="uxr-chips">'+CHIPS.map(([id,l],i)=>
-        `<button type="button" data-c="${id}" aria-pressed="${i===0}">${l}</button>`).join('')
-      +'</div><div class="uxr-row"><button class="uxr-cancel">Cancel</button>'
-      +'<button class="uxr-save">Add note</button></div>';
-    box.querySelector('p').textContent=info.selector;
-    const x=Math.min(innerWidth-316, Math.max(8,(ev?ev.clientX:20)-150));
-    const y=Math.min(innerHeight-260, Math.max(8,(ev?ev.clientY:20)+14));
-    box.style.left=x+'px'; box.style.top=y+'px';
-    let chip='note';
-    box.querySelectorAll('.uxr-chips button').forEach(b=>b.onclick=()=>{
-      chip=b.dataset.c;
-      box.querySelectorAll('.uxr-chips button').forEach(o=>
-        o.setAttribute('aria-pressed', String(o===b)));
-    });
-    box.querySelector('.uxr-cancel').onclick=close;
-    box.querySelector('.uxr-save').onclick=async ()=>{
-      const text=box.querySelector('textarea').value.trim();
-      if(!text){ box.querySelector('textarea').focus(); return; }
-      const rec=Object.assign({},info,{chip, text});
-      const r=await fetch('/api/note',{method:'POST',
-        headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});
-      const j=await r.json(); pin(info, j.n); close();
-      try{ parent.postMessage({uxreview:'note', n:j.n, variant:VARIANT}, '*'); }catch(e){}
+    box = document.createElement('div'); box.className = 'uxr-box';
+    box.innerHTML = '<p></p><textarea placeholder="What is wrong with this? Your own words."></textarea>'
+      + '<div class="uxr-chips">' + CHIPS.map(([id,l]) =>
+          `<button type="button" data-c="${id}" aria-pressed="false">${l}</button>`).join('')
+      + '</div><div class="uxr-row">'
+      + (existing ? '<button class="uxr-del" type="button">Delete</button>' : '')
+      + '<button class="uxr-cancel" type="button">Cancel</button>'
+      + `<button class="uxr-save" type="button">${existing ? 'Save note' : 'Add note'}</button></div>`;
+    box.querySelector('p').textContent = info.selector;
+    const ta = box.querySelector('textarea');
+    let chip = (existing && existing.chip) || 'note';
+    if (existing) ta.value = existing.text || '';
+    const setChip = (c) => { chip = c; box.querySelectorAll('.uxr-chips button').forEach(o =>
+      o.setAttribute('aria-pressed', String(o.dataset.c === c))); };
+    setChip(chip);
+    box.querySelectorAll('.uxr-chips button').forEach(b =>
+      b.onclick = () => setChip(b.dataset.c));
+
+    const r = (ev && ev.clientX != null)
+      ? {x: ev.clientX, y: ev.clientY}
+      : {x: (info.box.x - scrollX) + info.box.w, y: (info.box.y - scrollY)};
+    box.style.left = Math.min(innerWidth - 322, Math.max(8, r.x - 150)) + 'px';
+    box.style.top  = Math.min(innerHeight - 280, Math.max(8, r.y + 14)) + 'px';
+
+    box.querySelector('.uxr-cancel').onclick = close;
+    if (existing) box.querySelector('.uxr-del').onclick = async () => {
+      await fetch('/api/note/' + existing.n, {method: 'DELETE'});
+      unpin(existing.n); close(); tell({kind:'note'});
+    };
+    box.querySelector('.uxr-save').onclick = async () => {
+      const text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      if (existing) {
+        await fetch('/api/note/' + existing.n, {method:'PATCH',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({text, chip})});
+        pin(existing.n, Object.assign({}, existing, info));
+      } else {
+        const res = await fetch('/api/note', {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(Object.assign({}, info, {chip, text}))});
+        const j = await res.json();
+        pin(j.n, info);
+      }
+      close(); tell({kind:'note'});
+      // Note mode stays on. A reviewer leaving one note is usually leaving five.
     };
     document.body.appendChild(box);
-    box.querySelector('textarea').focus();
+    ta.focus();
   }
-  function close(){ if(box){box.remove(); box=null;} }
+  function close(){ if (box) { box.remove(); box = null; } }
 
-  addEventListener('mousemove', e=>{
-    if(!S.on||box||ours(e.target)) return;
-    const r=e.target.getBoundingClientRect();
-    hi.style.left=r.x+'px'; hi.style.top=r.y+'px';
-    hi.style.width=r.width+'px'; hi.style.height=r.height+'px';
-    if(!hi.isConnected) document.body.appendChild(hi);
+  addEventListener('mousemove', e => {
+    if (!S.armed || box || ours(e.target)) { if (!S.armed) hi.remove(); return; }
+    const r = e.target.getBoundingClientRect();
+    hi.style.left = r.x + 'px'; hi.style.top = r.y + 'px';
+    hi.style.width = r.width + 'px'; hi.style.height = r.height + 'px';
+    if (!hi.isConnected) document.body.appendChild(hi);
   }, true);
-  addEventListener('click', e=>{
-    // A plain click must still work -- reviewers navigate. Alt/Option-click, or
-    // the review bar's "note mode", is what captures. A page you cannot use is a
-    // page you cannot review.
-    if(!S.on||ours(e.target)) return;
-    if(!(e.altKey||armed)) return;
-    e.preventDefault(); e.stopPropagation(); armed=false;
-    try{ parent.postMessage({uxreview:'armed', on:false}, '*'); }catch(err){}
-    open(describe(e.target), e);
+
+  addEventListener('click', e => {
+    // A plain click must still work: reviewers navigate, open dialogs, type in
+    // forms. Alt-click captures anywhere; note mode captures on a plain click.
+    if (ours(e.target)) return;
+    if (!(e.altKey || S.armed)) return;
+    e.preventDefault(); e.stopPropagation();
+    open(describe(e.target), e, null);
   }, true);
-  addEventListener('keydown', e=>{ if(e.key==='Escape') close(); }, true);
-  addEventListener('message', e=>{
-    if(e.data && e.data.uxreview==='arm'){ armed=!!e.data.on; }
+
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (box) { close(); return; }
+      if (S.armed) { S.armed = false; hi.remove(); tell({kind:'armed', on:false}); }
+    }
+  }, true);
+
+  addEventListener('message', e => {
+    const d = e.data || {};
+    if (!d.uxreview && d.uxreview !== 1) return;
+    if (d.kind === 'arm') {
+      S.armed = !!d.on;
+      if (!S.armed) { hi.remove(); close(); }
+    } else if (d.kind === 'edit' && d.note) {
+      const el = findEl(d.note);
+      if (el) { el.scrollIntoView({block:'center', behavior:'smooth'});
+                el.classList.add('uxr-flash');
+                setTimeout(() => el.classList.remove('uxr-flash'), 2600); }
+      open(Object.assign({}, d.note), null, d.note);
+    } else if (d.kind === 'show' && d.note) {
+      const el = findEl(d.note);
+      if (!el) return;
+      el.scrollIntoView({block:'center', behavior:'smooth'});
+      el.classList.add('uxr-flash');
+      setTimeout(() => el.classList.remove('uxr-flash'), 2600);
+    } else if (d.kind === 'sync') {
+      (d.notes || []).forEach(n => { if (n.variant === VARIANT) pin(n.n, n); });
+      const live = new Set((d.notes || []).filter(n => n.variant === VARIANT)
+                           .map(n => n.n));
+      [...S.pins.keys()].forEach(k => { if (!live.has(k)) unpin(k); });
+    }
   });
 })();
 </script>
@@ -270,7 +394,7 @@ INJECT = r"""
 
 
 def inject_into(body: bytes, variant: str) -> bytes:
-    js = INJECT.replace("__VARIANT__", variant).replace("__CHIPS__", json.dumps(CHIPS))
+    js = INJECT.replace("__VARIANT__", variant).replace("{chips}", json.dumps(CHIPS))
     try:
         text = body.decode("utf-8", "replace")
     except Exception:
@@ -333,6 +457,19 @@ aside h2{font-family:%(display)s;font-size:20px;margin:0 0 4px;font-weight:650}
   justify-content:space-between}
 .note .s{font:12px %(mono)s;color:var(--muted);word-break:break-all;margin:3px 0 6px}
 .note p{margin:0;text-wrap:pretty}
+.note .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.note .acts button{font:13px system-ui;min-height:36px;padding:6px 10px;
+  border-radius:%(r_ctl)spx;border:1px solid var(--line);background:var(--canvas);
+  color:var(--ink);cursor:pointer}
+.note .acts button.danger{color:var(--danger);border-color:var(--danger)}
+.note textarea{width:100%%;min-height:80px;font:inherit;padding:8px;margin:6px 0;
+  border:1px solid color-mix(in oklab,var(--ink) 30%%,var(--canvas));
+  border-radius:%(r_ctl)spx;background:var(--canvas);color:var(--ink)}
+.note select{width:100%%;font:inherit;padding:8px;min-height:40px;
+  border:1px solid color-mix(in oklab,var(--ink) 30%%,var(--canvas));
+  border-radius:%(r_ctl)spx;background:var(--canvas);color:var(--ink)}
+.note[data-editing=true]{border-color:var(--accent);
+  box-shadow:0 0 0 2px color-mix(in oklab,var(--accent) 30%%,transparent)}
 .empty{color:var(--muted);text-wrap:pretty}
 form{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
 fieldset{border:0;padding:0;margin:0 0 10px}
@@ -370,6 +507,7 @@ WIDTHS = [("320", 320), ("390", 390), ("768", 768), ("1024", 1024), ("full", 0)]
 
 def page(rv: Review, th: dict, errors=None, form=None) -> str:
     errors, form = errors or [], form or {}
+    chips = json.dumps(CHIPS)
     frames = []
     for vid, v in rv.variants.items():
         label = v["target"] if v["kind"] == "url" else Path(v["target"]).name
@@ -456,7 +594,8 @@ const arm = document.getElementById('armbtn');
 arm.onclick = () => {{
   const on = arm.getAttribute('aria-pressed') !== 'true';
   arm.setAttribute('aria-pressed', String(on));
-  frames().forEach(f => f.contentWindow.postMessage({{uxreview:'arm', on}}, '*'));
+  arm.textContent = on ? 'Note mode: on' : 'Note mode';
+  post('arm', {{on}});
 }};
 // Adds the two conventions an app is most likely to honour. It is a probe, not a
 // guarantee: if neither moves, this product does not implement dark that way.
@@ -473,19 +612,96 @@ dk.onclick = () => {{
     }} catch (e) {{}}
   }});
 }};
-addEventListener('message', e => {{ if (e.data && e.data.uxreview === 'note') refresh(); }});
-async function refresh() {{
+const CHIPS = {chips};
+let editing = null;             // the note number whose editor is open
+addEventListener('message', e => {{
+  const d = e.data || {{}};
+  if (!d.uxreview && d.uxreview !== 1) return;
+  if (d.kind === 'note') refresh();
+  else if (d.kind === 'pin') edit(d.n);
+  else if (d.kind === 'armed') arm.setAttribute('aria-pressed', String(!!d.on));
+}});
+function post(kind, payload) {{
+  frames().forEach(f => {{
+    try {{ f.contentWindow.postMessage(Object.assign({{uxreview:1, kind}}, payload), '*'); }}
+    catch (e) {{}}
+  }});
+}}
+function edit(n) {{ editing = n; refresh(); const el = document.getElementById('note' + n);
+  if (el) {{ el.scrollIntoView({{block:'center'}}); const ta = el.querySelector('textarea');
+             if (ta) {{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }} }} }}
+
+let LAST = '';
+async function refresh(force) {{
   const r = await fetch('/api/state'); const s = await r.json();
+  const sig = JSON.stringify(s.notes) + '|' + editing;
+  if (!force && sig === LAST) return;
+  LAST = sig;
+  post('sync', {{notes: s.notes}});
   const box = document.getElementById('notes');
   document.getElementById('count').textContent =
     s.notes.length ? s.notes.length + ' note' + (s.notes.length === 1 ? '' : 's') : '';
-  if (!s.notes.length) return;
-  box.innerHTML = s.notes.map(n => `<div class="note">
-    <div class="m"><span>${{n.n}} · ${{n.variant}}</span><span>${{n.chip}}</span></div>
-    <div class="s">${{n.selector}}</div><p></p></div>`).join('');
-  [...box.querySelectorAll('.note p')].forEach((p, i) => p.textContent = s.notes[i].text);
+  if (!s.notes.length) {{
+    box.innerHTML = '<p class="empty">Nothing yet. Turn on <em>Note mode</em> (or hold '
+      + 'Alt) and click an element in either frame, then say what is wrong with it in '
+      + 'your own words. Notes stay editable.</p>';
+    return;
+  }}
+  box.innerHTML = s.notes.map(n => n.n === editing ? editor(n) : view(n)).join('');
+  s.notes.forEach(n => wire(n));
 }}
-setInterval(refresh, 1500); refresh(); fit(); addEventListener('resize', fit);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
+function view(n) {{
+  return `<div class="note" id="note${{n.n}}">
+    <div class="m"><span>${{n.n}} · ${{esc(n.variant)}} · ${{esc(n.req || '')}}</span>
+      <span>${{esc(n.chip)}}</span></div>
+    <div class="s">${{esc(n.selector)}}</div><p></p>
+    <div class="acts">
+      <button type="button" data-a="show" data-n="${{n.n}}">Show me</button>
+      <button type="button" data-a="edit" data-n="${{n.n}}">Edit</button>
+      <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
+    </div></div>`;
+}}
+function editor(n) {{
+  return `<div class="note" data-editing="true" id="note${{n.n}}">
+    <div class="m"><span>${{n.n}} · ${{esc(n.variant)}}</span><span>editing</span></div>
+    <div class="s">${{esc(n.selector)}}</div>
+    <textarea data-f="text"></textarea>
+    <select data-f="chip" aria-label="What kind of note">
+      ${{CHIPS.map(([id, l]) => `<option value="${{id}}"${{id === n.chip ? ' selected' : ''}}>${{l}}</option>`).join('')}}
+    </select>
+    <div class="acts">
+      <button type="button" data-a="save" data-n="${{n.n}}">Save</button>
+      <button type="button" data-a="cancel" data-n="${{n.n}}">Cancel</button>
+      <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
+    </div></div>`;
+}}
+function wire(n) {{
+  const el = document.getElementById('note' + n.n);
+  if (!el) return;
+  const p = el.querySelector('p'); if (p) p.textContent = n.text;
+  const ta = el.querySelector('textarea'); if (ta) ta.value = n.text || '';
+  el.querySelectorAll('.acts button').forEach(b => b.onclick = async () => {{
+    const num = +b.dataset.n;
+    if (b.dataset.a === 'show') return post('show', {{note: n}});
+    if (b.dataset.a === 'edit') return edit(num);
+    if (b.dataset.a === 'cancel') {{ editing = null; return refresh(true); }}
+    if (b.dataset.a === 'del') {{
+      await fetch('/api/note/' + num, {{method: 'DELETE'}});
+      editing = null; return refresh(true);
+    }}
+    if (b.dataset.a === 'save') {{
+      const text = el.querySelector('[data-f=text]').value.trim();
+      if (!text) {{ el.querySelector('[data-f=text]').focus(); return; }}
+      await fetch('/api/note/' + num, {{method: 'PATCH',
+        headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{text, chip: el.querySelector('[data-f=chip]').value}})}});
+      editing = null; return refresh(true);
+    }}
+  }});
+}}
+setInterval(() => refresh(false), 1500); refresh(true); fit(); addEventListener('resize', fit);
 const e = document.getElementById('errors'); if (e) e.focus();
 </script></body></html>"""
 
@@ -499,25 +715,41 @@ DONE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 
 
 # ------------------------------------------------------------------ recording
+def _highest(dirp: Path, prefix: str) -> int:
+    n = 0
+    if dirp.exists():
+        for f in dirp.glob(f"{prefix}-*.yaml"):
+            m = re.match(rf"{prefix}-(\d+)", f.stem)
+            if m:
+                n = max(n, int(m.group(1)))
+    return n
+
+
 def _next(dirp: Path, prefix: str) -> str:
     dirp.mkdir(parents=True, exist_ok=True)
-    n = 0
-    for f in dirp.glob(f"{prefix}-*.yaml"):
-        m = re.match(rf"{prefix}-(\d+)", f.stem)
-        if m:
-            n = max(n, int(m.group(1)))
-    return f"{prefix}-{n + 1:03d}"
+    return f"{prefix}-{_highest(dirp, prefix) + 1:03d}"
 
 
-def write_note(rec: dict) -> Path:
-    rid = _next(REQUESTS, "REQ")
-    out = dict(rec)
-    out["id"] = rid
+def note_path(rv: "Review", n: int) -> Path:
+    """One note number, one file, for the life of this review."""
+    return REQUESTS / f"REQ-{rv.base + n:03d}.yaml"
+
+
+def write_note(rec: dict, path: Path | None = None) -> Path:
+    """Write (or rewrite) the work item for one note.
+
+    A note the reviewer can no longer change is a note they will stop leaving, so
+    an edit rewrites the same file rather than adding a second one -- and the file
+    keeps a count of how many times it was revised, because a sentence somebody
+    rewrote three times is usually the one that matters."""
+    p = path or (REQUESTS / f"{_next(REQUESTS, 'REQ')}.yaml")
+    out = {k: v for k, v in rec.items() if not k.startswith("_")}
+    out["id"] = p.stem
     out["source"] = "review"
     out["action"] = rec.get("chip") or "note"
     out["recorded_by"] = ("deluxui/scripts/ux_review.py -- a person wrote this while "
                           "looking at the running interface")
-    p = REQUESTS / f"{rid}.yaml"
+    p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(yaml.safe_dump(out, sort_keys=False, allow_unicode=True, width=92))
     return p
 
@@ -692,7 +924,10 @@ def handler_for(rv: Review, th: dict, notes_written: list, echo):
                 except ValueError:
                     return self._send(b'{"error":"bad json"}', "application/json", 400)
                 rec = rv.add_note(rec)
-                p = write_note(rec)
+                p = write_note(rec, note_path(rv, rec["n"]))
+                rec["_file"] = str(p)
+                rec["req"] = p.stem
+                write_note(rec, p)
                 notes_written.append((p, rec))
                 echo(f"  {p.stem}  {rec['variant']}/{rec.get('chip','note'):<9} "
                      f"{rec['selector'][:44]}\n      “{rec['text'][:150]}”\n")
@@ -717,6 +952,58 @@ def handler_for(rv: Review, th: dict, notes_written: list, echo):
                                  daemon=True).start()
                 return
             return self._send(b"not found", "text/plain", 404)
+
+        # --- a note is not a receipt. It is a sentence somebody is still working
+        # out, so it stays editable and removable for as long as the review runs.
+        def _note_num(self, path):
+            m = re.fullmatch(r"/api/note/(\d+)", path)
+            return int(m.group(1)) if m else None
+
+        def do_PATCH(self):
+            n = self._note_num(urllib.parse.urlparse(self.path).path)
+            if n is None:
+                return self._send(b"not found", "text/plain", 404)
+            ln = int(self.headers.get("Content-Length") or 0)
+            try:
+                body = json.loads(self.rfile.read(min(ln, 200_000)).decode("utf-8",
+                                                                           "replace"))
+            except ValueError:
+                return self._send(b'{"error":"bad json"}', "application/json", 400)
+            text = str(body.get("text") or "").strip()
+            if not text:
+                return self._send(b'{"error":"a note with no words is a deletion"}',
+                                  "application/json", 400)
+            rec = rv.update_note(n, text, str(body.get("chip") or "").strip())
+            if rec is None:
+                return self._send(b'{"error":"no such note"}', "application/json", 404)
+            path = Path(rec["_file"]) if rec.get("_file") else None
+            p = write_note(rec, path)
+            rec["_file"] = str(p)
+            for i, (q, r) in enumerate(notes_written):
+                if r.get("n") == n:
+                    notes_written[i] = (p, rec)
+                    break
+            echo(f"  {p.stem}  edited -> \u201c{text[:120]}\u201d\n")
+            return self._send(json.dumps({"n": n, "id": p.stem}).encode(),
+                              "application/json")
+
+        def do_DELETE(self):
+            n = self._note_num(urllib.parse.urlparse(self.path).path)
+            if n is None:
+                return self._send(b"not found", "text/plain", 404)
+            rec = rv.remove_note(n)
+            if rec is None:
+                return self._send(b'{"error":"no such note"}', "application/json", 404)
+            p = Path(rec["_file"]) if rec.get("_file") else None
+            if p and p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+            notes_written[:] = [(q, r) for q, r in notes_written if r.get("n") != n]
+            echo(f"  {p.stem if p else 'note ' + str(n)}  withdrawn by the reviewer\n")
+            return self._send(json.dumps({"n": n, "deleted": True}).encode(),
+                              "application/json")
     return H
 
 
