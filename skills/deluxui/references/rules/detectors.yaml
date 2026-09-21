@@ -59,12 +59,12 @@ detectors:
   S-CONTRAST-PAIR:   {engine: source,  rules: [NUM-001, NUM-002], confidence: medium,
                       not_run_when: "No resolvable foreground/background colour pair."}
   S-TARGET-SIZE:     {engine: source,  rules: [NUM-004, NUM-005], confidence: low,
-                      not_run_when: "Control size is not expressible from source."}
+                      not_run_when: "Control size is not expressible from source.", laws: [LAW-02]}
   S-STATE-EMPTY:     {engine: source,  rules: [UX-001, COMP-017], confidence: medium}
   S-STATE-ERROR:     {engine: source,  rules: [STATE-001, UX-009], confidence: medium}
   S-STATE-LOADING:   {engine: source,  rules: [STATE-001, NUM-014], confidence: medium}
   S-STATE-DUPE:      {engine: source,  rules: [STATE-003, NUM-020], confidence: medium}
-  S-STATE-OPTIMISTIC: {engine: source,  rules: [STATE-004, STATE-005], confidence: low}
+  S-STATE-OPTIMISTIC: {engine: source,  rules: [STATE-004, STATE-005], confidence: low, laws: [LAW-10]}
   S-FORM-AUTOCOMPLETE: {engine: element, rules: [FORM-003], confidence: high}
   S-FORM-INPUTTYPE:  {engine: element, rules: [FORM-003], confidence: high}
   S-FORM-DISABLED:   {engine: source,  rules: [FORM-007], confidence: medium}
@@ -74,7 +74,7 @@ detectors:
   S-RESP-OVERFLOW:   {engine: source,  rules: [LAY-002], confidence: low}
   S-RESP-TABLE:      {engine: element, rules: [LAY-006], confidence: low}
   S-RESP-TRUNCATE:   {engine: source,  rules: [LAY-007], confidence: low}
-  S-MOTION-REDUCE:   {engine: source,  rules: [LAY-010, A11Y-010, NUM-018], confidence: high}
+  S-MOTION-REDUCE:   {engine: source,  rules: [LAY-010, A11Y-010, NUM-018], confidence: high, laws: [LAW-07]}
   S-HOVER-ONLY:      {engine: source,  rules: [VIS-005, COMP-011], confidence: medium}
   S-TOKEN-HEX:       {engine: source,  rules: [VIS-001], confidence: high,
                       not_run_when: "No token source found in the project."}
@@ -111,7 +111,7 @@ detectors:
   S-CRAFT-DECOR: {engine: source, rules: [VIS-006, NUM-001], confidence: low}
   S-CRAFT-PALETTE-WARM: {engine: source, rules: [VIS-001, VIS-006], confidence: low}
   S-CRAFT-MOTION: {engine: source, rules: [NUM-018, VIS-006], confidence: low}
-  S-CRAFT-RHYTHM: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-RHYTHM: {engine: source, rules: [VIS-002, VIS-006], confidence: low, laws: [LAW-04]}
   S-CRAFT-VOICE: {engine: source, rules: [CONTENT-001, VIS-002], confidence: low}
   S-CONTENT-I18N:    {engine: source,  rules: [CONTENT-004], confidence: medium,
                       not_run_when: "No i18n setup detected in the project."}
@@ -120,7 +120,7 @@ detectors:
   S-TRUST-DESTRUCT:  {engine: source,  rules: [UX-003, TRUST-006, TRUST-007], confidence: medium}
   S-PERF-IMGDIM:     {engine: element, rules: [PERF-003, NUM-012], confidence: high}
 
-  S-FORM-VALIDATION: {engine: source, rules: [FORM-005], confidence: high}
+  S-FORM-VALIDATION: {engine: source, rules: [FORM-005], confidence: high, laws: [LAW-04, LAW-16]}
   S-RESP-SAFEAREA: {engine: source, rules: [LAY-005], confidence: medium}
   S-MODAL-NATIVE: {engine: element, rules: [COMP-007, COMP-008, COMP-010, A11Y-004], confidence: medium}
   S-CANVAS-A11Y: {engine: element, rules: [A11Y-007, COMP-015], confidence: medium}
@@ -139,12 +139,12 @@ detectors:
   S-FAKE-STATS: {engine: source, rules: [CONTENT-010], confidence: medium}
   S-STATE-PREMATURE: {engine: source, rules: [STATE-002], confidence: medium}
   S-DRAFT-BOUNDARY: {engine: source, rules: [STATE-009], confidence: medium}
-  S-CONFLICT-OVERWRITE: {engine: source, rules: [STATE-010], confidence: low}
+  S-CONFLICT-OVERWRITE: {engine: source, rules: [STATE-010], confidence: low, laws: [LAW-11]}
   S-RETRY-SAFETY: {engine: source, rules: [STATE-011, NUM-020], confidence: low}
 
   # --- P0 commitment, authorization and generated output (checks/commitment.py) ---
-  S-COMMIT-DISCLOSURE: {engine: element, rules: [TRUST-001, FORM-014], confidence: medium}
-  S-COMMIT-REVIEW: {engine: element, rules: [FORM-013], confidence: medium}
+  S-COMMIT-DISCLOSURE: {engine: element, rules: [TRUST-001, FORM-014], confidence: medium, laws: [LAW-09]}
+  S-COMMIT-REVIEW: {engine: element, rules: [FORM-013], confidence: medium, laws: [LAW-09]}
   S-SERVER-VALIDATION: {engine: source, rules: [FORM-009, TRUST-004], confidence: medium,
                         not_run_when: "No server mutation handler found in scope."}
   S-AUTHZ-UI-ONLY: {engine: source, rules: [TRUST-004], confidence: low}
@@ -159,18 +159,18 @@ detectors:
   # R-TARGET does the SC 2.5.8 work: the 24px floor AND the spacing exception.
   # NUM-006/007 are iOS pt and Android dp; a browser measurement cannot establish
   # those, so they belong to the manual tier (M-TOUCH-DEVICE).
-  R-TARGET:          {engine: computed, rules: [NUM-004], confidence: high}
+  R-TARGET:          {engine: computed, rules: [NUM-004], confidence: high, laws: [LAW-02]}
   # The 44px coarse-pointer default is a PROJECT choice, not a standard. This was
   # mapped to NUM-004 and so reported a WCAG STANDARD failure when all that was
   # missed was a local default -- exactly the overclaiming this skill exists to stop.
-  R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high}
-  R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high}
+  R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high, laws: [LAW-02]}
+  R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high, laws: [LAW-12]}
   R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
   R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
   R-FOCUS-WALK:      {engine: computed, rules: [A11Y-002, A11Y-003, A11Y-004, NUM-011,
-                                                LAY-003], confidence: high}
+                                                LAY-003], confidence: high, laws: [LAW-08]}
   R-VITALS:          {engine: computed, rules: [NUM-012, PERF-005], confidence: medium,
-                      not_run_when: "Lab measurement only. A field pass needs real users."}
+                      not_run_when: "Lab measurement only. A field pass needs real users.", laws: [LAW-06]}
   R-MOTION:          {engine: computed, rules: [LAY-010, A11Y-010], confidence: high}
   R-FORCED-COLORS:   {engine: computed, rules: [VIS-008], confidence: high}
   R-PIXEL-CONTRAST:  {engine: visual,   rules: [NUM-001, NUM-003], confidence: high}
@@ -180,18 +180,18 @@ detectors:
   R-STICKY-OBSTRUCTION: {engine: computed, rules: [LAY-008, NUM-011], confidence: high}
   R-ORIENTATION:     {engine: computed, rules: [LAY-004], confidence: high}
   R-CONSOLE:         {engine: computed, rules: [STATE-001], confidence: high}
-  R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high}
+  R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high, laws: [LAW-06]}
   R-STATE-ERROR:     {engine: runtime_state, rules: [STATE-001, STATE-006, UX-009], confidence: high,
-                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
   R-STATE-EMPTY:     {engine: runtime_state, rules: [UX-001, COMP-017], confidence: high,
-                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
   R-STATE-SLOW:      {engine: runtime_state, rules: [NUM-013, NUM-014, STATE-006], confidence: high,
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
 
   # --- Component and navigation contracts (scripts/checks/components.py) ---
   S-COMP-VAGUE-LABEL: {engine: element, rules: [COMP-003], confidence: medium}
-  S-COMP-DISABLED-MUTE: {engine: element, rules: [COMP-004, FORM-007], confidence: low}
-  S-COMP-KEYBOARD-PATTERN: {engine: element, rules: [COMP-005, COMP-006], confidence: medium}
+  S-COMP-DISABLED-MUTE: {engine: element, rules: [COMP-004, FORM-007], confidence: low, laws: [LAW-13]}
+  S-COMP-KEYBOARD-PATTERN: {engine: element, rules: [COMP-005, COMP-006], confidence: medium, laws: [LAW-03]}
   S-COMP-ACCORDION: {engine: element, rules: [COMP-013], confidence: medium}
   S-COMP-TABLE-SEMANTICS: {engine: element, rules: [COMP-014], confidence: medium}
   S-COMP-UPLOAD: {engine: element, rules: [COMP-021], confidence: medium}
@@ -203,7 +203,7 @@ detectors:
   S-FORM-ERROR-LINK: {engine: element, rules: [FORM-006], confidence: medium}
   S-FORM-LOST-INPUT: {engine: source, rules: [FORM-004], confidence: medium}
   S-FORM-PASTE-BLOCK: {engine: source, rules: [FORM-015], confidence: medium}
-  S-UX-FAKE-INTERACTIVE: {engine: element, rules: [UX-011], confidence: low}
+  S-UX-FAKE-INTERACTIVE: {engine: element, rules: [UX-011], confidence: low, laws: [LAW-13]}
 
   # --- Behaviour, races and felt performance (scripts/checks/behavior.py) ---
   S-NAV-DEEPLINK: {engine: source, rules: [NAV-003], confidence: low}
@@ -217,9 +217,9 @@ detectors:
   S-COMP-ZERO-VS-MISSING: {engine: source, rules: [COMP-016], confidence: low}
   S-COMP-PAGINATION: {engine: source, rules: [COMP-019], confidence: medium}
   S-COMP-DRAG-ALT: {engine: source, rules: [COMP-020, A11Y-009], confidence: medium}
-  S-FORM-DERIVED-STALE: {engine: source, rules: [FORM-008], confidence: low}
+  S-FORM-DERIVED-STALE: {engine: source, rules: [FORM-008], confidence: low, laws: [LAW-15]}
   S-FORM-REDUNDANT: {engine: element, rules: [FORM-011], confidence: low}
-  S-FORM-EXCESSIVE: {engine: element, rules: [FORM-001], confidence: low}
+  S-FORM-EXCESSIVE: {engine: element, rules: [FORM-001], confidence: low, laws: [LAW-18]}
   S-PERF-SKELETON-ARIA: {engine: element, rules: [PERF-008], confidence: medium}
   S-PERF-LONG-LIST: {engine: source, rules: [PERF-006, PERF-007], confidence: low}
   S-PERF-BLOCKING: {engine: source, rules: [PERF-004, NUM-013], confidence: low}
@@ -263,6 +263,7 @@ detectors:
     rules: [A11Y-005]
     confidence: medium
     not_run_when: No source files in scope.
+    laws: [LAW-07]
 
   M-FORCED-COLORS:
     engine: manual
@@ -358,7 +359,7 @@ detectors:
   # enough to be ignored.
   M-DESIGN-REVIEW:   {engine: manual, rules: [UX-004, UX-006, UX-007, UX-008, UX-010,
                                               UX-012, VIS-003, VIS-009, LAY-001,
-                                              NAV-006, CTX-005]}
+                                              NAV-006, CTX-005], laws: [LAW-01, LAW-05, LAW-14, LAW-19]}
   M-A11Y-PROCESS:    {engine: manual, rules: [A11Y-012, QA-004]}
   M-DESTRUCTIVE-WALK: {engine: manual, rules: [UX-003, UX-005, TRUST-006, FORM-013]}
-  M-FIELD-PERF:      {engine: manual, rules: [NUM-012, PERF-005]}
+  M-FIELD-PERF:      {engine: manual, rules: [NUM-012, PERF-005], laws: [LAW-20]}

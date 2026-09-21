@@ -118,6 +118,25 @@ def main() -> int:
     # rules that were unreachable.
     covered = {r for d in det["detectors"].values() for r in d["rules"]}
     inert = set(unimplemented)
+
+    # --- law reachability. The laws were carried as data and consumed by nothing,
+    # while index.md advertised "19 enforceable laws" and lint used their IDs only
+    # to spell-check prose. A law now has to name a detector that can produce a
+    # verdict, or be published as unreachable -- the three fates stated apart,
+    # because a live check and somebody's signature are not the same evidence.
+    law_live, law_manual = set(), set()
+    for did, d in det["detectors"].items():
+        if did in inert:
+            continue
+        for lid in d.get("laws", []):
+            if lid not in law_ids:
+                errors.append(f"{did} claims unknown law {lid}")
+                continue
+            (law_manual if d.get("engine") == "manual" else law_live).add(lid)
+    enforceable = {l["id"] for l in reg["laws"] if l.get("enforceable") is not False}
+    law_manual -= law_live
+    law_unreachable = sorted(enforceable - law_live - law_manual)
+
     reachable = {r for did, d in det["detectors"].items() if did not in inert
                  for r in d["rules"]}
     orphaned = sorted(rule_ids - reachable)
@@ -133,6 +152,9 @@ def main() -> int:
           f"{len(det['detectors']) - len(declared_static) - len(declared_runtime) - len(declared_report)}")
     print(f"rules with a detector {len(covered)}  without {len(rule_ids - covered)}  "
           f"orphaned onto inert detectors {len(orphaned)}")
+    print(f"laws {len(enforceable)} enforceable: live detector {len(law_live)}  "
+          f"manual only {len(law_manual)}  unreachable {len(law_unreachable)}"
+          + (f" ({', '.join(law_unreachable)})" if law_unreachable else ""))
     print(f"runtime detectors declared but not yet implemented: "
           f"{len(unimplemented)} ({', '.join(unimplemented) or 'none'})")
     print(f"distinct rule IDs cited in prose: {len(cited)}")

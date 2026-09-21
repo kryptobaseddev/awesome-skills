@@ -63,6 +63,6 @@ happens to be a gradient.
 
 Do not strip a design to avoid looking generated. Deleting labels, status text,
 constraints or empty-state copy to make a screenshot look cleaner is a worse defect
-than any tell on this page — it usually fails A11Y-005, and it is what LAW-12 (Prägnanz)
-warns against, though no detector reads the laws. A dense,
+than any tell on this page — it usually fails A11Y-005, and LAW-12 (Prägnanz) names it:
+simplification must not remove necessary information. A dense,
 plain, well-labelled interface is a good interface.

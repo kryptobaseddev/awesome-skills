@@ -731,6 +731,43 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         results.append({"rule_id": rid, "severity": r["severity"], "class": r["class"],
                         "basis": r["basis"], "status": status, "reason": reason})
 
+    # --- the 20 UX laws, rolled up from the detectors indexed to them.
+    # They were carried as data and consumed by nothing, so a report could cite
+    # LAW-12 beside A11Y-005 as though the gate adjudicated both. It adjudicates
+    # one. Now a law carries a status, and a law whose only evidence is a human
+    # attestation says so rather than passing as measured.
+    law_by = {}
+    for did, (st, note) in dstat.items():
+        for lid in (det.get(did, {}).get("laws") or []):
+            law_by.setdefault(lid, []).append((did, st, det.get(did, {}).get("engine")))
+    law_results = {}
+    for law in reg.get("laws", []):
+        lid = law["id"]
+        if law.get("enforceable") is False:
+            law_results[lid] = {"status": "NOT_APPLICABLE",
+                                "reason": f"Alias of {law.get('alias_of')}; evaluated once."}
+            continue
+        entries = law_by.get(lid, [])
+        sts = [st for _d, st, _e in entries]
+        if not entries:
+            law_results[lid] = {"status": "NOT_RUN",
+                                "reason": "No detector adjudicates any of this law's "
+                                          "verify clauses."}
+        elif "FAIL" in sts:
+            law_results[lid] = {"status": "FAIL", "reason": "; ".join(
+                d for d, st, _e in entries if st == "FAIL")}
+        elif "PASS" in sts:
+            measured = [d for d, st, e in entries if st == "PASS" and e != "manual"]
+            law_results[lid] = {
+                "status": "PASS",
+                "reason": ("; ".join(measured) if measured else
+                           "attested only: " + "; ".join(
+                               d for d, st, _e in entries if st == "PASS")),
+                "measured": bool(measured)}
+        else:
+            law_results[lid] = {"status": "NOT_RUN", "reason": "; ".join(
+                f"{d}: {st}" for d, st, _e in entries)[:200]}
+
     manual_dets = {k for k, v in det.items() if v.get("engine") == "manual"}
     audit = self_audit(results, dstat, static, runtime, config, release, manual,
                        features=features, manual_detectors=manual_dets)
@@ -781,6 +818,7 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
                           "manual": bool(manual)},
         "declared_features": features,
         "attested_not_measured": sorted(attested),
+        "law_results": law_results,
         "counts": {"not_run": counts["NOT_RUN"], "fail": counts["FAIL"],
                    "pass": counts["PASS"], "not_applicable": counts["NOT_APPLICABLE"],
                    "approved_exception": counts["APPROVED_EXCEPTION"],
