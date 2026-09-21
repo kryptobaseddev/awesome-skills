@@ -1,5 +1,20 @@
 # Author: description first, body second
 
+## Start from the scaffolder
+
+```bash
+python3 skills/skill-forge/scripts/forge_new.py <name> \
+    --purpose "one line" --category <slug> \
+    --trigger "a situation" --boundary "what it is not for" --casual "a phrasing"
+```
+
+It applies every constraint in `01-constraints.md` for you and emits a skill the
+gate accepts immediately, so the first thing you write is content rather than
+frontmatter. `--list-categories` prints the slugs that actually exist — an
+invented one fails silently.
+
+Everything below is what to put in the scaffold.
+
 ## The description is the whole trigger surface
 
 It is the only thing an agent reads at startup. A skill with an excellent body

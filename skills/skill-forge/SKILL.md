@@ -29,11 +29,30 @@ two skills that their own SKILL.md tells an agent to execute, committed
 non-executable, because `core.fileMode=false` means a local `chmod +x` never
 reaches git.
 
-## One command
+## Two commands
 
 ```bash
+# create -- emits a skill that passes the gate cold, constraints already applied
+python3 skills/skill-forge/scripts/forge_new.py <name> \
+    --purpose "one line" --category <slug> \
+    --trigger "a situation" --boundary "what it is not for" \
+    --casual "a casual phrasing" [--scripts]
+
+# gate -- run before every commit that touches a skill
 python3 skills/skill-forge/scripts/forge_check.py skills/<name>
 ```
+
+`forge_new.py` exists because nothing else creates a skill from nothing —
+`plugin-creator` scaffolds plugins, the other two check and measure, and the
+globally-installed `skill-creator` writes files ad hoc. So every skill in this
+repo was hand-authored and every author rediscovered the same constraints. The
+scaffolder applies them: a validated name and a **real** category slug, a
+description in the shape that triggers, three *top-level* reference files
+because the depth rule is non-recursive, an eval set with more negatives than
+positives, and the exact `git update-index --chmod=+x` line you will need.
+
+Its output is a working skill, not a stub — the gate reports zero blocking rows
+on it immediately, and the selftest asserts that round-trip.
 
 Runs the validator, the progressive-disclosure rule and the body audit, then adds
 what they do not cover: which README category the skill actually lands in and
@@ -65,7 +84,7 @@ Each stage has a reference. Read the one you are in.
 |---|---|
 | Decide | `references/00-decide.md` |
 | Constrain | `references/01-constraints.md` |
-| Author | `references/02-author.md` |
+| Author | `references/02-author.md` — start with `forge_new.py` |
 | Verify | `references/03-verify.md` |
 | Measure | `references/04-measure.md` |
 | Ship | `references/05-ship.md` |
@@ -124,7 +143,9 @@ agent correctly says there is nothing to look at. `references/04-measure.md`.
 
 | Script | Purpose |
 |---|---|
+| `scripts/forge_new.py` | **The scaffolder.** Creates a skill that passes the gate cold: validated name, real category slug, trigger-shaped description, three top-level references, an eval set, and the chmod line. `--list-categories` prints the real slugs. |
 | `scripts/forge_check.py` | **The gate.** Validator + depth + body audit, plus category resolution, git-recorded exec bits, generated-file freshness, description headroom and boundary, evals, selftest. |
+| `scripts/selftest.py` | Asserts the gate fires on a broken fixture, stays silent on a sound one, and that a freshly scaffolded skill passes. |
 
 ## Common mistakes
 
