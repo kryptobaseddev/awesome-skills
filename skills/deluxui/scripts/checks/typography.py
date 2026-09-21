@@ -51,6 +51,19 @@ def tiny_text(f, p):
     return out[:8]
 
 
+# Selectors that name reading content, and properties that mean a rule is
+# setting text rather than laying out boxes.
+_PROSE_SEL = re.compile(r"(?:^|[\s,>+~])(?:p|li|dd|blockquote|article|main|body)\b"
+                        r"|prose|copy|content|text|measure|readable|markdown|mdx|rte",
+                        re.I)
+_TEXT_PROP = re.compile(r"\b(?:font-size|font-family|line-height|text-wrap|"
+                        r"hyphens|text-align)\s*:")
+
+
+def _holds_text(sel: str, body: str) -> bool:
+    return bool(_PROSE_SEL.search(sel) or _TEXT_PROP.search(body))
+
+
 @check("S-TYPE-MEASURE")
 def line_length(f, p):
     """Past about 75 characters the eye loses the line return. The fix is a
@@ -62,6 +75,13 @@ def line_length(f, p):
         for pos, sel, body in _css_rules(f.css):
             m = re.search(r"max-width\s*:\s*(\d+(?:\.\d+)?)(ch|rem|px)", body)
             if not m:
+                continue
+            if not _holds_text(sel, body):
+                # A max-width on a bare layout container states nothing about
+                # measure -- the thing inside it may be a grid of cards. Flagging
+                # it anyway produced a finding on every page shell, including this
+                # skill's own decision page, which is how a real signal gets
+                # trained out of a reader.
                 continue
             v, unit = float(m.group(1)), m.group(2)
             ch = v if unit == "ch" else (v * 2.2 if unit == "rem" else v / 8.0)
@@ -84,6 +104,25 @@ def line_length(f, p):
     return out[:6]
 
 
+# A fluid heading is written `clamp(26px, 3.4vw, 40px)`, and a plain
+# `font-size:\d+px` search reads the FIRST number in it -- the minimum -- or
+# nothing at all. Both readings turn correct display leading into a finding, which
+# is how a detector teaches people to ignore it.
+_SIZE_PX = re.compile(r"(\d+(?:\.\d+)?)\s*(px|rem|em)")
+
+
+def _display_size(body: str) -> float:
+    """The largest px this rule can render at, 0 when it sets no size."""
+    m = re.search(r"font-size\s*:([^;}]*)", body)
+    if not m:
+        return 0.0
+    best = 0.0
+    for num, unit in _SIZE_PX.findall(m.group(1)):
+        v = float(num) * (16.0 if unit in ("rem", "em") else 1.0)
+        best = max(best, v)
+    return best
+
+
 @check("S-TYPE-LEADING")
 def tight_leading(f, p):
     """Line height under about 1.4 on body copy crowds descenders into the next
@@ -92,11 +131,10 @@ def tight_leading(f, p):
     if f.css:
         for pos, sel, body in _css_rules(f.css):
             m = re.search(r"line-height\s*:\s*(\d?\.\d+|1)\s*(?:;|$)", body)
-            fs = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             if not m:
                 continue
             lh = float(m.group(1))
-            if lh >= 1.4 or (fs and float(fs.group(1)) >= 24):
+            if lh >= 1.4 or _display_size(body) >= 24:
                 continue      # display type may legitimately be tighter
             out.append(finding("S-TYPE-LEADING", f, _line(f.css, pos),
                                f"{sel[:30]} {{ line-height: {m.group(1)} }}",

@@ -62,6 +62,28 @@ Then apply the parts a generator cannot:
   scale (AND-007). Type that ignores the reading size the user chose fails the
   reader who most needed it.
 
+## The face has to exist
+
+The quietest failure in this whole operation: the contract names a face, the scale
+and the leading are tuned for it, the CSS asks for it, and nothing in the
+repository provides it. The browser falls back silently, and every type decision
+downstream was made about a typeface this product does not render.
+
+```bash
+python3 scripts/fontindex.py .            # what the project provides, and what it only names
+python3 scripts/fontindex.py . --check    # exit 2 when a declared family is missing
+python3 scripts/fontindex.py --pair "Fraunces" "Inter"
+```
+
+It looks for all five ways a face legitimately arrives — an `@font-face` rule, an
+`@fontsource` package (imported or in the manifest), `next/font`, a font file in
+the tree, and a Google Fonts request — and matches across spellings, so `Söhne` in
+the contract resolves to `sohne-web-buch.woff2` on disk.
+
+One thing it refuses to do: treat the faces installed on the build host as
+evidence that a visitor has them. A build host's font list describes the build
+host. `S-CONTRACT-FONT-AVAIL` is the detector; `VIS-010` is the rule.
+
 ## Verify
 
 | Detector | What it settles |

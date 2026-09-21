@@ -7,7 +7,7 @@ What a component owes its user regardless of how it looks: a name, a role, a key
 | Rule | Severity | Class | Requirement | Acceptance | Basis | Tested by |
 |---|---|---|---|---|---|---|
 | **COMP-001** | P1 | STANDARD | MUST use native elements or validated existing primitives before inventing custom widgets. | Custom behavior has a documented necessity and a complete tested interaction contract. | S12 | `S-A11Y-DIVCLICK`, `S-DS-REINVENT` |
-| **COMP-002** | P1 | STANDARD | MUST keep the visible label inside the accessible name when the control has visible text. | Speech users can activate the control using its visible wording. | S45 | `S-A11Y-ICONBTN` |
+| **COMP-002** | P1 | STANDARD | MUST keep the visible label inside the accessible name when the control has visible text. | Speech users can activate the control using its visible wording. | S45 | `S-A11Y-ICONBTN`, `R-AXE` |
 | **COMP-003** | P1 | PROJECT | MUST give buttons action-specific labels. MUST NOT use ambiguous labels such as Continue when the action actually commits a payment or irreversible change. | The label accurately predicts the resulting operation. | S00 | `S-COMP-VAGUE-LABEL` |
 | **COMP-004** | P1 | STANDARD | MUST distinguish disabled, loading, selected, and unavailable states. MUST explain consequential unavailability near the control. | Users can identify the reason and available alternative without relying on color alone. | S39 S00 | `S-COMP-DISABLED-MUTE` |
 | **COMP-005** | P1 | STANDARD | MUST use an established complete keyboard pattern for menus, tabs, listboxes, comboboxes, and trees. | Arrow keys, activation, dismissal, and focus management match the selected APG or native pattern. | S11 | `S-COMP-KEYBOARD-PATTERN` |

@@ -745,10 +745,81 @@ def collect(out_dir: Path, meta: dict):
 # rather than walked past, and whether project config was used to silence a
 # standard. That is the only honest way to automate them, so it is what happens.
 
+def _process_tier() -> dict:
+    """The process detectors: how the work happened, not what it produced.
+
+    Kept in its own function because it reads state nothing else in the report
+    reads -- the phase record and the decision records -- and because when that
+    state is absent the answer is NOT_RUN for all of them rather than silence.
+    A report that simply omits the question reads as though nobody needed to ask
+    it, which is how "the contract came first" stayed an assertion for so long."""
+    out = {}
+    try:
+        import ux_phase
+        st = ux_phase.load()
+        out.update(ux_phase.process_checks(st))
+    except Exception as e:                       # never let this break the report
+        why = (f"The process tier could not run ({type(e).__name__}: {e}). Nothing "
+               f"about the order of work is established.")
+        st = {}
+        for k in ("A-PHASE-ORDER", "A-COMP-APPROVED", "A-DECISION-VETTED"):
+            out.setdefault(k, ("NOT_RUN", why))
+    out["A-COMP-CONFORM"] = _comp_conform(st)
+    return out
+
+
+def _comp_conform(st: dict):
+    """Does the approved comp match the contract it claims to express?
+
+    A generator returns a beautiful image in a palette nobody declared, somebody
+    approves it, and from then on the build is judged against a comp that was
+    never the system. Measuring the approved artefact closes that, and it is the
+    one check in this file that reads pixels rather than paperwork."""
+    try:
+        import ux_phase
+        import ux_image
+        ok, _bad, _sup = ux_phase.vetted_decisions()
+    except Exception as e:
+        return ("NOT_RUN", f"Could not read the decision records ({type(e).__name__}: "
+                           f"{e}), so no approved comp was measured.")
+    if not ok:
+        return ("NOT_RUN", "No standing approval, so there is no approved comp to "
+                           "measure against the contract.")
+    f, d, _w = ok[-1]
+    chosen = str(d.get("chosen") or "")
+    shown = {str(s.get("id")): s for s in (d.get("shown") or [])}
+    entry = shown.get(chosen)
+    if not entry or not entry.get("image"):
+        return ("NOT_RUN", f"{f.stem} records `{chosen}`, which names no single image "
+                           f"(a combination or a rejection), so there is nothing to "
+                           f"measure.")
+    img = Path(entry["image"])
+    if img.suffix.lower() != ".png":
+        alt = img.with_suffix(".png")
+        if not alt.exists():
+            return ("NOT_RUN",
+                    f"The approved comp {img} is a vector sheet. Reading a palette "
+                    f"needs pixels, so nothing measured it -- and 'it was rendered "
+                    f"from the contract' is an argument about the renderer rather "
+                    f"than evidence about this file. Produce a raster "
+                    f"(scripts/ux_image.py generate ...) to close this.")
+        img = alt
+    c = ux_image.load_contract(None)
+    res = ux_image.verify(img, c)
+    if not res.get("ok"):
+        return ("NOT_RUN", res.get("error", "the comp could not be decoded"))
+    if res["findings"]:
+        return ("FAIL", f"{img.name}: " + " | ".join(res["findings"])[:400])
+    return ("PASS", f"{img.name} carries every declared colour role at real coverage "
+                    f"(canvas {res['canvas']}, ink {res['ink']}, "
+                    f"{res['ink_on_canvas']}:1), and its provenance is in the file.")
+
+
 def self_audit(results, dstat, static, runtime, config, release, manual=None,
                features=None, manual_detectors=frozenset()):
     """Returns {detector_id: (status, note)} for the A-* family."""
     out = {}
+    out.update(_process_tier())
 
     # --- GOV-006: no PASS without a detector that reported PASS
     passes = [r for r in results if r["status"] == "PASS"]
@@ -1120,6 +1191,9 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
                "A-BASIS-CLASSED": ["GOV-003", "GOV-001"],
                "A-EXCEPTIONS-VALID": ["GOV-007", "QA-006"],
                "A-CONTEXT-DECLARED": ["CTX-002", "CTX-003", "CTX-004", "MEASURE-006"],
+               "A-PHASE-ORDER": ["GOV-010"], "A-COMP-APPROVED": ["GOV-011"],
+               "A-DECISION-VETTED": ["GOV-012"],
+               "A-COMP-CONFORM": ["VIS-001", "GOV-013"],
                "A-PERF-TIER": ["PERF-002", "PERF-009", "PERF-010", "MEASURE-001",
                                "MEASURE-003", "MEASURE-004"]}
     for did, rids in A_RULES.items():

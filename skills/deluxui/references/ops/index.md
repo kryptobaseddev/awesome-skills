@@ -1,7 +1,7 @@
 # Operations
 
-Thirty operations, each one a named job with a mechanism behind it and a set of
-detectors that adjudicate its output. The ten broader
+Thirty-two operations, each one a named job with a mechanism behind it and a set
+of detectors that adjudicate its output. The ten broader
 [workflows](../workflows/) are the modes; these are the moves inside them.
 
 Every one of these is derived from the impeccable skill (Apache-2.0,
@@ -18,14 +18,16 @@ what was taken and what was changed.
 | [routing](routing.md) | The request does not name an operation. Start here. |
 | [shape](shape.md) | Discovery. Returns a brief and no code. |
 | [new-work](new-work.md) | Originate a visual world and commit it to the contract. |
-| [visualize](visualize.md) | Three comps, one approval point, before any code. |
+| [visualize](visualize.md) | Three comps — rendered from the contract, generated where a model exists, then measured back against it. |
+| [decide](decide.md) | Serve the choice as a page and record who chose, when, why, and against exactly what. |
+| [phase](phase.md) | The gate: discover, declare, comp, approve, build, verify, release. Refuses UI edits before a direction is approved. |
 
 ## Making the system
 
 | Operation | Tool behind it |
 |---|---|
 | [colorize](colorize.md) | `palette.py` — OKLCH roles, every pair contrast-checked |
-| [typeset](typeset.md) | `typescale.py` — a ladder whose steps can carry different jobs |
+| [typeset](typeset.md) | `typescale.py` — a ladder whose steps can carry different jobs; `fontindex.py` — whether the declared face is one the product can actually render |
 | [layout](layout.md) | priority first, then the grid; `R-REFLOW` settles it |
 | [animate](animate.md) | the motion band, the banned curves, one authored moment |
 | [craft](craft.md) | the sixteen-detector floor |

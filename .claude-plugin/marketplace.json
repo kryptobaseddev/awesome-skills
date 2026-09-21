@@ -10,7 +10,7 @@
     {
       "name": "deluxui",
       "source": "./deluxui-plugin",
-      "description": "UX engineering with a verdict. Adds /ux (the router), /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive, /ux-optimize, /ux-design, /ux-uplift, /ux-doctor, /ux-live, /ux-color, /ux-type, /ux-native, /ux-polish, /ux-bolder, /ux-quieter, /ux-distill, /ux-clarify, /ux-extract and /ux-onboard, an independent ux-reviewer subagent, and a PostToolUse hook that checks every interface file as it is written. Wraps the deluxui skill: a 228-rule contract, 238 detectors across static, browser, native and manual tiers, 30 named operations, palette and type-scale generators, and a release gate where NOT_RUN is never a pass."
+      "description": "UX engineering with a verdict, from the first comp to the release gate. Adds /ux (the router), /ux-comp, /ux-decide, /ux-phase, /ux-select, /ux-fonts, /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive, /ux-optimize, /ux-design, /ux-uplift, /ux-doctor, /ux-live, /ux-color, /ux-type, /ux-native, /ux-polish, /ux-bolder, /ux-quieter, /ux-distill, /ux-clarify, /ux-extract and /ux-onboard, an independent ux-reviewer subagent, a PostToolUse hook that checks every interface file as it is written, and a PreToolUse gate that refuses UI edits until somebody has approved a direction. Wraps the deluxui skill: a 233-rule contract, 243 detectors across static, browser, native, process and manual tiers, 32 named operations, thirteen craft references, generators for the palette, the type scale and the comps themselves, and a release gate where NOT_RUN is never a pass."
     }
   ]
 }

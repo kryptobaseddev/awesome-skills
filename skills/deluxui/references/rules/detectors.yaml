@@ -38,6 +38,15 @@ engines:
       xcrun simctl (iOS) or adb (Android) is on PATH, a target is booted or attached,
       and the app under test is installed on it.
     confidence_ceiling: high
+  process:
+    tier: report
+    description: >-
+      The order in which the work happened, read from the recorded phase state and
+      the repository rather than from the artifact. No scan of a screen can tell you
+      whether the contract it conforms to was written before it or after it, and a
+      contract written afterwards always shows conformance.
+    available_when: .deluxui/phase.yaml exists (scripts/ux_phase.py init).
+    confidence_ceiling: high
   report:
     tier: report
     description: Checks the produced report rather than the product under test.
@@ -294,6 +303,17 @@ detectors:
   A-EXCEPTIONS-VALID: {engine: report, rules: [GOV-007, QA-006], confidence: high}
   A-CONTEXT-DECLARED: {engine: report, rules: [CTX-002, CTX-003, CTX-004, MEASURE-006],
                        confidence: high}
+  A-PHASE-ORDER: {engine: process, rules: [GOV-010], confidence: high,
+                  not_run_when: "No .deluxui/phase.yaml, so the order the work happened
+                    in was never recorded and nothing establishes it either way."}
+  A-COMP-APPROVED: {engine: process, rules: [GOV-011], confidence: high,
+                    not_run_when: "No decision records: nobody has been asked to approve
+                      a direction, so there is no approval to check."}
+  A-DECISION-VETTED: {engine: process, rules: [GOV-012], confidence: high,
+                      not_run_when: "No decision records to vet."}
+  A-COMP-CONFORM: {engine: process, rules: [VIS-001, GOV-013], confidence: high,
+                   not_run_when: "No approved comp raster to measure, or the contract
+                     declares no colour roles to measure it against."}
   A-PERF-TIER: {engine: report, rules: [PERF-002, PERF-009, PERF-010, MEASURE-001,
                                         MEASURE-003, MEASURE-004], confidence: high}
 
@@ -392,6 +412,9 @@ detectors:
     rules: [VIS-001]
     confidence: medium
     not_run_when: The visual contract declares no radius values.
+  S-CONTRACT-FONT-AVAIL: {engine: source, rules: [VIS-010, VIS-002], confidence: high,
+                          not_run_when: "The visual contract declares no type.families,
+                            so there is no face whose availability could be checked."}
   S-CONTRACT-MOTION:
     engine: source
     rules: [NUM-018]

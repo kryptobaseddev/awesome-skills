@@ -18,7 +18,13 @@ Two consequences worth stating, because they are the whole design:
 """
 from __future__ import annotations
 import re
+import sys
+from pathlib import Path as _Path
 from . import check, finding
+
+# fontindex lives beside the check package, not inside it: it is also a CLI the
+# skill documents, and duplicating it here would be two answers to one question.
+sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 from ._util import strip_comments
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
@@ -235,3 +241,32 @@ def motion_budget(f, p):
                            f" -- and a band nobody keeps is not a motion system (NUM-018).",
                            "low"))
     return out[:4]
+
+
+# ------------------------------------------------------------ face availability
+@check("S-CONTRACT-FONT-AVAIL", scope="project")
+def font_available(f, p):
+    """A declared family that nothing provides.
+
+    This is the quietest failure in the whole type layer. The contract names a
+    face, the scale and leading are tuned for it, the CSS asks for it, and no file
+    in the repository supplies it -- so the browser silently renders the next
+    entry in the stack and every downstream judgement is about a typeface nobody
+    chose. Nothing in the source looks wrong, which is exactly why it survives."""
+    out = []
+    fams = (p.contract.get("type") or {}).get("families") if p.contract else None
+    if not isinstance(fams, dict) or not any(
+            v not in (None, "", "UNKNOWN", "null") for v in fams.values()):
+        return out
+    try:
+        import fontindex
+    except ImportError:
+        return out
+    res = fontindex.analyse(p.root, p.contract)
+    for hit in res["findings"]:
+        if hit["severity"] == "low":
+            continue                       # pairing is craft, not availability
+        out.append(finding("S-CONTRACT-FONT-AVAIL", f, 1,
+                           f"{hit['role']}: {hit['family']}", hit["detail"],
+                           "high" if hit["severity"] == "high" else "medium"))
+    return out

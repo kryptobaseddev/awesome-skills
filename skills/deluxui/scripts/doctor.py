@@ -175,6 +175,49 @@ def diagnose(root: Path) -> list[dict]:
             "The 40 iOS and Android rules report NOT_APPLICABLE, which is correct "
             "for a project that does not ship to a phone.")
 
+    # --- the decision tier. These are the rules about how the work happened, and
+    # they are the ones most easily mistaken for absent rather than unrun.
+    phase = root / ".deluxui" / "phase.yaml"
+    if phase.exists():
+        try:
+            st = yaml.safe_load(phase.read_text()) or {}
+            row("phase gate", OK,
+                f"{st.get('phase')} ({st.get('mode')})",
+                "UI edits are refused before the `build` phase, and A-PHASE-ORDER "
+                "reports whether the contract was declared before the code.")
+        except Exception as e:
+            row("phase gate", WARN, f"unreadable: {e}")
+    else:
+        row("phase gate", WARN, "no .deluxui/phase.yaml",
+            "Nothing is gated and A-PHASE-ORDER, A-COMP-APPROVED and "
+            "A-DECISION-VETTED all report NOT_RUN. An unrecorded order of work "
+            "establishes nothing either way. scripts/ux_phase.py init starts it.")
+
+    decisions = sorted((root / ".deluxui" / "decisions").glob("DEC-*.yaml"))
+    if decisions:
+        row("decisions", OK, f"{len(decisions)} record(s)",
+            "scripts/ux_question.py check verifies each one still matches the "
+            "comps it approved.")
+    else:
+        row("decisions", WARN, "none recorded",
+            "No direction has been approved by anybody, so GOV-011 and GOV-012 "
+            "report NOT_RUN. scripts/ux_question.py ask serves the choice.")
+
+    try:
+        import ux_image
+        provs = [p for p in ux_image.providers() if p["available"]]
+        if provs:
+            row("image generation", OK, ", ".join(p["id"] for p in provs),
+                "ux_image.py generate can produce a raster comp, and verify will "
+                "measure it back against the contract.")
+        else:
+            row("image generation", WARN, "no provider reachable",
+                "ux_image.py render still works and needs nothing -- it draws the "
+                "comp from the contract. Only the raster round is unavailable, and "
+                "it reports NOT_RUN rather than producing nothing silently.")
+    except Exception as e:
+        row("image generation", WARN, f"{type(e).__name__}: {e}")
+
     return rows
 
 

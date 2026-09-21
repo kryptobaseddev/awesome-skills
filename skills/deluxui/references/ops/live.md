@@ -53,3 +53,40 @@ produces the gate. A delta of "12 fixed, 0 regressed" on a project with 90
 NOT_RUN rules is progress inside an unverified product.
 
 Setup: [live-setup.md](live-setup.md). Verdict: [polish.md](polish.md).
+
+## Point at it, and have the pointing land as a record
+
+The most valuable input in this work is a person looking at the real thing and
+saying "that". It is also the input that evaporates fastest: it arrives as "the
+spacing on the card feels off", the agent guesses which card, and the correction
+is lost by the next message.
+
+```bash
+agent-browser open http://localhost:5173
+python3 scripts/ux_select.py watch
+```
+
+An overlay goes into the page the browser already has open — no server, no
+framework adapter, no build step. Hovering outlines an element; clicking captures
+it and asks what is wrong with it, in the vocabulary the operations already use:
+`bolder`, `quieter`, `distill`, `clarify`, `layout`, `space`, `colorize`,
+`typeset`, `polish`, or `broken` for a defect rather than a preference.
+
+Each answer becomes `.deluxui/requests/REQ-NNN.yaml` carrying the selector, the
+element's text, its computed type, colour, spacing, radius and shadow, its box,
+and the viewport it was seen at. So the request names an operation and an element
+rather than a feeling, and the agent has enough to find it in the source without
+guessing.
+
+What this deliberately does **not** do is patch the DOM with a generated variant.
+The change belongs in the source, where the dev server's own hot reload shows it
+and the delta loop above measures it. A variant that exists only in the page has
+to be committed back afterwards, and that round trip is where an edit gets lost —
+which is also why nothing here needs a per-framework adapter.
+
+Nobody pointing at anything is NOT_RUN, not agreement: an unreviewed screen is not
+a reviewed one.
+
+```bash
+python3 scripts/ux_select.py list
+```
