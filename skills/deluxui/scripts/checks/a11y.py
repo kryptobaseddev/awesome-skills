@@ -250,8 +250,11 @@ _FOCUS_KEEP = re.compile(
     # Any focus-conditional utility counts as a focus treatment: a background or
     # text-colour change is as visible as a ring. Whether it is visible *enough*
     # is a contrast question, and only the runtime tier can answer that.
-    r"focus-visible[:\-]|focus:[\w\[-]|group-focus|focus-within|:focus\b|&:focus|"
-    r"ring-offset|outline-offset|"
+    # Deliberately excludes outline-none / outline-hidden: those are the tokens
+    # being flagged, and matching them here made the check silently pass on the
+    # exact defect it exists to find.
+    r"focus-visible[:\-]|focus:(?!outline-(?:none|hidden))[\w\[-]|"
+    r"group-focus|focus-within|:focus\b|&:focus|ring-offset|outline-offset|"
     # Radix-style roving focus marks the active item with a data attribute.
     r"data-\[highlighted\]|data-\[state=|data-\[focus|data-highlighted|"
     r"aria-selected:|aria-expanded:")
@@ -276,7 +279,8 @@ def focus_outline(f, p):
     for m in re.finditer(r"(?:[\w-]+:)?outline-(none|hidden)\b", f.text):
         line = f.text[:m.start()].count("\n") + 1
         start = f.text.rfind("class", max(0, m.start() - 400), m.start())
-        window = f.text[start if start > 0 else max(0, m.start() - 200): m.start() + 300]
+        window = (f.text[start if start > 0 else max(0, m.start() - 200): m.start()]
+                  + f.text[m.end(): m.end() + 300])
         if _FOCUS_KEEP.search(window):
             continue
         if m.group(1) == "none" and p.tailwind_major >= 4:

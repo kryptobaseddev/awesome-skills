@@ -42,6 +42,11 @@ from.
 Lead with `counts.not_run`, then failures by severity, then what passed, then the
 scope: which routes, which viewports, which tiers, which browser, which date.
 
+For every **STANDARD**-class failure, cite the basis next to the rule ID —
+`NUM-004 (S02, WCAG SC 2.5.8)`. Each of the 190 rules carries its sources in the
+registry, and the difference between a finding a reader can verify and one they
+have to trust is a single parenthesis.
+
 Good:
 
 > Static and runtime tiers on `/`, `/settings`, `/billing` at five viewports, Chromium,

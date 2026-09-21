@@ -166,6 +166,11 @@ results, the counts and one of four decisions:
 - **READY** — every applicable rule was checked and none are failing.
 - Rules the product does not reach are **NOT_APPLICABLE**, declared through `--feature`.
 
+When a **STANDARD**-class rule fails, cite its basis alongside the rule ID —
+`NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 190 rules,
+and a reader who can follow the claim to the criterion can check you; one who
+cannot has to take your word for it, which is the thing this skill exists to stop.
+
 Say what you did not check and why. "I ran the static tier; the runtime tier needs
 the app running, so 84 rules are unverified" is a useful, honest report. "Looks
 good" is not a report at all. `references/verification/evidence.md` has the format
