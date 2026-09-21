@@ -11,14 +11,21 @@ collage of generated screens, because creating is easier than reading what is th
 This is the step that makes everything after it checkable, and it runs before any edit.
 
 ```bash
-python3 scripts/ux_check.py <project> --signals     # stack, tokens, theme vars
-python3 scripts/ux_check.py <project> --inventory "" # what components already exist
+python3 scripts/derive_contract.py <project>            # read it, do not write yet
+python3 scripts/derive_contract.py <project> --write    # writes .deluxui/design.contract.yaml
 ```
 
-Read the token source, a representative component, and the theme. Then write
-`.deluxui/design.contract.yaml` describing **what is already true**: the type steps in
-use, the families, the colour roles, which depth metaphor the product actually uses, the
-radii, the motion band.
+This reads the real font sizes, families, radii, shadows, durations and colour roles and
+reports the **dominant** value of each with the spread beside it. It reports what it
+found; it does not decide. Anything it cannot determine is left `UNKNOWN`, which reports
+NOT_RUN downstream — true, where a plausible default would quietly become the standard
+the product is judged against.
+
+**Then edit it, and this is the part that matters.** A project with ten type steps does
+not have a ten-step scale, it has a scale plus drift. Every step you leave in becomes a
+value the product is measured as conforming to, so delete the drift before you commit the
+file. The spread report tells you which is which: a size used 307 times is the scale, one
+used twice is not.
 
 Deriving it from the existing product is what puts the source of truth outside you. A new
 component that departs from it is then measurably a departure rather than a matter of

@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "3.1.0"
-  last_updated: "2026-09-21 11:49:30"
+  version: "3.2.0"
+  last_updated: "2026-09-21 11:56:20"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -215,6 +215,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_check.py` | **Static tier.** 125 source checks bound to rule IDs. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
 | `scripts/ux_browser.sh` | **Runtime tier.** Drives agent-browser across your viewport matrix, measures contrast, targets, focus and vitals, and forces aborted, empty and offline states. |
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
+| `scripts/derive_contract.py` | **Brownfield's first move.** Reads the real type steps, families, radii, shadows, durations and colour roles out of an existing codebase and writes the visual contract, with the spread beside each dominant value so you can tell the scale from the drift. `--write`, `--json`. |
 | `scripts/uxconfig.py` | The only reader of `.deluxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
 | `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
