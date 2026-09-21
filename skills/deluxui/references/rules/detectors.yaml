@@ -1,0 +1,137 @@
+# What deluxui can actually test, and with which engine.
+#
+# This file is the honesty layer. A rule with no detector here, and no manual
+# attestation, is reported NOT_RUN -- never PASS. Engines that are unavailable
+# in a given session (no dev server, no browser) push their detectors to
+# NOT_RUN with a reason rather than letting them disappear from the report.
+
+engines:
+  source:
+    tier: static
+    description: Text and shape of the source. Regex-based scanning, not a parser.
+    available_when: Source files are readable.
+    confidence_ceiling: medium
+  element:
+    tier: static
+    description: Element and attribute relationships inferred from markup or JSX.
+    available_when: Source files are readable.
+    confidence_ceiling: medium
+  computed:
+    tier: runtime
+    description: Computed styles, layout boxes and the accessibility tree of a live page.
+    available_when: agent-browser is installed and a URL is reachable.
+    confidence_ceiling: high
+  runtime_state:
+    tier: runtime
+    description: Behaviour under forced conditions -- offline, aborted, empty, slow.
+    available_when: agent-browser is installed, a URL is reachable, and API routes are known.
+    confidence_ceiling: high
+  visual:
+    tier: runtime
+    description: Decoded pixels from a screenshot. Ground truth when CSS cannot resolve a colour.
+    available_when: agent-browser is installed and a URL is reachable.
+    confidence_ceiling: high
+  manual:
+    tier: manual
+    description: A human did it and said so. Nothing else counts.
+    available_when: A person records the result in .deluxui/reports/.
+    confidence_ceiling: high
+
+# Static tier -- scripts/ux_check.py
+detectors:
+  S-A11Y-ALT:        {engine: element, rules: [A11Y-007], confidence: high}
+  S-A11Y-ICONBTN:    {engine: element, rules: [COMP-002, A11Y-001, VIS-007], confidence: medium}
+  S-A11Y-LABEL:      {engine: element, rules: [FORM-002, A11Y-001], confidence: medium}
+  S-A11Y-PLACEHOLDER: {engine: element, rules: [FORM-002], confidence: high}
+  S-A11Y-DIVCLICK:   {engine: element, rules: [NAV-002, A11Y-002, COMP-001], confidence: high}
+  S-A11Y-HREFHASH:   {engine: element, rules: [NAV-002], confidence: high}
+  S-A11Y-TABINDEX:   {engine: element, rules: [A11Y-003], confidence: high}
+  S-A11Y-ARIAHIDDEN: {engine: element, rules: [A11Y-001], confidence: medium}
+  S-A11Y-NESTED:     {engine: element, rules: [COMP-023], confidence: medium}
+  S-A11Y-HEADING:    {engine: element, rules: [A11Y-011], confidence: low}
+  S-A11Y-AUTOFOCUS:  {engine: element, rules: [COMP-009], confidence: medium}
+  S-FOCUS-OUTLINE:   {engine: source,  rules: [A11Y-003, NUM-011], confidence: high}
+  S-CONTRAST-PAIR:   {engine: source,  rules: [NUM-001, NUM-002], confidence: medium,
+                      not_run_when: "No resolvable foreground/background colour pair."}
+  S-TARGET-SIZE:     {engine: source,  rules: [NUM-004, NUM-005], confidence: low,
+                      not_run_when: "Control size is not expressible from source."}
+  S-STATE-EMPTY:     {engine: source,  rules: [UX-001, COMP-017], confidence: medium}
+  S-STATE-ERROR:     {engine: source,  rules: [STATE-001, UX-009], confidence: medium}
+  S-STATE-LOADING:   {engine: source,  rules: [STATE-001, NUM-014], confidence: medium}
+  S-STATE-DUPE:      {engine: source,  rules: [STATE-003, NUM-020], confidence: medium}
+  S-STATE-OPTIMISTIC: {engine: source,  rules: [STATE-004, STATE-005], confidence: low}
+  S-FORM-AUTOCOMPLETE: {engine: element, rules: [FORM-003], confidence: high}
+  S-FORM-INPUTTYPE:  {engine: element, rules: [FORM-003], confidence: high}
+  S-FORM-DISABLED:   {engine: source,  rules: [FORM-007], confidence: medium}
+  S-FORM-PASTE:      {engine: source,  rules: [FORM-010], confidence: high}
+  S-RESP-FIXEDPX:    {engine: source,  rules: [LAY-002, NUM-009], confidence: medium}
+  S-RESP-VH:         {engine: source,  rules: [LAY-005], confidence: high}
+  S-RESP-OVERFLOW:   {engine: source,  rules: [LAY-002], confidence: low}
+  S-RESP-TABLE:      {engine: element, rules: [LAY-006], confidence: low}
+  S-RESP-TRUNCATE:   {engine: source,  rules: [LAY-007], confidence: low}
+  S-MOTION-REDUCE:   {engine: source,  rules: [LAY-010, A11Y-010, NUM-018], confidence: high}
+  S-HOVER-ONLY:      {engine: source,  rules: [VIS-005, COMP-011], confidence: medium}
+  S-TOKEN-HEX:       {engine: source,  rules: [VIS-001], confidence: high,
+                      not_run_when: "No token source found in the project."}
+  S-TOKEN-ARBITRARY: {engine: source,  rules: [VIS-001, NUM-017], confidence: high}
+  S-DS-REINVENT:     {engine: source,  rules: [COMP-001, CTX-001], confidence: medium,
+                      not_run_when: "No component inventory in .deluxui/DESIGN.md."}
+  S-DS-NEWDEP:       {engine: source,  rules: [CTX-001], confidence: high,
+                      not_run_when: "No package manifest found."}
+  S-SLOP-GRADIENT:   {engine: source,  rules: [VIS-006], confidence: medium}
+  S-SLOP-BLUR:       {engine: source,  rules: [VIS-006], confidence: medium}
+  S-SLOP-CARDNEST:   {engine: element, rules: [VIS-006, VIS-002], confidence: medium}
+  S-SLOP-EMOJI:      {engine: source,  rules: [CONTENT-001, VIS-007], confidence: high}
+  S-SLOP-COPY:       {engine: source,  rules: [CONTENT-003], confidence: high}
+  S-SLOP-UNIFORM:    {engine: source,  rules: [VIS-006, VIS-002], confidence: low}
+  S-CONTENT-I18N:    {engine: source,  rules: [CONTENT-004], confidence: medium,
+                      not_run_when: "No i18n setup detected in the project."}
+  S-CONTENT-FORMAT:  {engine: source,  rules: [CONTENT-005, CONTENT-006], confidence: medium}
+  S-CONTENT-ERRORTEXT: {engine: source, rules: [UX-009, CONTENT-002], confidence: high}
+  S-TRUST-DESTRUCT:  {engine: source,  rules: [UX-003, TRUST-006, TRUST-007], confidence: medium}
+  S-PERF-IMGDIM:     {engine: element, rules: [PERF-003, NUM-012], confidence: high}
+
+  S-FORM-VALIDATION: {engine: source, rules: [FORM-005], confidence: high}
+  S-RESP-SAFEAREA: {engine: source, rules: [LAY-005], confidence: medium}
+  S-MODAL-NATIVE: {engine: element, rules: [COMP-007, COMP-008, COMP-010, A11Y-004], confidence: medium}
+  S-CANVAS-A11Y: {engine: element, rules: [A11Y-007, COMP-015], confidence: medium}
+  S-3D-PERF: {engine: source, rules: [PERF-001, NUM-012, LAY-010, A11Y-010], confidence: medium,
+              not_run_when: "No three.js or react-three-fiber dependency."}
+  S-MEDIA-CAPTIONS: {engine: element, rules: [A11Y-007], confidence: high}
+  S-VIDEO-LEGIBILITY: {engine: source, rules: [NUM-015, CONTENT-011], confidence: low,
+              not_run_when: "No Remotion composition detected."}
+
+  # Runtime tier -- scripts/ux_browser.sh
+  R-AXE:             {engine: computed, rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011,
+                                                NUM-001, NUM-002, NUM-003], confidence: high}
+  R-CONTRAST:        {engine: computed, rules: [NUM-001, NUM-002, NUM-003], confidence: high}
+  R-TARGET:          {engine: computed, rules: [NUM-004, NUM-005, NUM-006, NUM-007], confidence: high}
+  R-TARGET-SPACING:  {engine: computed, rules: [NUM-004], confidence: high}
+  R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high}
+  R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
+  R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
+  R-FOCUS-WALK:      {engine: computed, rules: [A11Y-002, A11Y-003, A11Y-004, NUM-011,
+                                                LAY-003], confidence: high}
+  R-VITALS:          {engine: computed, rules: [NUM-012, PERF-005], confidence: medium,
+                      not_run_when: "Lab measurement only. A field pass needs real users."}
+  R-MOTION:          {engine: computed, rules: [LAY-010, A11Y-010], confidence: high}
+  R-FORCED-COLORS:   {engine: computed, rules: [VIS-008], confidence: high}
+  R-PIXEL-CONTRAST:  {engine: visual,   rules: [NUM-001, NUM-003], confidence: high}
+  R-BASELINE-DIFF:   {engine: visual,   rules: [GOV-004], confidence: medium,
+                      not_run_when: "No baseline screenshot recorded before the change."}
+  R-CONSOLE:         {engine: computed, rules: [STATE-001], confidence: high}
+  R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high}
+  R-STATE-ERROR:     {engine: runtime_state, rules: [STATE-001, STATE-006, UX-009], confidence: high,
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+  R-STATE-EMPTY:     {engine: runtime_state, rules: [UX-001, COMP-017], confidence: high,
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+  R-STATE-SLOW:      {engine: runtime_state, rules: [NUM-013, NUM-014, STATE-006], confidence: high,
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+
+  # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
+  M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
+  M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
+  M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}
+  M-CONTENT-REVIEW:  {engine: manual, rules: [CONTENT-002, CONTENT-008, UX-002]}
+  M-DESTRUCTIVE-WALK: {engine: manual, rules: [UX-003, UX-005, TRUST-006, FORM-013]}
+  M-FIELD-PERF:      {engine: manual, rules: [NUM-012, PERF-005]}

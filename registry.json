@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-16 22:29:47",
-  "total_skills": 22,
+  "generated_at": "2026-09-20 17:08:34",
+  "total_skills": 23,
   "total_categories": 14,
   "categories": [
     {
@@ -99,6 +99,17 @@
       "name": "Frontend & UI",
       "icon": "\ud83c\udfa8",
       "skills": [
+        {
+          "name": "deluxui",
+          "path": "skills/deluxui",
+          "description": "Engineer and verify interfaces against a 190-rule UX contract with runnable checks instead of opinions. Use when building a screen, flow, page, component, form, dashboard or layout; when redesigning, polishing, simplifying or hardening an existing one; when auditing accessibility, responsive reflow, empty/loading/error/offline states, focus order, contrast, hit areas, motion, microcopy or design-system drift; or when reviewing UI someone else wrote. Ships a static analyzer (52 source checks bound to WCAG 2.2 rule IDs), a runtime tier that drives a real browser to measure contrast, hit areas, focus rings, 320px reflow and Core Web Vitals and to force the offline, empty and failed states nobody tests, and a release gate where NOT_RUN never counts as a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion. Use even if the user only says 'make this look better', 'build a settings page', 'is this accessible', or 'the design feels off'.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-09-20 16:40:00",
+            "category": "frontend"
+          }
+        },
         {
           "name": "svelte5-sveltekit",
           "path": "skills/svelte5-sveltekit",

@@ -1,0 +1,65 @@
+# NUM-001..020 as machine-readable values, consumed by scripts/ux_check.py and
+# scripts/ux_browser.sh. A project may override any PROJECT-class value in
+# .deluxui/ux.config.yaml. STANDARD-class values are not overridable -- an
+# approved exception (section 20) records a deviation, it does not move the bar.
+meta:
+  units: "CSS px unless stated. Apple pt and Android dp are distinct platform units."
+  measurement: "Rendered and interactive behaviour, not design-file dimensions."
+
+contrast:                       # NUM-001, NUM-002, NUM-003
+  normal_text_min: 4.5
+  large_text_min: 3.0
+  non_text_min: 3.0
+  large_text_px: 24.0           # 18pt regular
+  large_text_bold_px: 18.67     # 14pt bold
+  overridable: false
+
+target_size:
+  web_min_px: 24                # NUM-004  STANDARD (SC 2.5.8)
+  web_coarse_min_px: 44         # NUM-005  PROJECT
+  ios_min_pt: 44                # NUM-006  PLATFORM
+  android_min_dp: 48            # NUM-007  PLATFORM
+  undersized_spacing_circle_px: 24
+  overridable: [web_coarse_min_px]
+
+reflow:                         # NUM-008, NUM-009, NUM-019
+  text_resize_percent: 200
+  min_width_px: 320
+  min_height_px: 256
+  test_viewports_px: [320, 390, 768, 1024, 1440]
+  overridable: [test_viewports_px]
+
+text_spacing:                   # NUM-010 -- override tolerances, not authored values
+  line_height_multiple: 1.5
+  paragraph_spacing_multiple: 2.0
+  letter_spacing_em: 0.12
+  word_spacing_em: 0.16
+  overridable: false
+
+performance:                    # NUM-012, NUM-013, NUM-014
+  lcp_seconds_p75: 2.5
+  inp_ms_p75: 200
+  cls_p75: 0.1
+  feedback_ack_ms_p95: 100
+  pending_status_after_ms: 1000
+  stage_info_after_ms: 10000
+  overridable: [feedback_ack_ms_p95, pending_status_after_ms, stage_info_after_ms]
+
+typography:                     # NUM-015, NUM-016
+  body_rem: 1.0
+  measure_ch_min: 45
+  measure_ch_max: 75
+  overridable: true
+
+spacing:                        # NUM-017
+  base_unit_px: 4
+  overridable: true
+
+motion:                         # NUM-018
+  micro_ms_min: 120
+  micro_ms_max: 240
+  overridable: true
+
+commit_safety:                  # NUM-020
+  repeated_activation_must_not_double_commit: true
+  overridable: false

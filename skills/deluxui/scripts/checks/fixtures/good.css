@@ -1,0 +1,4 @@
+.btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.field:user-invalid { border-color: var(--color-brand-500); }
+.note { color: var(--color-ink); background-color: var(--color-surface); }
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none; transition: none; } }

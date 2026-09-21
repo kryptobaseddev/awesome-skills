@@ -1,0 +1,3 @@
+.btn { outline: none; }
+.field:invalid { border-color: red; }
+.note { color: #999999; background-color: #ffffff; }
