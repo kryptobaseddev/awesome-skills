@@ -46,6 +46,11 @@ class FileCtx:
     ext: str
     tags: list = field(default_factory=list)
     surface: str = "ui"      # "ui" | "video" | "canvas3d" -- different rules apply
+    css: str = ""            # CSS belonging to this file: the whole thing for a
+                             # stylesheet, or its <style> blocks and styled
+                             # template literals. Checks that read CSS rules must
+                             # use this, or they silently skip every component
+                             # that styles itself inline -- which is most of them.
 
 
 @dataclass

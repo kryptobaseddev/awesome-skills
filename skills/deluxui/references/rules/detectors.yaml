@@ -176,6 +176,7 @@ detectors:
   R-PIXEL-CONTRAST:  {engine: visual,   rules: [NUM-001, NUM-003], confidence: high}
   R-BASELINE-DIFF:   {engine: visual,   rules: [GOV-004], confidence: medium,
                       not_run_when: "No baseline screenshot recorded before the change."}
+  R-MEASURE:         {engine: computed, rules: [NUM-016], confidence: high}
   R-CONSOLE:         {engine: computed, rules: [STATE-001], confidence: high}
   R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high}
   R-STATE-ERROR:     {engine: runtime_state, rules: [STATE-001, STATE-006, UX-009], confidence: high,

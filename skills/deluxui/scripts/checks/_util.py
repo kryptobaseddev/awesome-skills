@@ -71,6 +71,20 @@ def strip_comments(text: str) -> str:
     return _COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
+_STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.S | re.I)
+_STYLED_TPL = re.compile(r"(?:styled\.\w+|styled\([^)]*\)|css|createGlobalStyle)"
+                         r"\s*`([^`]*)`", re.S)
+
+
+def css_of(path: Path, text: str) -> str:
+    """Every piece of CSS this file owns, wherever it was written."""
+    if path.suffix in STYLE_EXT:
+        return text
+    parts = _STYLE_BLOCK.findall(text)
+    parts += _STYLED_TPL.findall(text)
+    return "\n".join(parts)
+
+
 def is_generated(path: Path, text: str) -> bool:
     """Never report on, or propose edits to, a file the build owns."""
     head = text[:300]

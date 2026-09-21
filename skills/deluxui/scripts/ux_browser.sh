@@ -74,6 +74,7 @@ for route in "${ROUTE_LIST[@]}"; do
   probe targets  "$OUT/raw/${R}__targets.json"
   probe contrast "$OUT/raw/${R}__contrast.json"
   probe focus    "$OUT/raw/${R}__focus.json"
+  probe measure  "$OUT/raw/${R}__measure.json"
   ab snapshot    > "$OUT/raw/${R}__a11ytree.txt" 2>/dev/null
   ab vitals --json > "$OUT/raw/${R}__vitals.json" 2>/dev/null
   ab console     > "$OUT/raw/${R}__console.txt" 2>/dev/null

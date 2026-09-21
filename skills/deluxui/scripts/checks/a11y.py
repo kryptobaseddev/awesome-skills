@@ -266,10 +266,10 @@ def focus_outline(f, p):
     forced-colors mode, `outline-none` genuinely sets outline-style:none. Both
     need a replacement; only one of them also breaks high-contrast users."""
     out = []
-    if f.ext in CSS:
-        for m in re.finditer(r"outline\s*:\s*(none|0)\s*[;}]", f.text, re.I):
-            line = f.text[:m.start()].count("\n") + 1
-            if _FOCUS_KEEP.search(f.text[max(0, m.start() - 600):m.start() + 600]):
+    if f.css:
+        for m in re.finditer(r"outline\s*:\s*(none|0)\s*[;}]", f.css, re.I):
+            line = f.css[:m.start()].count("\n") + 1
+            if _FOCUS_KEEP.search(f.css[max(0, m.start() - 600):m.start() + 600]):
                 continue
             out.append(finding("S-FOCUS-OUTLINE", f, line, m.group(0),
                                "Focus outline removed with no visible replacement. Add a "
@@ -312,8 +312,8 @@ def _classes_colors(classes, cssvars):
 @check("S-CONTRAST-PAIR", requires=lambda p: bool(p.cssvars))
 def contrast_pair(f, p):
     out = []
-    if f.ext in CSS:
-        for m in re.finditer(r"\{([^{}]*)\}", f.text):
+    if f.css:
+        for m in re.finditer(r"\{([^{}]*)\}", f.css):
             body = m.group(1)
             fgm = re.search(r"(?<!-)\bcolor\s*:\s*([^;]+)", body)
             bgm = re.search(r"background(?:-color)?\s*:\s*([^;]+)", body)
@@ -325,7 +325,7 @@ def contrast_pair(f, p):
                 continue
             r = contrast_ratio(fg, bg)
             if r < 4.5:
-                line = f.text[:m.start()].count("\n") + 1
+                line = f.css[:m.start()].count("\n") + 1
                 out.append(finding("S-CONTRAST-PAIR", f, line,
                                    f"{fgm.group(1).strip()} on {bgm.group(1).strip()}",
                                    f"Contrast {r:.2f}:1 is below the 4.5:1 floor for normal "

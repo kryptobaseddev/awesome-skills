@@ -19,7 +19,7 @@ def _line(t, pos):
 
 
 def _one(det, f, pos, snippet, msg, conf="low"):
-    return [finding(det, f, _line(f.text, pos), snippet, msg, conf)]
+    return [finding(det, f, _line(f.css, pos), snippet, msg, conf)]
 
 
 @check("S-CRAFT-DEPTH")

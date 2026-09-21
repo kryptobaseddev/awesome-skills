@@ -232,8 +232,8 @@ def eyebrow_label(f, p):
     # The same treatment is written two ways: Tailwind utilities on the element,
     # or a semantic class whose rule lives in a stylesheet. Catch both, or this
     # only ever works on utility-first codebases.
-    if f.ext in CSS:
-        for m in re.finditer(r"\{([^{}]*)\}", f.text):
+    if f.css:
+        for m in re.finditer(r"\{([^{}]*)\}", f.css):
             body = m.group(1)
             if not re.search(r"text-transform\s*:\s*uppercase", body):
                 continue
@@ -241,7 +241,7 @@ def eyebrow_label(f, p):
             small = re.search(r"font-size\s*:\s*(?:1[0-2]px|0\.[5-7]\d*rem)", body)
             if not (tracked and small):
                 continue
-            out.append(finding("S-SLOP-EYEBROW", f, f.text[:m.start()].count("\n") + 1,
+            out.append(finding("S-SLOP-EYEBROW", f, f.css[:m.start()].count("\n") + 1,
                                " ".join(body.split())[:70],
                                "An uppercase, wide-tracked, small-size rule -- the eyebrow "
                                "label above a heading. It adds hierarchy carrying no "

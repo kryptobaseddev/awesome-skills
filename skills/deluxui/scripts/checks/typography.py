@@ -30,12 +30,12 @@ def tiny_text(f, p):
     """Below about 12px, text stops being readable for a large share of people
     and cannot be fixed by zooming on a fixed-layout page (NUM-015)."""
     out = []
-    if f.ext in CSS:
-        for pos, sel, body in _css_rules(f.text):
+    if f.css:
+        for pos, sel, body in _css_rules(f.css):
             m = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             if not m or float(m.group(1)) >= 12:
                 continue
-            out.append(finding("S-TYPE-TINY", f, _line(f.text, pos),
+            out.append(finding("S-TYPE-TINY", f, _line(f.css, pos),
                                f"{sel[:36]} {{ font-size: {m.group(1)}px }}",
                                f"{m.group(1)}px is below the ~12px floor where text stops "
                                "being comfortably readable. Legal and caption text is where "
@@ -56,8 +56,8 @@ def line_length(f, p):
     """Past about 75 characters the eye loses the line return. The fix is a
     max-width in ch, not a narrower window (NUM-016)."""
     out = []
-    if f.ext in CSS:
-        for pos, sel, body in _css_rules(f.text):
+    if f.css:
+        for pos, sel, body in _css_rules(f.css):
             m = re.search(r"max-width\s*:\s*(\d+(?:\.\d+)?)(ch|rem|px)", body)
             if not m:
                 continue
@@ -65,7 +65,7 @@ def line_length(f, p):
             ch = v if unit == "ch" else (v * 2.2 if unit == "rem" else v / 8.0)
             if ch <= 80:
                 continue
-            out.append(finding("S-TYPE-MEASURE", f, _line(f.text, pos),
+            out.append(finding("S-TYPE-MEASURE", f, _line(f.css, pos),
                                f"{sel[:30]} {{ max-width: {m.group(1)}{unit} }}",
                                f"About {ch:.0f} characters per line for reading content. "
                                "Past ~75 the return sweep starts failing and people re-read "
@@ -86,8 +86,8 @@ def tight_leading(f, p):
     """Line height under about 1.4 on body copy crowds descenders into the next
     line, and WCAG's text-spacing criterion expects 1.5 to be survivable."""
     out = []
-    if f.ext in CSS:
-        for pos, sel, body in _css_rules(f.text):
+    if f.css:
+        for pos, sel, body in _css_rules(f.css):
             m = re.search(r"line-height\s*:\s*(\d?\.\d+|1)\s*(?:;|$)", body)
             fs = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             if not m:
@@ -95,7 +95,7 @@ def tight_leading(f, p):
             lh = float(m.group(1))
             if lh >= 1.4 or (fs and float(fs.group(1)) >= 24):
                 continue      # display type may legitimately be tighter
-            out.append(finding("S-TYPE-LEADING", f, _line(f.text, pos),
+            out.append(finding("S-TYPE-LEADING", f, _line(f.css, pos),
                                f"{sel[:30]} {{ line-height: {m.group(1)} }}",
                                f"Leading of {lh} on body-sized text crowds the lines. Aim for "
                                "1.5, which is also what the text-spacing criterion expects "
@@ -116,14 +116,14 @@ def all_caps_body(f, p):
     """Uppercase removes word-shape, which is one of the cues fluent readers
     rely on. Fine for a two-word label, punishing for a sentence."""
     out = []
-    if f.ext in CSS:
-        for pos, sel, body in _css_rules(f.text):
+    if f.css:
+        for pos, sel, body in _css_rules(f.css):
             if not re.search(r"text-transform\s*:\s*uppercase", body):
                 continue
             fs = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             if fs and float(fs.group(1)) <= 13:
                 continue      # a small label is the legitimate use
-            out.append(finding("S-TYPE-ALLCAPS", f, _line(f.text, pos), sel[:50],
+            out.append(finding("S-TYPE-ALLCAPS", f, _line(f.css, pos), sel[:50],
                                "Uppercase applied at body size. It strips word shape and "
                                "slows reading measurably; keep it for short labels.", "low"))
         return out[:5]
@@ -143,12 +143,12 @@ def justified_text(f, p):
     """Justification without hyphenation opens rivers of white space, and those
     rivers are a documented problem for dyslexic readers."""
     out = []
-    pat = r"text-align\s*:\s*justify" if f.ext in CSS else r"(?<![\w-])text-justify\b"
-    for m in re.finditer(pat, f.text):
-        win = f.text[max(0, m.start() - 200):m.start() + 200]
+    hay = (f.css or "") + "\n" + f.text
+    for m in re.finditer(r"text-align\s*:\s*justify|(?<![\w-])text-justify\b", hay):
+        win = hay[max(0, m.start() - 200):m.start() + 200]
         if re.search(r"hyphens\s*:\s*auto|hyphens-auto", win):
             continue
-        out.append(finding("S-TYPE-JUSTIFY", f, _line(f.text, m.start()), m.group(0),
+        out.append(finding("S-TYPE-JUSTIFY", f, _line(hay, m.start()), m.group(0),
                            "Justified text with no hyphenation. The uneven word spacing "
                            "creates vertical rivers that are hard to read past, particularly "
                            "for dyslexic readers. Prefer ragged-right.", "low"))
@@ -160,15 +160,15 @@ def wide_tracking_body(f, p):
     """Wide tracking pulls letters out of words. It reads as styling at label
     size and as damage at paragraph size."""
     out = []
-    if f.ext in CSS:
-        for pos, sel, body in _css_rules(f.text):
+    if f.css:
+        for pos, sel, body in _css_rules(f.css):
             m = re.search(r"letter-spacing\s*:\s*0?\.(\d+)\s*em", body)
             fs = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             if not m or int(m.group(1)[:2].ljust(2, "0")) < 10:
                 continue
             if fs and float(fs.group(1)) <= 13:
                 continue
-            out.append(finding("S-TYPE-TRACKING-WIDE", f, _line(f.text, pos), sel[:40],
+            out.append(finding("S-TYPE-TRACKING-WIDE", f, _line(f.css, pos), sel[:40],
                                f"Letter-spacing of .{m.group(1)}em at body size separates "
                                "letters faster than the eye groups them into words.", "low"))
         return out[:5]
@@ -188,9 +188,9 @@ def cramped_padding(f, p):
     """Padding smaller than the text it surrounds reads as broken rather than
     dense, and it shrinks the hit area at the same time."""
     out = []
-    if f.ext not in CSS:
+    if not f.css:
         return out
-    for pos, sel, body in _css_rules(f.text):
+    for pos, sel, body in _css_rules(f.css):
         fs = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
         pad = re.search(r"padding\s*:\s*(\d+(?:\.\d+)?)px", body)
         if not (fs and pad):
@@ -199,7 +199,7 @@ def cramped_padding(f, p):
         need = max(4.0, size * 0.3)
         if pv >= need:
             continue
-        out.append(finding("S-TYPE-CRAMPED", f, _line(f.text, pos), sel[:40],
+        out.append(finding("S-TYPE-CRAMPED", f, _line(f.css, pos), sel[:40],
                            f"{pv:g}px padding around {size:g}px text (about {need:.0f}px "
                            "would breathe). It reads as a rendering fault, and on a control "
                            "it shrinks the target too (NUM-005).", "low"))
@@ -211,9 +211,9 @@ def text_to_viewport_edge(f, p):
     """Text running to the edge of a phone screen is caught by the curve of the
     display and the user's thumb. A gutter is not decoration."""
     out = []
-    if f.ext not in CSS:
+    if not f.css:
         return out
-    for pos, sel, body in _css_rules(f.text):
+    for pos, sel, body in _css_rules(f.css):
         if not re.search(r"^\s*body\s*$|^\s*(?:main|article|\.container)\s*$", sel.strip()):
             continue
         m = re.search(r"padding(?:-(?:left|right|inline))?\s*:\s*0(?:px)?\b", body)
@@ -221,7 +221,7 @@ def text_to_viewport_edge(f, p):
             m = True
         if not m:
             continue
-        out.append(finding("S-TYPE-EDGE", f, _line(f.text, pos), sel[:40],
+        out.append(finding("S-TYPE-EDGE", f, _line(f.css, pos), sel[:40],
                            "A top-level text container with no horizontal gutter. On a phone "
                            "the first and last characters sit under the screen curve and the "
                            "holding thumb -- 16px is the usual minimum (LAY-002).", "low"))

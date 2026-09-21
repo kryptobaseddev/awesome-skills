@@ -17,8 +17,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import yaml
 from checks import ALL, FileCtx, Project
-from checks._util import (SOURCE_EXT, STYLE_EXT, collect_css_vars, iter_files,
-                          is_generated, read, scan_tags)
+from checks._util import (SOURCE_EXT, STYLE_EXT, collect_css_vars, css_of,
+                          iter_files, is_generated, read, scan_tags)
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "references" / "rules"
 
@@ -94,7 +94,7 @@ def run(root: Path, only=None):
         files.append(FileCtx(path=f, rel=str(f.relative_to(root) if root.is_dir() else f.name),
                              text=txt, ext=ext,
                              tags=scan_tags(txt) if ext in SOURCE_EXT else [],
-                             surface=classify(txt)))
+                             surface=classify(txt), css=css_of(f, txt)))
 
     findings, status = [], {}
     for did, chk in sorted(ALL.items()):

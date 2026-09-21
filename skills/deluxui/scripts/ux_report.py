@@ -147,6 +147,20 @@ def _vitals(raws, out):
               "devices; one run on this machine cannot establish it either way.", hits)
 
 
+def _measure(raws, out):
+    hits = []
+    for name, d in raws.items():
+        if not name.endswith("__measure.json") or "too_wide" not in d:
+            continue
+        for x in d["too_wide"]:
+            hits.append(f"{x['ch']} characters per line in <{x['tag']}> at "
+                        f"{x['fontPx']}px -- \"{x['text']}\"")
+    if not hits:
+        return ("PASS", "Reading content stays within a workable measure.", [])
+    return ("FAIL", f"{len(hits)} text blocks run past ~80 characters per line. The eye "
+                    "loses the return sweep and people re-read lines (NUM-016).", hits[:12])
+
+
 def _console(raws, texts, out):
     hits = [f"{k}: {v.strip()[:160]}" for k, v in texts.items()
             if k.endswith("__errors.txt") and v.strip()]
@@ -211,6 +225,7 @@ RUNTIME = {
     "R-FOCUS-WALK": _focus,
     "R-MOTION": _motion,
     "R-VITALS": _vitals,
+    "R-MEASURE": _measure,
     "R-CONSOLE": None,
     "R-STATE-ERROR": _state("abort", "An aborted request", None),
     "R-STATE-EMPTY": _state("empty", "An empty result set", None),
