@@ -65,3 +65,8 @@ package-lock.json.bak
 .env
 *.env
 !*.env.example
+# Upstream impeccable, kept locally as the reference deluxui's design layer was
+# derived from (Apache-2.0, github.com/pbakaus/impeccable). 69MB of someone
+# else's project: not vendored, not ours to redistribute here. Provenance and the
+# list of what was taken live in skills/deluxui/NOTICE.md.
+skills/impeccable/
