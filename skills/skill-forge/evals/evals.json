@@ -1,0 +1,27 @@
+{
+  "skill_name": "skill-forge",
+  "description": "Prompts that should trigger skill-forge and exercise the pipeline: decide, constrain, author, verify, measure, ship. Use with skill-evaluator.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "diagnose-ci-failure",
+      "prompt": "I changed the description on skills/neon and now the GitHub action fails but the validator passes locally. What's wrong and how do I fix it?",
+      "expected_output": "Identifies that README.md and registry.json are generated from frontmatter and CI runs build_registry.py --check, so a description change leaves them stale. Fix is to run python3 scripts/build_registry.py and commit the result (or let the pre-commit hook do it). Should NOT suggest editing README.md by hand.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "exec-bit-permission-denied",
+      "prompt": "Users of my skill say they get permission denied when they run the preflight script I bundled, but it's executable on my machine. What's going on?",
+      "expected_output": "Identifies core.fileMode=false in this repo: the local chmod +x never reaches git, so the file is committed 100644. Fix is git update-index --chmod=+x <path>. Should mention verifying with git ls-files -s rather than ls -l, since ls shows the local bit which is exactly what misleads here.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "skill-or-plugin",
+      "prompt": "I want something that lints every React component the agent writes, automatically, as it writes it. Should that be a skill?",
+      "expected_output": "Identifies that automatic execution on a tool call requires a PostToolUse hook, which only a plugin can provide — a skill cannot do this. Recommends a plugin wrapping the skill, with ${CLAUDE_PLUGIN_ROOT} for intra-plugin paths, and points at plugin-creator. Should note the script needs to exit quietly for out-of-scope files or it becomes noise on every edit.",
+      "files": []
+    }
+  ]
+}

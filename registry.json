@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-20 17:48:23",
-  "total_skills": 23,
+  "generated_at": "2026-09-20 18:16:47",
+  "total_skills": 24,
   "total_categories": 14,
   "categories": [
     {
@@ -24,6 +24,17 @@
           "path": "skills/skill-evaluator",
           "description": "Eval-driven quality evaluation, regression detection, and auto-improvement of Agent Skills. Auto-generates challenging test cases unique to the target skill from its SKILL.md, runs A/B benchmarks (with-skill vs without-skill or version-vs-version), grades outputs with programmatic + LLM-judge assertions, aggregates pass-rate/token/latency deltas, detects regressions across iterations, proposes generalized improvements grounded in failure transcripts, and optimizes the trigger `description` field via train/validation splits. Use whenever the user wants to evaluate, benchmark, A/B test, grade, score, regression-test, fine-tune, harden, optimize, improve, iterate on, or measure the quality of any skill \u2014 even if they only say \"test this skill\", \"is this skill any good\", \"rate this skill\", \"tune the description\", \"did my edits make it worse\", or \"make this skill better\".",
           "metadata": {}
+        },
+        {
+          "name": "skill-forge",
+          "path": "skills/skill-forge",
+          "description": "End-to-end pipeline for building an Agent Skill in this repository, from deciding whether it should be a skill at all through to the commit. Use when creating a new skill, restructuring an existing one, deciding whether something needs scripts or just prose, choosing between a skill and a plugin, or working out why a skill fails CI, lands in the wrong README category, or never triggers. Ties together the pieces this repo already has - skill-validator for structure, skill-evaluator for measurement, plugin-creator for packaging - and adds the one gate that runs all of them at once plus the repo-specific traps none of them catch: git-recorded executable bits under core.fileMode=false, order-sensitive category matching, stale generated files, and descriptions that state a trigger but no boundary. Use even if the user only says 'make a skill for this', 'why is my skill failing CI', or 'should this be a plugin'.",
+          "metadata": {
+            "author": "github.com/kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-09-20 19:05:00",
+            "category": "skill-development"
+          }
         },
         {
           "name": "skill-validator",

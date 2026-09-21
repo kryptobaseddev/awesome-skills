@@ -1,0 +1,10 @@
+[
+  {"query": "i need the positive fixture to look like a real skill, with evals and everything", "should_trigger": true},
+  {"query": "another phrasing that should reach this fixture skill", "should_trigger": true},
+  {"query": "something about databases that has nothing to do with this", "should_trigger": false},
+  {"query": "a near miss that shares vocabulary but needs other work entirely", "should_trigger": false},
+  {"query": "deploy my app to production please", "should_trigger": false},
+  {"query": "write a regex to parse these logs", "should_trigger": false},
+  {"query": "set up oauth for my api", "should_trigger": false},
+  {"query": "convert this csv to parquet", "should_trigger": false}
+]

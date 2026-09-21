@@ -1,0 +1,67 @@
+---
+name: my-skill
+description: "What it is, in one clause. What it covers, as concrete nouns users actually say: thing one, thing two, thing three. Use when <situation>, <situation>, or <situation>. Not for <the adjacent thing a neighbour skill owns>. Use even if the user only says '<casual phrasing>' or '<casual phrasing>'."
+license: MIT
+compatibility: >-
+  Runtimes, versions and external tools this needs, and what degrades when one
+  is missing. Keep under 500 characters.
+metadata:
+  author: github.com/kryptobaseddev
+  version: "1.0.0"
+  last_updated: "YYYY-MM-DD HH:MM:SS"
+  category: <a real slug from skill-validator/config/categories.yml>
+allowed-tools: Bash Read Write Edit Glob Grep
+---
+
+# my-skill — one line on what it does
+
+Two or three paragraphs: the problem, why the obvious approach fails, and what
+this does about it. Do not restate the description.
+
+## The loop
+
+A compact diagram or numbered sequence. What order, and why that order.
+
+## Facts that prevent broken work
+
+Each row is a real failure someone hit, not a generality.
+
+| Fact | Consequence |
+|---|---|
+| **The surprising thing.** | What breaks when you do not know it. |
+
+## <Orientation section>
+
+What to read or run before changing anything.
+
+## <Main routing table>
+
+| Situation | Read |
+|---|---|
+| … | `references/….md` |
+
+## <Commands>
+
+Real invocations, copy-pasteable, with what each exit code means.
+
+## Where to go next
+
+| Task | Reference |
+|---|---|
+| … | `references/….md` |
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/….py` | What it does, and its flags. |
+
+## Common mistakes
+
+| # | Mistake | Fix |
+|---|---|---|
+| 1 | … | … |
+
+## Resources
+
+- https://…

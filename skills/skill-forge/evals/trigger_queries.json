@@ -1,0 +1,18 @@
+[
+  { "query": "i want to add a new skill to this repo for working with the stripe cli — where do i even start and what do i need to get right so CI doesn't reject it", "should_trigger": true },
+  { "query": "my skill keeps failing the github action on the registry check and i don't understand why, i only changed the description", "should_trigger": true },
+  { "query": "the skill i wrote shows up under Other in the readme instead of Frontend & UI, what decides that", "should_trigger": true },
+  { "query": "should this be a skill or a plugin? i want it to run automatically every time claude writes a tsx file", "should_trigger": true },
+  { "query": "i wrote a skill but it never seems to actually load when i ask the thing it's supposed to handle", "should_trigger": true },
+  { "query": "our preflight script works fine locally but users say permission denied when the skill tells them to run it", "should_trigger": true },
+  { "query": "does this thing i'm writing even need to be a skill or am i overengineering a prompt", "should_trigger": true },
+  { "query": "can you restructure skills/proxmox-admin — the SKILL.md is huge and i think stuff should move into references", "should_trigger": true },
+  { "query": "validate skills/quo against the agentskills spec and tell me if the frontmatter is compliant", "should_trigger": false },
+  { "query": "run an a/b benchmark on my skill and tell me if the last edit made the outputs worse", "should_trigger": false },
+  { "query": "scaffold me a claude code plugin with an mcp server that exposes a registry of agents", "should_trigger": false },
+  { "query": "write the actual content for a skill about postgres connection pooling, i've already got the folder set up", "should_trigger": false },
+  { "query": "my python package won't build, setuptools says no module named wheel", "should_trigger": false },
+  { "query": "add a github action that runs pytest on every pull request", "should_trigger": false },
+  { "query": "why is my pre-commit hook not running at all, i think husky is misconfigured", "should_trigger": false },
+  { "query": "generate 20 trigger eval queries for the skill in skills/resend", "should_trigger": false }
+]
