@@ -184,6 +184,25 @@ def config_wiring():
     return fails
 
 
+def no_shipped_bytecode():
+    """No .pyc anywhere in the skill tree.
+
+    A directory-source plugin install copies the working tree verbatim, so stray
+    bytecode ships to consumers despite being gitignored. Every entry point sets
+    sys.dont_write_bytecode, but that cannot protect a module from its own .pyc --
+    the importer writes that before the module body ever runs -- so any bare
+    `python3 -c "from checks import ..."` reintroduces it. Catch it here, loudly,
+    rather than discovering it in somebody's installed plugin."""
+    strays = sorted(p.relative_to(HERE.parent).as_posix()
+                    for p in HERE.parent.rglob("__pycache__"))
+    if strays:
+        print(f"  FAIL bytecode present, which a plugin install would ship: "
+              f"{', '.join(strays)}")
+        print(f"       remove it: find {HERE.parent} -name __pycache__ -prune "
+              f"-exec rm -rf {{}} +")
+    return strays
+
+
 def contract_checks():
     """Invariants the check corpus cannot catch on its own."""
     fails = []
@@ -212,6 +231,7 @@ def contract_checks():
 def main():
     contract = contract_checks()
     wiring = config_wiring()
+    bytecode = no_shipped_bytecode()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
     with tempfile.TemporaryDirectory() as d:
@@ -229,7 +249,8 @@ def main():
     print(f"false positives on good: {leaked or 'none'}")
     print(f"contract invariants: {'all ok' if not contract else str(len(contract)) + ' FAILING'}")
     print(f"config wiring:       {'all ok' if not wiring else str(len(wiring)) + ' FAILING'}")
-    ok = not missed and not leaked and not contract and not wiring
+    print(f"shipped bytecode:    {'none' if not bytecode else str(len(bytecode)) + ' FOUND'}")
+    ok = not missed and not leaked and not contract and not wiring and not bytecode
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
