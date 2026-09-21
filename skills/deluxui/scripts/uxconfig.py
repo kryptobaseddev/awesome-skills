@@ -165,5 +165,54 @@ def main(argv=None):
     return 1
 
 
+CONTRACT_REL = Path(".deluxui") / "design.contract.yaml"
+
+
+def find_contract(start: Path | None = None, explicit: str | None = None) -> Path | None:
+    if explicit:
+        q = Path(explicit)
+        return q if q.exists() else None
+    d = (start or Path.cwd()).resolve()
+    if d.is_file():
+        d = d.parent
+    while True:
+        if (d / CONTRACT_REL).exists():
+            return d / CONTRACT_REL
+        if d == d.parent:
+            return None
+        d = d.parent
+
+
+def contract(start: Path | None = None, explicit: str | None = None) -> dict:
+    """The declared visual commitments, or {}.
+
+    Anything still `UNKNOWN` is stripped, so a half-filled contract checks only
+    what it actually declares. A detector with nothing to compare against reports
+    NOT_RUN -- never PASS, which would be the contract laundering its own blanks
+    into evidence."""
+    q = find_contract(start, explicit)
+    if not q:
+        return {}
+    try:
+        doc = yaml.safe_load(q.read_text()) or {}
+    except yaml.YAMLError as e:
+        sys.stderr.write(f"deluxui: {q} is not valid YAML ({e}); ignoring it.\n")
+        return {}
+    if not isinstance(doc, dict):
+        return {}
+
+    def clean(v):
+        if isinstance(v, dict):
+            return {k: clean(x) for k, x in v.items()
+                    if x is not None and x != "UNKNOWN" and clean(x) != {}}
+        if isinstance(v, list):
+            return [x for x in v if x != "UNKNOWN"]
+        return v
+
+    out = clean(doc)
+    out["_path"] = str(q)
+    return out
+
+
 if __name__ == "__main__":
     sys.exit(main())

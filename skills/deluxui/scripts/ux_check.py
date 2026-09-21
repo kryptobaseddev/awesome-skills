@@ -117,6 +117,7 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
     detectors = det["detectors"]
     project = detect_project(root)
     project.th, project.threshold_overrides_refused = uxconfig.thresholds(cfg)
+    project.contract = uxconfig.contract(root)
     off = uxconfig.disabled(cfg)
     skip = uxconfig.excludes(cfg)
 
@@ -137,6 +138,12 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
         if only and did not in only:
             continue
         meta = detectors.get(did, {})
+        if did.startswith("S-CONTRACT-") and not project.contract:
+            status[did] = ("NOT_RUN", meta.get("not_run_when",
+                           "No .deluxui/design.contract.yaml, so there is no declared "
+                           "system to conform to. Run `deluxui design` for new work or "
+                           "`deluxui uplift` to derive one from the code."))
+            continue
         if did in off:
             # Disabled in project config. NOT_RUN, never PASS -- config narrows
             # what was examined, it does not turn a finding into a pass.

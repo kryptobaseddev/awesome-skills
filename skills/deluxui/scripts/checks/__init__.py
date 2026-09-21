@@ -31,6 +31,12 @@ class Project:
     # project override actually reaches them.
     th: dict = field(default_factory=dict)
     threshold_overrides_refused: list = field(default_factory=list)
+    # The declared visual contract (.deluxui/design.contract.yaml), with every
+    # UNKNOWN stripped. Empty means nothing was declared, and the conformance
+    # checks report NOT_RUN rather than PASS -- an undeclared system cannot be
+    # conformed to, and saying otherwise would be the contract laundering its own
+    # blanks into evidence.
+    contract: dict = field(default_factory=dict)
 
     def num(self, group: str, key: str, default=None):
         """A threshold value, falling back to the literal the check was written
@@ -89,5 +95,5 @@ def finding(detector, f, line, snippet, fix, confidence="medium"):
 
 # Importing the modules is what populates ALL.
 from . import (a11y, forms, states, responsive, visual, content, designsystem,  # noqa: E402,F401
-               ecosystem, safety, commitment, typography, craft, craftfloor,  # noqa: E402,F401
+               ecosystem, safety, commitment, typography, craft, craftfloor, contract,  # noqa: E402,F401
                components, behavior, presentation)  # noqa: E402,F401

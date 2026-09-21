@@ -1,0 +1,10 @@
+# Fixture contract. Deliberately narrow: it declares only what the good fixtures
+# genuinely commit to, so a conformance FAIL means the bad fixture escaped a real
+# declaration rather than that the contract over-reached.
+visitor_mode: operate
+world: "Neutral ground, one grotesque voice, mono for data."
+type:
+  families: {display: Inter, body: Inter, mono: JetBrains Mono}
+radius: {control_px: 8, card_px: 14}
+depth:
+  metaphor: shadow

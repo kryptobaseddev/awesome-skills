@@ -305,6 +305,49 @@ detectors:
   S-CRAFT-ZINDEX: {engine: source, rules: [VIS-001], confidence: low}
   S-CRAFT-GRAY-ON-COLOR: {engine: element, rules: [VIS-001, NUM-001], confidence: low}
 
+  # --- Visual contract conformance (scripts/checks/contract.py). Each compares
+  # the artifact against .deluxui/design.contract.yaml, never against a taste --
+  # the source of truth is a declaration the project made, which is what makes a
+  # craft verdict admissible. High confidence where the comparison is exact: a
+  # value is on the declared list or it is not. NOT_RUN with no contract.
+  S-CONTRACT-TYPE-SCALE:
+    engine: source
+    rules: [VIS-002, VIS-001, NUM-015]
+    confidence: high
+    not_run_when: >-
+      No .deluxui/design.contract.yaml declares type.scale_px, so there is no
+      role ladder to compare against.
+  S-CONTRACT-FAMILY:
+    engine: source
+    rules: [VIS-002, VIS-001]
+    confidence: high
+    not_run_when: No declared type.families in the visual contract.
+  S-CONTRACT-COLOR:
+    engine: source
+    rules: [VIS-001]
+    confidence: high
+    not_run_when: No declared color.roles in the visual contract.
+  S-CONTRACT-DEPTH-METAPHOR:
+    engine: source
+    rules: [VIS-006, VIS-001]
+    confidence: medium
+    not_run_when: The visual contract declares no depth.metaphor.
+  S-CONTRACT-ELEVATION:
+    engine: source
+    rules: [VIS-001, VIS-006]
+    confidence: medium
+    not_run_when: The visual contract declares no depth.elevations set.
+  S-CONTRACT-RADIUS:
+    engine: source
+    rules: [VIS-001]
+    confidence: medium
+    not_run_when: The visual contract declares no radius values.
+  S-CONTRACT-MOTION:
+    engine: source
+    rules: [NUM-018]
+    confidence: low
+    not_run_when: The visual contract declares no motion.duration_ms band.
+
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
   M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
   M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}

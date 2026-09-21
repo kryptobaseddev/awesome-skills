@@ -36,6 +36,8 @@ EXPECT = [
     "S-CRAFT-SECTION-NUMBERS", "S-CRAFT-ICON-TILE", "S-CRAFT-STRIPES",
     "S-CRAFT-GRADIENT-TEXT", "S-CRAFT-ZINDEX", "S-CRAFT-GRAY-ON-COLOR",
     "S-CRAFT-TYPE-FLAT", "S-CRAFT-BALANCE", "S-CRAFT-SURFACES",
+    # visual contract conformance
+    "S-CONTRACT-FAMILY", "S-CONTRACT-RADIUS",
     # P0 family
     "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
     "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
@@ -51,6 +53,10 @@ EXPECT = [
 def run(tmp: Path, which: str) -> set[str]:
     for name in ("package.json", "theme.css"):
         shutil.copy(FIX / name, tmp / name)
+    # The visual contract lives where a real project keeps it, so the conformance
+    # checks exercise the same discovery path they use in the field.
+    (tmp / ".deluxui").mkdir(exist_ok=True)
+    shutil.copy(FIX / "design.contract.yaml", tmp / ".deluxui" / "design.contract.yaml")
     for suf in (".tsx", ".css"):
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
     for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
