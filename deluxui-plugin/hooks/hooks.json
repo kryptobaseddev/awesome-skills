@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/skills/deluxui/scripts/ux_check.py --stdin --max 8",
-            "timeout": 20
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/skills/deluxui/scripts/ux_check.py --stdin --max 6",
+            "timeout": 15
           }
         ]
       }

@@ -296,7 +296,12 @@ def focus_outline(f, p):
         else:
             msg = ("`outline-hidden` hides the default outline and nothing replaces it. "
                    "Add focus-visible:ring-2 -- v4's default ring is 1px, so state the width.")
-        out.append(finding("S-FOCUS-OUTLINE", f, line, window.strip()[:120], msg, "high"))
+        # Report the source line, not `window` -- window has the matched token
+        # excised (that is what makes _FOCUS_KEEP safe) so printing it shows an
+        # empty className and unrelated trailing code.
+        lines = f.text.splitlines()
+        snip = lines[line - 1].strip() if line - 1 < len(lines) else m.group(0)
+        out.append(finding("S-FOCUS-OUTLINE", f, line, snip[:120], msg, "high"))
     return out
 
 

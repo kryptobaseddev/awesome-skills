@@ -51,7 +51,33 @@ def run(tmp: Path, which: str) -> set[str]:
     return {f["detector"] for f in data["findings"]}
 
 
+def contract_checks():
+    """Invariants the check corpus cannot catch on its own."""
+    fails = []
+
+    # ux_check.py duplicates the extension set in HOOK_EXT so the PostToolUse
+    # fast path can bail before importing yaml and the check modules. If the two
+    # drift, the hook silently stops seeing a whole file type.
+    import ux_check
+    from checks._util import SOURCE_EXT, STYLE_EXT
+    drift = ux_check.HOOK_EXT ^ (SOURCE_EXT | STYLE_EXT)
+    if drift:
+        fails.append(f"HOOK_EXT has drifted from SOURCE_EXT|STYLE_EXT: {sorted(drift)}")
+
+    # A single-file scan must never report a rule as PASS.
+    reg, det = ux_check.load_rules()
+    status = {d: ("PASS", "1 files examined") for d in list(det["detectors"])[:20]}
+    rolled = ux_check.rollup(reg, det["detectors"], status, single_file=True)
+    if any(v[0] == "PASS" for v in rolled.values()):
+        fails.append("rollup(single_file=True) emitted PASS")
+
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 def main():
+    contract = contract_checks()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
     with tempfile.TemporaryDirectory() as d:
@@ -67,7 +93,8 @@ def main():
     print(f"\nfired on bad:  {len(bad)}")
     print(f"expected but silent: {missed or 'none'}")
     print(f"false positives on good: {leaked or 'none'}")
-    ok = not missed and not leaked
+    print(f"contract invariants: {'all ok' if not contract else str(len(contract)) + ' FAILING'}")
+    ok = not missed and not leaked and not contract
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

@@ -6,13 +6,31 @@ for something it did not examine, which is the whole point: a check that could
 not run is more useful as an admission than as a silent gap.
 
   ux_check.py <path> [--json] [--detector ID]... [--inventory INTENT] [--signals]
-  echo '<PostToolUse hook json>' | ux_check.py --stdin
+  echo '<PostToolUse hook json>' | ux_check.py --stdin   # JSON on stdout, exit 0
 
 Exit: 0 clean, 2 findings, 1 usage error.
 """
 from __future__ import annotations
 import argparse, json, re, sys
 from pathlib import Path
+
+# A PostToolUse hook fires on every Write and Edit the agent makes, and most of
+# those are not interface files. Sniff the payload here, before the rule registry
+# and fifteen check modules load, so editing a .py or .md costs a bare interpreter
+# start rather than 60ms of imports. stdin can only be read once, so the resolved
+# path is stashed for main(). HOOK_EXT must stay in step with SOURCE_EXT|STYLE_EXT;
+# selftest.py asserts that it does.
+HOOK_EXT = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro",
+            ".html", ".htm", ".css", ".scss", ".sass", ".less"}
+_HOOK_PATH = None
+if "--stdin" in sys.argv:
+    try:
+        _p = (json.loads(sys.stdin.read() or "{}").get("tool_input") or {}).get("file_path")
+    except ValueError:
+        sys.exit(0)
+    if not _p or Path(_p).suffix not in HOOK_EXT or not Path(_p).is_file():
+        sys.exit(0)
+    _HOOK_PATH = Path(_p).resolve()
 
 sys.path.insert(0, str(Path(__file__).parent))
 import yaml
@@ -149,8 +167,17 @@ def _cap(hits, cap=PER_FILE_CAP):
     return kept, dropped
 
 
-def rollup(reg, detectors, status):
-    """Per-rule status. A rule nobody can test is NOT_RUN, never PASS."""
+SINGLE_FILE_NOTE = ("Single-file scope. One file cannot establish that a "
+                    "product-wide rule holds -- only its findings are evidence.")
+
+
+def rollup(reg, detectors, status, single_file=False):
+    """Per-rule status. A rule nobody can test is NOT_RUN, never PASS.
+
+    In single-file scope every PASS becomes NOT_RUN. A detector that read one
+    file and found nothing has learned something about that file, not about the
+    product, and reporting 116 of 190 rules as PASS off the back of one edited
+    component is the exact laundering this tool exists to refuse."""
     by_rule = {}
     for did, (st, _why) in status.items():
         for rid in detectors.get(did, {}).get("rules", []):
@@ -164,7 +191,8 @@ def rollup(reg, detectors, status):
         elif "FAIL" in sts:
             out[rid] = ("FAIL", "")
         elif "PASS" in sts:
-            out[rid] = ("PASS", "Static tier only. The runtime tier checks this properly.")
+            out[rid] = (("NOT_RUN", SINGLE_FILE_NOTE) if single_file else
+                        ("PASS", "Static tier only. The runtime tier checks this properly."))
         elif "NOT_RUN" in sts:
             out[rid] = ("NOT_RUN", next(w for d, (s, w) in status.items()
                                         if s == "NOT_RUN" and rid in
@@ -175,13 +203,19 @@ def rollup(reg, detectors, status):
 
 
 # ----------------------------------------------------------------- output
-def human(project, reg, detectors, findings, status, rules, limit=40):
-    w = sys.stderr.write
+def severity_of(reg, detectors):
+    """Worst severity among the rules a detector is bound to."""
     sev = {r["id"]: r["severity"] for r in reg["rules"]}
 
     def worst(f):
         return min((sev.get(r, "P2")
                     for r in detectors.get(f.detector, {}).get("rules", [])), default="P2")
+    return worst
+
+
+def human(project, reg, detectors, findings, status, rules, limit=40, single_file=False):
+    w = sys.stderr.write
+    worst = severity_of(reg, detectors)
 
     ordered = sorted(findings, key=lambda f: (worst(f), f.file, f.line))
     shown = ordered[:limit]
@@ -203,6 +237,10 @@ def human(project, reg, detectors, findings, status, rules, limit=40):
     w("\n" + "-" * 70 + "\n")
     w(f"findings   P0 {sevc['P0']}   P1 {sevc['P1']}   P2 {sevc['P2']}"
       f"   (total {len(ordered)})\n")
+    if single_file:
+        w(f"\nOne file was read, so there is no rule matrix to report. {SINGLE_FILE_NOTE}\n"
+          f"Point this at the project directory for a rule-by-rule result.\n")
+        return
     w(f"rules      NOT_RUN {counts['NOT_RUN']}   FAIL {counts['FAIL']}   "
       f"PASS {counts['PASS']}   NOT_APPLICABLE {counts['NOT_APPLICABLE']}"
       f"   of {len(rules)}\n")
@@ -211,6 +249,41 @@ def human(project, reg, detectors, findings, status, rules, limit=40):
       "text heuristically and cannot see computed styles, real hit areas, focus order\n"
       "or any state the app only reaches at runtime. Run scripts/ux_browser.sh against\n"
       "a running app to convert those rows into real results.\n")
+
+
+def hook_report(reg, detectors, findings, limit=10):
+    """The PostToolUse contract: JSON on stdout, exit 0, and nothing whatsoever
+    when the file is clean.
+
+    Findings go out as additionalContext rather than as an exit-2 blocking error.
+    Exit 2 on PostToolUse renders as a failure on a write that in fact succeeded,
+    and the hook's job is to put the defect in front of the agent while it is
+    still holding the file -- not to report a failure that did not happen."""
+    if not findings:
+        return 0
+    worst = severity_of(reg, detectors)
+    ordered = sorted(findings, key=lambda f: (worst(f), f.line))
+    urgent = [f for f in ordered if worst(f) in ("P0", "P1")][:limit]
+    deferred = len(ordered) - len(urgent)
+    if not urgent:                      # P2 only: not worth interrupting for
+        return 0
+
+    name = Path(ordered[0].file).name
+    lines = [f"deluxui checked {name} as you wrote it and found "
+             f"{len(urgent)} issue{'s' if len(urgent) != 1 else ''} worth fixing now:"]
+    for f in urgent:
+        lines.append(f"  {worst(f)} line {f.line} [{f.detector}] {f.snippet.strip()[:100]}")
+        lines.append(f"     {f.fix}")
+    if deferred:
+        lines.append(f"  ...and {deferred} further finding(s) not listed. Run "
+                     f"ux_check.py on the file to see them all.")
+    lines.append("Fix these in the file you just wrote rather than noting them for later. "
+                 "This is one file read statically, so it is not a pass for anything else.")
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PostToolUse",
+        "additionalContext": "\n".join(lines),
+    }}))
+    return 0
 
 
 def main(argv=None):
@@ -227,16 +300,7 @@ def main(argv=None):
     ap.add_argument("--max", type=int, default=40, help="findings to print (default 40)")
     a = ap.parse_args(argv)
 
-    target = Path(a.path).resolve()
-    if a.stdin:
-        try:
-            payload = json.loads(sys.stdin.read() or "{}")
-        except ValueError:
-            return 0
-        fp = (payload.get("tool_input") or {}).get("file_path")
-        if not fp or Path(fp).suffix not in (SOURCE_EXT | STYLE_EXT):
-            return 0
-        target = Path(fp).resolve()
+    target = _HOOK_PATH or Path(a.path).resolve()
 
     if not target.exists():
         sys.stderr.write(f"no such path: {target}\n")
@@ -272,8 +336,12 @@ def main(argv=None):
         return 0
 
     scope = target if target.is_file() else root
+    single_file = scope.is_file()
     project, reg, detectors, findings, status = run(scope, only=set(a.detector or []) or None)
-    rules = rollup(reg, detectors, status)
+    rules = rollup(reg, detectors, status, single_file=single_file)
+
+    if a.stdin:
+        return hook_report(reg, detectors, findings, limit=a.max)
 
     if a.json:
         print(json.dumps({
@@ -285,12 +353,15 @@ def main(argv=None):
             "detectors": {k: {"status": v[0], "note": v[1]} for k, v in status.items()},
             "rules": {k: {"status": v[0], "note": v[1]} for k, v in rules.items()},
             "findings": [f.__dict__ for f in findings],
+            "scope": "file" if single_file else "project",
             "caveat": "Static tier. Heuristic source scanning; PASS here means no source "
-                      "evidence of a defect, not a verified pass.",
+                      "evidence of a defect, not a verified pass."
+                      + (" " + SINGLE_FILE_NOTE if single_file else ""),
         }, indent=1))
     else:
-        human(project, reg, detectors, findings, status, rules, limit=a.max)
-    return 2 if findings else 0
+        human(project, reg, detectors, findings, status, rules, limit=a.max,
+              single_file=single_file)
+    return 2 if findings else 0        # CI contract; the hook path returned above
 
 
 if __name__ == "__main__":
