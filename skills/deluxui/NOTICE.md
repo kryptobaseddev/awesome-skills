@@ -26,7 +26,22 @@ bound to a detector or a declaration was either converted or left out.
 | The operation shape: audit → declare → apply at system scale → verify | `references/workflows/design.md`, `references/workflows/uplift.md` | Split explicitly into greenfield and brownfield, with the brownfield path deriving the contract from existing code |
 | Browser-surface theming as a craft signal | `S-CRAFT-SURFACES` | Converted from advice into a check that only fires on a stylesheet actually defining a system |
 | `ios.md` and `android.md` — the platform rule sets, including their slop tests and their verification commands (`xcrun simctl`, `adb`) | `IOS-001`..`IOS-020` and `AND-001`..`AND-018` in `references/rules/registry.yaml`, 34 detectors in `scripts/checks/platform.py`, `scripts/ux_native.sh`, `references/ops/ios.md`, `references/ops/android.md` | Each guidance bullet became a rule with a severity, a class, a basis and an acceptance criterion, then a detector that reads SwiftUI, UIKit, Compose, Flutter or React Native source. The three evidence rules per platform became a runtime tier that captures light, dark and enlarged-text screenshots and records the device — and records the tool's absence as NOT_RUN where it cannot |
+| `comp-spec` -- a reference image becomes region boxes with sampled palettes, and the rule that a region's MEDIUM follows from what the pixels are rather than from what feels buildable | `scripts/comp_spec.py`, `references/ops/visualize.md` | Reimplemented on a stdlib PNG decoder (`scripts/pngread.py`), so it needs no image model and no new dependency. The flat/plate/mixed classification is stated as thresholds on distinct-colour count and edge density rather than as judgement, and `mixed` is a reported outcome rather than a coin toss |
+| `embed-prompt` -- generation context belongs inside the asset, not in a sidecar | `comp_spec.py --provenance` / `--read-provenance` | A PNG `tEXt` chunk written in place |
+| The visual-contrast pixel sampling in `browser-bundle/35-visual.js` (canvas reads, percentiles) | `R-PIXEL-CONTRAST` in `scripts/ux_report.py` | Arrived at independently while fixing a false-positive class, then found to have landed on the same percentile approach. Noted here because the convergence is real even though the code is not shared |
 | The thirty operations (`colorize`, `typeset`, `layout`, `shape`, `animate`, `delight`, `distill`, `bolder`, `quieter`, `overdrive`, `clarify`, `polish`, `craft`, `ios`, `android`, `adapt.native`, `audit.native`, `live`, `live-setup`, `generate`, `visualize`, `document`, `onboard`, `extract`, `adapt`, `doctor`, `routing`, `operate`, `new-work`, `hooks`) | `references/ops/` | Rewritten, and each one ends by naming the detectors that adjudicate its output, so an operation finishes in a status rather than an impression. Three gained a tool where impeccable states a judgement: `palette.py` for `colorize`, `typescale.py` for `typeset`, `ux_live.sh` for `live`. `audit.native`'s five 0–4 dimension scores were deliberately **not** carried — a composite lets a 2 in accessibility average against a 4 in performance, and the 2 is somebody unable to use the app |
+
+### Still not taken
+
+Four capabilities remain impeccable's alone, and the reason is the same in three
+of the four -- they need something deluxui does not ship:
+
+| Not taken | Why |
+|---|---|
+| `generate-image` | Needs an image model. deluxui detects a harness image tool and uses it, and where there is none `visualize` degrades to a described comp and says so. |
+| `serve-question` -- an HTML decision page served to the user | deluxui asks through the harness instead. A served page is a genuine capability and this is a real gap, not a disagreement. |
+| `build-phase` -- a state machine gating spec -> plates -> build | deluxui's equivalent is weaker and unenforced: the contract must exist before the code, but nothing refuses to build without an approved comp. |
+| The font index (`build-font-index`) | Face availability and pairing data. `typescale.py` takes families as given and checks the ladder around them. |
 
 impeccable's Rust detection engine was **not** ported. deluxui ships as a skill directory
 that gets copied into a runtime's skills folder, with `python3` + `pyyaml` as its only

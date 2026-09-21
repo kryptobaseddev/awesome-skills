@@ -377,57 +377,9 @@ def _baseline(raws, out):
 # NOT_RUN with the format it found rather than guessing at the bytes. The skill's
 # dependency floor is python3 + pyyaml and this does not raise it.
 def _png_rows(path: Path):
-    """(width, height, channels, bytearray of raw samples) or None."""
-    import zlib, struct
-    d = path.read_bytes()
-    if d[:8] != b"\x89PNG\r\n\x1a\n":
-        return None
-    pos, w, h, depth, ctype, idat = 8, 0, 0, 0, 0, bytearray()
-    while pos + 8 <= len(d):
-        ln = struct.unpack(">I", d[pos:pos + 4])[0]
-        typ = d[pos + 4:pos + 8]
-        body = d[pos + 8:pos + 8 + ln]
-        if typ == b"IHDR":
-            w, h, depth, ctype, _comp, _filt, inter = struct.unpack(">IIBBBBB", body[:13])
-            if depth != 8 or ctype not in (2, 6) or inter != 0:
-                return None
-        elif typ == b"IDAT":
-            idat += body
-        elif typ == b"IEND":
-            break
-        pos += 12 + ln
-    if not w or not idat:
-        return None
-    ch = 3 if ctype == 2 else 4
-    raw = zlib.decompress(bytes(idat))
-    stride = w * ch
-    out = bytearray(h * stride)
-    prev = bytearray(stride)
-    i = 0
-    for y in range(h):
-        ft = raw[i]; i += 1
-        line = bytearray(raw[i:i + stride]); i += stride
-        if ft == 1:
-            for x in range(ch, stride):
-                line[x] = (line[x] + line[x - ch]) & 0xFF
-        elif ft == 2:
-            for x in range(stride):
-                line[x] = (line[x] + prev[x]) & 0xFF
-        elif ft == 3:
-            for x in range(stride):
-                a = line[x - ch] if x >= ch else 0
-                line[x] = (line[x] + ((a + prev[x]) >> 1)) & 0xFF
-        elif ft == 4:
-            for x in range(stride):
-                a = line[x - ch] if x >= ch else 0
-                b = prev[x]
-                c = prev[x - ch] if x >= ch else 0
-                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
-                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
-                line[x] = (line[x] + pr) & 0xFF
-        out[y * stride:(y + 1) * stride] = line
-        prev = line
-    return (w, h, ch, out)
+    """Delegates to scripts/pngread.py -- one filter loop, not two."""
+    import pngread
+    return pngread.rows(path)
 
 
 def _lin(c):

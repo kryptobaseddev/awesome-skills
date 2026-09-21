@@ -79,7 +79,15 @@ capture_ios() {
   dev="${dev:-$target}"
 
   shoot() {                         # shoot <kind> <device_class>
-    local kind="$1" klass="$2" path="$SHOTS/ios-$kind.png"
+    # Declared separately on purpose. bash 5.3 makes every name in a `local`
+    # statement a local BEFORE performing any of its assignments, so
+    # `local kind="$1" path="...$kind..."` reads an unset local and, under
+    # `set -u`, aborts the script. This whole function had never executed on a
+    # machine without Xcode, so the bug shipped invisible until a conformance
+    # harness put a stub `xcrun` on PATH and ran it.
+    local kind="$1"
+    local klass="$2"
+    local path="$SHOTS/ios-$kind.png"
     if xcrun simctl io "$target" screenshot "$path" >/dev/null 2>"$SHOTS/.err"; then
       local b; b=$(bytes_of "$path")
       caps="$caps${caps:+,}{\"kind\":\"$kind\",\"device_class\":\"$klass\",\"path\":\"$(json_escape "$path")\",\"bytes\":$b}"
@@ -145,7 +153,8 @@ capture_android() {
   [ -n "${wpx:-}" ] && [ "$wpx" -ge 1600 ] 2>/dev/null && klass="tablet"
 
   shoot_a() {                       # shoot_a <kind>
-    local kind="$1" path="$SHOTS/android-$kind.png"
+    local kind="$1"
+    local path="$SHOTS/android-$kind.png"
     if adb -s "$target" exec-out screencap -p > "$path" 2>"$SHOTS/.err"; then
       local b; b=$(bytes_of "$path")
       if [ "$b" -gt 0 ]; then

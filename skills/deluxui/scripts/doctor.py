@@ -155,8 +155,17 @@ def diagnose(root: Path) -> list[dict]:
                     "is not it.")
         if "android" in plats:
             if shutil.which("adb"):
-                dev = _v("adb", "devices")
-                row("Android device", OK, dev or "adb present")
+                dev = _v("adb", "devices", "-l")
+                attached = [ln for ln in (subprocess.run(
+                    ["adb", "devices"], capture_output=True, text=True,
+                    timeout=20).stdout or "").splitlines()[1:] if ln.strip()]
+                if attached:
+                    row("Android device", OK, "; ".join(attached)[:44])
+                else:
+                    row("Android device", WARN, "adb present, nothing attached",
+                        "AND-016 and AND-017 stay NOT_RUN until an emulator or device "
+                        "is attached. An emulator satisfies the rule by its own terms; "
+                        "hardware is still needed for posture, gestures and performance.")
             else:
                 row("Android device", GONE, "adb not on PATH",
                     "AND-016 and AND-017 stay NOT_RUN. Install platform-tools and "

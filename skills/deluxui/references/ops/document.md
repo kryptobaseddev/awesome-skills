@@ -39,6 +39,20 @@ the tool has picked the most common value and that may not be the intended one:
 Edit the derived contract before writing it. A contract that describes the mess
 faithfully will report conformance to the mess.
 
+## Cross-check the derived contract against what renders
+
+`derive_contract.py` reads the source. `comp_spec.py` reads the pixels. Where they
+disagree, the pixels win — the source says what was written, and the screenshot
+says what survived the cascade:
+
+```bash
+bash scripts/ux_browser.sh http://localhost:5173        # writes a full-page shot
+python3 scripts/comp_spec.py .deluxui/reports/runtime/screens/root_fullpage.png
+```
+
+A canvas colour that appears in 50% of the rendered pixels and nowhere in the
+token file is a value the product depends on and the system has never admitted to.
+
 ## Also write the prose
 
 `.deluxui/DESIGN.md` carries what the contract cannot: which components exist and

@@ -8,14 +8,43 @@ honestly claim — see NOTICE.md.
 
 ## What deluxui does and does not provide
 
-deluxui ships no image generation. Where the harness has an image tool, use it;
-where it does not, this operation degrades to a described comp — a written
+deluxui ships **no image generation**. Where the harness has an image tool, use
+it; where it does not, this operation degrades to a described comp — a written
 composition per option, region by region — and **says so**. A described comp is
-weaker than a rendered one and pretending otherwise is the failure mode.
+weaker than a rendered one, and pretending otherwise is the failure mode.
 
-What deluxui does add is the part impeccable leaves to judgement: the comp's
-palette, type and motion come from the contract, so a comp that drifts from the
-committed world is measurable rather than a matter of impression.
+What deluxui does provide is the half of impeccable's comp round that needs no
+model at all — reading a reference:
+
+```bash
+python3 scripts/comp_spec.py shot.png              # palette, regions, mediums
+python3 scripts/comp_spec.py shot.png --contract    # the colour block, sampled
+python3 scripts/comp_spec.py shot.png --json
+```
+
+Point it at a screenshot of the existing product — `agent-browser screenshot
+--full` writes exactly the form it reads — and it reports the palette by coverage,
+the canvas and ink with the measured ratio between them, where the horizontal
+rhythm changes, and **which bands are photographic rather than flat**.
+
+That last column is the one that changes what gets built. A band with many
+colours and many edges is a `plate`: a figure, a product, machinery, a named
+texture. It ships as a raster. Writing CSS for it — or a forty-vertex `clip-path`
+for a torn edge — is not an optimisation, it is a quiet deletion of the design
+somebody approved, and dropping an image-native region is a scope decision the
+user makes at the approval point rather than a silent flattening after it.
+
+Provenance travels in the file, not in a sidecar that gets separated from it the
+first time somebody moves something:
+
+```bash
+python3 scripts/comp_spec.py plate.png --provenance "generated: <exact prompt>"
+python3 scripts/comp_spec.py plate.png --read-provenance
+```
+
+And the comp's palette, type and motion still come from the contract, so a comp
+that drifts from the committed world is measurable rather than a matter of
+impression.
 
 ## Comp at the surface's own viewport
 

@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "3.7.0"
-  last_updated: "2026-09-21 14:00:39"
+  version: "3.8.0"
+  last_updated: "2026-09-21 14:09:49"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -238,6 +238,8 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_forcedcolors.py` | **R-FORCED-COLORS.** Two passes, normal and forced, diffed — a forced-colors defect is something that carried meaning before and does not after, which no single pass can see. |
 | `scripts/ux_axe.py` | **R-AXE.** axe-core from the project's node_modules, a cache, or a pinned CDN. Suppresses contrast and target-size, which deluxui measures directly against the project's own thresholds. |
 | `scripts/ux_slow.py` | **R-STATE-SLOW.** Makes the request slow rather than absent, and asks what the interface says while it waits. Flight is defined by content, not by readyState. |
+| `scripts/comp_spec.py` | **Read a reference image.** Palette by coverage, canvas and ink with the measured ratio, region bands, and which are photographic rather than flat — the distinction that decides whether a region ships as a raster or as code. Also records an asset's provenance inside the PNG. |
+| `scripts/native_conformance.py` | **Proves the native driver, not the device.** Recording stubs for `xcrun` and `adb`: the command sequence, the state it restores, and all seven availability states. It says plainly that a stub is not a phone. |
 | `scripts/browsertest.py` | **Integration test for the runtime tier.** Serves a fixture with known defects and requires each probe's numbers to match the pixels the browser painted. |
 | `scripts/uxconfig.py` | The only reader of `.deluxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
