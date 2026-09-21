@@ -8,6 +8,11 @@ from __future__ import annotations
 import shutil, subprocess, sys, tempfile, json
 from pathlib import Path
 
+# Do not leave .pyc files beside the checks. A directory-source plugin install
+# copies the working tree verbatim, so stray bytecode ships to the consumer
+# despite being gitignored. Costs ~15ms per run, which nothing here notices.
+sys.dont_write_bytecode = True
+
 HERE = Path(__file__).resolve().parent
 FIX = HERE / "checks" / "fixtures"
 
