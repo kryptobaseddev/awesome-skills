@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # deluxui runtime tier -- measures a running interface instead of reading about it.
 #
-#   ux_browser.sh <base-url> [--routes /,/settings] [--api '**/api/**']
-#                            [--out DIR] [--viewports 320,390,768,1024,1440]
+#   ux_browser.sh [base-url] [--routes /,/settings] [--api '**/api/**']
+#                             [--out DIR] [--viewports 320,390,768,1024,1440]
+#                             [--config PATH]
+#
+# Every value defaults to app.* in .deluxui/ux.config.yaml; a flag overrides the
+# file. The config used to be ignored entirely here, so `api_pattern` in it did
+# nothing and the forced-state probes only ran when --api was passed by hand.
 #
 # Needs the agent-browser CLI. Without it every runtime rule stays NOT_RUN and
 # says so -- an unmeasured rule is never reported as a pass.
@@ -10,8 +15,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROBES="$HERE/checks/browser"
-BASE=""; ROUTES="/"; API=""; OUT=".deluxui/reports/runtime"
-VIEWPORTS="320,390,768,1024,1440"
+BASE=""; ROUTES=""; API=""; OUT=".deluxui/reports/runtime"; VIEWPORTS=""; CONFIG=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -19,11 +23,41 @@ while [ $# -gt 0 ]; do
     --api) API="$2"; shift 2;;
     --out) OUT="$2"; shift 2;;
     --viewports) VIEWPORTS="$2"; shift 2;;
-    -h|--help) sed -n '2,12p' "$0"; exit 0;;
+    --config) CONFIG="$2"; shift 2;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0;;
     *) BASE="$1"; shift;;
   esac
 done
-[ -n "$BASE" ] || { echo "usage: ux_browser.sh <base-url> [--routes ...] [--api ...]" >&2; exit 1; }
+
+# Fill anything not given on the command line from the project config. One
+# parser, shared with the Python tiers -- see scripts/uxconfig.py.
+cfg() { python3 "$HERE/uxconfig.py" --get "$1" ${CONFIG:+--config "$CONFIG"} 2>/dev/null; }
+[ -n "$BASE" ]      || BASE="$(cfg app.dev_url)"
+[ -n "$ROUTES" ]    || ROUTES="$(cfg app.routes)"
+[ -n "$API" ]       || API="$(cfg app.api_pattern)"
+[ -n "$VIEWPORTS" ] || VIEWPORTS="$(cfg app.viewports)"
+[ -n "$ROUTES" ]    || ROUTES="/"
+# reflow.test_viewports_px is the overridable threshold behind app.viewports, so
+# setting either one works and neither is silently ignored.
+[ -n "$VIEWPORTS" ] || VIEWPORTS="$(python3 "$HERE/uxconfig.py" --json ${CONFIG:+--config "$CONFIG"} 2>/dev/null \
+  | python3 -c 'import json,sys; print(",".join(str(v) for v in json.load(sys.stdin)["thresholds"]["reflow"]["test_viewports_px"]))' 2>/dev/null)"
+[ -n "$VIEWPORTS" ] || VIEWPORTS="320,390,768,1024,1440"
+
+# The merged thresholds, handed to every probe as window.__uxTh so a project
+# override reaches the measurement instead of stopping at the config file.
+TH_JSON="$(python3 "$HERE/uxconfig.py" --json ${CONFIG:+--config "$CONFIG"} 2>/dev/null \
+  | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["thresholds"]))' 2>/dev/null)"
+[ -n "$TH_JSON" ] || TH_JSON="{}"
+
+if [ -z "$BASE" ]; then
+  echo "usage: ux_browser.sh <base-url> [--routes ...] [--api ...]" >&2
+  echo "  no base URL given and no app.dev_url in .deluxui/ux.config.yaml" >&2
+  exit 1
+fi
+if [ -z "$API" ]; then
+  echo "note: no --api and no app.api_pattern in config, so the aborted/empty/offline" >&2
+  echo "      probes cannot run and the STATE-* rules will report NOT_RUN." >&2
+fi
 
 mkdir -p "$OUT/raw" "$OUT/screens"
 
@@ -43,7 +77,7 @@ fi
 
 ab() { timeout 120 agent-browser "$@" 2>/dev/null; }
 probe() { # probe <name> <outfile>
-  local js; js="$(cat "$PROBES/$1.js")"
+  local js; js="window.__uxTh=$TH_JSON;$(cat "$PROBES/$1.js")"
   ab eval "$js" > "$2" 2>/dev/null
   [ -s "$2" ] || echo '{"probe":"'"$1"'","error":"probe returned nothing"}' > "$2"
 }

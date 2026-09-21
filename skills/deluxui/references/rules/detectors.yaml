@@ -258,6 +258,31 @@ detectors:
                                         MEASURE-003, MEASURE-004], confidence: high}
 
   # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
+  S-COLOR-ONLY:
+    engine: element
+    rules: [A11Y-005]
+    confidence: medium
+    not_run_when: No source files in scope.
+
+  M-FORCED-COLORS:
+    engine: manual
+    rules: [VIS-008]
+    confidence: high
+    not_run_when: >-
+      Nobody has viewed the interface in a forced-colors mode and recorded what
+      happened. The agent-browser driver cannot emulate forced-colors, so this
+      cannot be automated here -- Windows High Contrast or the Firefox
+      colors override, by a person, is the only evidence that counts.
+
+  M-PRESERVE-REGRESSION:
+    engine: manual
+    rules: [GOV-004]
+    confidence: high
+    not_run_when: >-
+      No regression evidence recorded for the flows this change touched. A
+      screenshot diff shows that pixels moved; it cannot show that a flow still
+      works. Record which existing flows were exercised and how.
+
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
   M-KEYBOARD-TASK:   {engine: manual, rules: [A11Y-002, UX-003]}
   M-TOUCH-DEVICE:    {engine: manual, rules: [NUM-006, NUM-007, LAY-009]}

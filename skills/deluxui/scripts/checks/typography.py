@@ -56,6 +56,8 @@ def line_length(f, p):
     """Past about 75 characters the eye loses the line return. The fix is a
     max-width in ch, not a narrower window (NUM-016)."""
     out = []
+    cap = p.num("typography", "measure_ch_max", 75)
+    tolerance = cap + 5          # do not flag a line that is a word or two over
     if f.css:
         for pos, sel, body in _css_rules(f.css):
             m = re.search(r"max-width\s*:\s*(\d+(?:\.\d+)?)(ch|rem|px)", body)
@@ -63,13 +65,13 @@ def line_length(f, p):
                 continue
             v, unit = float(m.group(1)), m.group(2)
             ch = v if unit == "ch" else (v * 2.2 if unit == "rem" else v / 8.0)
-            if ch <= 80:
+            if ch <= tolerance:
                 continue
             out.append(finding("S-TYPE-MEASURE", f, _line(f.css, pos),
                                f"{sel[:30]} {{ max-width: {m.group(1)}{unit} }}",
                                f"About {ch:.0f} characters per line for reading content. "
-                               "Past ~75 the return sweep starts failing and people re-read "
-                               "lines (NUM-016).", "low"))
+                               f"Past ~{cap:g} the return sweep starts failing and people "
+                               "re-read lines (NUM-016).", "low"))
         return out[:6]
     for m in re.finditer(r"(?<![\w-])max-w-(\[(\d+)px\]|screen-2xl|full)\b", f.text):
         win = f.text[max(0, m.start() - 200):m.start() + 200]
@@ -77,7 +79,8 @@ def line_length(f, p):
             continue
         out.append(finding("S-TYPE-MEASURE", f, _line(f.text, m.start()), m.group(0),
                            "Reading content with no character-based measure. Cap it around "
-                           "65-75ch so the line return stays findable (NUM-016).", "low"))
+                           f"{p.num('typography', 'measure_ch_min', 45):g}-{cap:g}ch so the "
+                           "line return stays findable (NUM-016).", "low"))
     return out[:6]
 
 

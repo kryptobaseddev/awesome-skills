@@ -1,6 +1,6 @@
 ---
 name: deluxui
-description: "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 163 checks bound to cited rule IDs and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'."
+description: "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 166 checks bound to cited rule IDs and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'."
 license: MIT
 compatibility: >-
   Python 3.9+ with pyyaml for the static tier and the report. The runtime tier
@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "2.1.0"
-  last_updated: "2026-09-21 06:40:07"
+  version: "2.2.0"
+  last_updated: "2026-09-21 10:41:05"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -166,7 +166,9 @@ results, the counts and one of four decisions:
 - **BLOCKED** — a P0 or P1 rule is failing, or (in `--release`) a P0 rule was never checked.
 - **CONDITIONAL** — nothing failing, but P0 rules are unverified. Fine mid-change; not enough to ship.
 - **READY** — every applicable rule was checked and none are failing.
-- Rules the product does not reach are **NOT_APPLICABLE**, declared through `--feature`.
+- Rules the product does not reach are **NOT_APPLICABLE**, declared through `features:`
+  in `.deluxui/ux.config.yaml` or `--feature` (the flag adds to the file, it does not
+  replace it).
 
 When a **STANDARD**-class rule fails, cite its basis alongside the rule ID —
 `NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 190 rules,
@@ -202,11 +204,12 @@ Each reference is self-contained. Read the one you need.
 
 | Script | Purpose |
 |---|---|
-| `scripts/ux_check.py` | **Static tier.** 124 source checks bound to rule IDs. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--stdin` for editor hooks. |
+| `scripts/ux_check.py` | **Static tier.** 125 source checks bound to rule IDs. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
 | `scripts/ux_browser.sh` | **Runtime tier.** Drives agent-browser across your viewport matrix, measures contrast, targets, focus and vitals, and forces aborted, empty and offline states. |
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
-| `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones. |
-| `scripts/lint_rules.py` | Proves no prose cites an invented rule ID and no detector claims coverage nobody implemented. |
+| `scripts/uxconfig.py` | The only reader of `.deluxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
+| `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
+| `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
 
 ## Common mistakes
 

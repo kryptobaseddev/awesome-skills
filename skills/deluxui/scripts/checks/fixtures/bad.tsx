@@ -30,3 +30,12 @@ export function BadPanel({ items, onDeleteThing }) {
     </div>
   );
 }
+
+export function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <div>
+      <span className={ok ? "h-2 w-2 rounded-full bg-green-500" : "h-2 w-2 rounded-full bg-red-500"} />
+      <span className="h-2 w-2 rounded-full bg-amber-500" />
+    </div>
+  );
+}

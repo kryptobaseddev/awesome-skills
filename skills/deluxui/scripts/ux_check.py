@@ -39,6 +39,7 @@ if "--stdin" in sys.argv:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import yaml
+import uxconfig
 from checks import ALL, FileCtx, Project
 from checks._util import (SOURCE_EXT, STYLE_EXT, collect_css_vars, css_of,
                           iter_files, is_generated, read, scan_tags)
@@ -103,18 +104,30 @@ def classify(text: str) -> str:
 
 
 # ----------------------------------------------------------------- run
-def run(root: Path, only=None):
+def run(scope: Path, root: Path | None = None, only=None, cfg=None):
+    """`scope` is what gets read; `root` is the project it belongs to.
+
+    These were one argument, which meant `ux_check.py src/components` silently
+    walked up to the nearest package.json and rescanned the whole project. The
+    project root still supplies package.json, tokens and the component inventory
+    -- it just no longer decides what to read."""
+    root = root or scope
+    cfg = cfg if cfg is not None else {}
     reg, det = load_rules()
     detectors = det["detectors"]
     project = detect_project(root)
+    project.th, project.threshold_overrides_refused = uxconfig.thresholds(cfg)
+    off = uxconfig.disabled(cfg)
+    skip = uxconfig.excludes(cfg)
 
     files = []
-    for f in iter_files(root):
+    for f in iter_files(scope, extra_skip=skip):
         txt = read(f)
         if not txt or is_generated(f, txt):
             continue
         ext = f.suffix
-        files.append(FileCtx(path=f, rel=str(f.relative_to(root) if root.is_dir() else f.name),
+        rel = str(f.relative_to(scope) if scope.is_dir() else f.name)
+        files.append(FileCtx(path=f, rel=rel,
                              text=txt, ext=ext,
                              tags=scan_tags(txt) if ext in SOURCE_EXT else [],
                              surface=classify(txt), css=css_of(f, txt)))
@@ -124,6 +137,12 @@ def run(root: Path, only=None):
         if only and did not in only:
             continue
         meta = detectors.get(did, {})
+        if did in off:
+            # Disabled in project config. NOT_RUN, never PASS -- config narrows
+            # what was examined, it does not turn a finding into a pass.
+            status[did] = ("NOT_RUN", "Disabled in .deluxui/ux.config.yaml "
+                                      "(disabled_checks).")
+            continue
         if chk.requires and not chk.requires(project):
             status[did] = ("NOT_RUN", meta.get("not_run_when", "Precondition not met."))
             continue
@@ -303,6 +322,8 @@ def main(argv=None):
                     help="raw project signals as JSON; no scoring, no ranking")
     ap.add_argument("--stdin", action="store_true", help="read a PostToolUse hook payload")
     ap.add_argument("--max", type=int, default=40, help="findings to print (default 40)")
+    ap.add_argument("--config", help="project config (default: nearest "
+                                     ".deluxui/ux.config.yaml at or above the target)")
     a = ap.parse_args(argv)
 
     target = _HOOK_PATH or Path(a.path).resolve()
@@ -311,11 +332,16 @@ def main(argv=None):
         sys.stderr.write(f"no such path: {target}\n")
         return 1
 
+    # The project root supplies package.json, tokens and the component inventory.
+    # It does NOT decide what to read -- `target` does. Conflating the two meant
+    # `ux_check.py src/components` rescanned the entire project.
     root = target if target.is_dir() else target.parent
     while root != root.parent and not (root / "package.json").exists():
         root = root.parent
     if not (root / "package.json").exists():
         root = target if target.is_dir() else target.parent
+
+    cfg = uxconfig.load(root, a.config)
 
     if a.inventory:
         p = detect_project(root)
@@ -340,9 +366,10 @@ def main(argv=None):
                           "dependency_count": len(p.deps)}, indent=1))
         return 0
 
-    scope = target if target.is_file() else root
+    scope = target                      # exactly what was asked for, file or directory
     single_file = scope.is_file()
-    project, reg, detectors, findings, status = run(scope, only=set(a.detector or []) or None)
+    project, reg, detectors, findings, status = run(
+        scope, root=root, only=set(a.detector or []) or None, cfg=cfg)
     rules = rollup(reg, detectors, status, single_file=single_file)
 
     if a.stdin:
@@ -358,7 +385,13 @@ def main(argv=None):
             "detectors": {k: {"status": v[0], "note": v[1]} for k, v in status.items()},
             "rules": {k: {"status": v[0], "note": v[1]} for k, v in rules.items()},
             "findings": [f.__dict__ for f in findings],
-            "scope": "file" if single_file else "project",
+            "scope": "file" if single_file else "directory",
+            "scanned": str(scope),
+            "config": {"path": cfg.get("_path"),
+                       "features": uxconfig.features(cfg),
+                       "disabled_checks": sorted(uxconfig.disabled(cfg)),
+                       "exclude": uxconfig.excludes(cfg),
+                       "refused_overrides": project.threshold_overrides_refused},
             "caveat": "Static tier. Heuristic source scanning; PASS here means no source "
                       "evidence of a defect, not a verified pass."
                       + (" " + SINGLE_FILE_NOTE if single_file else ""),

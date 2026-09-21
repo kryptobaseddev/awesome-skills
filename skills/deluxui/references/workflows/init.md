@@ -49,15 +49,22 @@ Copy from `assets/templates/`, filled in:
   PRODUCT.md        audience, jobs, primary tasks, rare high-impact tasks,
                     irreversible actions, supported devices, locales, network
   DESIGN.md         tokens, component inventory, stack, density, themes, motion
-  ux.config.yaml    threshold overrides, routes, dev URL, API glob, disabled checks
+  ux.config.yaml    dev URL, routes, API glob, viewports, declared features,
+                    threshold overrides, disabled checks, excluded directories
   reports/          written by the scripts
 ```
 
 `PRODUCT.md` holds no colours and no fonts — those live in `DESIGN.md`. Keeping them
 apart is what stops one file trying to be both a brief and a style guide.
 
-Set `api_pattern` in `ux.config.yaml` while you are here. Without it the forced-state
-probes never run, and they are the most valuable thing in the runtime tier.
+Set `api_pattern` in `ux.config.yaml` while you are here. Without it `ux_browser.sh`
+has no request glob to intercept, so the aborted, empty and offline probes cannot run
+and every `STATE-*` rule reports NOT_RUN — and those probes find more real defects
+than the rest of the runtime tier together.
+
+Declare `features:` honestly in the same pass. A feature you do not declare makes its
+rules NOT_APPLICABLE, so over-declaring buries you in irrelevant findings and
+under-declaring quietly excuses you from real ones.
 
 ## 5. Confirm and stop
 

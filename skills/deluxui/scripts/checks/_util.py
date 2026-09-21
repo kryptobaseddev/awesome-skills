@@ -21,7 +21,17 @@ SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", ".
              # template strings that no human ever looks at.
              "scripts", "bin", "tools", "migrations", "seeds", "seed",
              "e2e", "tests", "__tests__", "test", "cypress", "playwright",
-             "supabase", "prisma", "drizzle", "functions", "docs"}
+             "supabase", "prisma", "drizzle", "functions", "docs",
+             # Scratch space. Throwaway scripts here are not interface code, and
+             # they skew the report badly: one project's tmp/ supplied 1,343 of
+             # 6,852 findings and was the *only* source of two P0 failures, so
+             # the gate was reporting on files nobody ships.
+             "tmp", "temp", ".tmp", "scratch",
+             "fixtures", "__fixtures__", "__mocks__", "mocks"}
+# Deliberately NOT skipped: examples/, playground/, sandbox/. A design system's
+# showcase often lives there and is real, shipped interface. Silently excluding it
+# would be the same mistake as including tmp/, in the other direction -- use
+# `exclude:` in .deluxui/ux.config.yaml for those, per project.
 SKIP_FILE_RE = re.compile(r"\.(?:test|spec|stories|bench|config|d)\.[jt]sx?$|"
                           r"^(?:route|middleware|instrumentation)\.[jt]s$|"
                           r"\.server\.[jt]s$|^\+server\.[jt]s$|"
@@ -39,15 +49,22 @@ INTERACTIVE_COMPONENTS = re.compile(
 
 
 # --------------------------------------------------------------------------- files
-def iter_files(root: Path, exts=None):
+def iter_files(root: Path, exts=None, extra_skip=()):
+    """`extra_skip` carries `exclude:` from the project config -- a directory
+    name or a path fragment. Without it a project had no way to keep a directory
+    out of the report at all."""
     exts = exts or (SOURCE_EXT | STYLE_EXT)
+    extra = tuple(s for s in (extra_skip or ()) if s)
     if root.is_file():
         if root.suffix in exts:
             yield root
         return
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")
-                       or d in (".storybook",)]
+        dirnames[:] = [d for d in dirnames
+                       if (d not in SKIP_DIRS and d not in extra
+                           and not d.startswith(".") or d in (".storybook",))]
+        if extra and any(frag in dirpath for frag in extra):
+            continue
         for fn in filenames:
             p = Path(dirpath) / fn
             if p.suffix in exts and not SKIP_FILE_RE.search(fn):

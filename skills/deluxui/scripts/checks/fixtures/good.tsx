@@ -33,3 +33,16 @@ export function GoodPanel({ items, isLoading, error, onDelete }) {
     </div>
   );
 }
+
+export function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <div>
+      <span
+        className="h-2 w-2 rounded-full bg-green-500"
+        aria-label={ok ? "Online" : "Offline"}
+      />
+      <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+      <span>Offline</span>
+    </div>
+  );
+}

@@ -111,13 +111,28 @@ def main() -> int:
         if len(src) < 120:
             warnings.append(f"{did} gives the reader almost no guidance on a hit")
 
+    # A declared-but-unimplemented detector cannot produce a verdict, so a rule
+    # whose ONLY detectors are inert is not covered -- it is orphaned, and can
+    # never report anything but NOT_RUN no matter what anyone does. Counting it as
+    # covered is how "rules with a detector 190, without 0" concealed three P1
+    # rules that were unreachable.
     covered = {r for d in det["detectors"].values() for r in d["rules"]}
+    inert = set(unimplemented)
+    reachable = {r for did, d in det["detectors"].items() if did not in inert
+                 for r in d["rules"]}
+    orphaned = sorted(rule_ids - reachable)
+    for rid in orphaned:
+        sev = next(r["severity"] for r in reg["rules"] if r["id"] == rid)
+        errors.append(f"{rid} ({sev}) is orphaned: every detector naming it is "
+                      f"declared but unimplemented, so it can only ever report "
+                      f"NOT_RUN. Implement one, or give it a manual detector.")
     print(f"rules {len(rule_ids)}  laws {len(law_ids)}  tests {len(test_ids)}  "
           f"sources {len(sources)}")
     print(f"detectors {len(det['detectors'])}  static {len(declared_static)}  "
           f"runtime {len(declared_runtime)}  report {len(declared_report)}  manual "
           f"{len(det['detectors']) - len(declared_static) - len(declared_runtime) - len(declared_report)}")
-    print(f"rules with a detector {len(covered)}  without {len(rule_ids - covered)}")
+    print(f"rules with a detector {len(covered)}  without {len(rule_ids - covered)}  "
+          f"orphaned onto inert detectors {len(orphaned)}")
     print(f"runtime detectors declared but not yet implemented: "
           f"{len(unimplemented)} ({', '.join(unimplemented) or 'none'})")
     print(f"distinct rule IDs cited in prose: {len(cited)}")

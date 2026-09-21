@@ -8,6 +8,9 @@ from __future__ import annotations
 import shutil, subprocess, sys, tempfile, json
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import yaml
+
 # Do not leave .pyc files beside the checks. A directory-source plugin install
 # copies the working tree verbatim, so stray bytecode ships to the consumer
 # despite being gitignored. Costs ~15ms per run, which nothing here notices.
@@ -26,7 +29,7 @@ EXPECT = [
     "S-MOTION-REDUCE", "S-HOVER-ONLY", "S-MODAL-NATIVE",
     "S-SLOP-EMOJI", "S-SLOP-COPY", "S-TOKEN-HEX", "S-TOKEN-ARBITRARY",
     "S-DS-NEWDEP", "S-CONTENT-ERRORTEXT", "S-PERF-IMGDIM",
-    "S-CANVAS-A11Y", "S-3D-PERF", "S-MEDIA-CAPTIONS",
+    "S-CANVAS-A11Y", "S-3D-PERF", "S-MEDIA-CAPTIONS", "S-COLOR-ONLY",
     # P0 family
     "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
     "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
@@ -56,6 +59,131 @@ def run(tmp: Path, which: str) -> set[str]:
     return {f["detector"] for f in data["findings"]}
 
 
+CFG_PROBE = """
+export const Probe = () => (
+  <div>
+    <button className="h-8 w-8">a</button>
+    <div className="p-[7px]">b</div>
+    <span className="h-2 w-2 rounded-full bg-green-500" />
+  </div>
+);
+"""
+
+
+def _scan(target, config=None, extra=()):
+    cmd = [sys.executable, str(HERE / "ux_check.py"), str(target), "--json", *extra]
+    if config:
+        cmd += ["--config", str(config)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    return json.loads(r.stdout) if r.stdout.strip() else {}
+
+
+def config_wiring():
+    """Prove every key in the shipped ux.config.yaml template changes something.
+
+    This is the gap that let four documented keys sit inert. The old selftest
+    exercised detectors against fixtures and never once loaded a config, so
+    `features`, `disabled_checks`, `thresholds` and `app.*` could all be parsed,
+    validated and then ignored while every test stayed green. Each assertion here
+    is a positive control: set the key, and require the observable result to move.
+    """
+    fails = []
+    tmpl = yaml.safe_load((HERE.parent / "assets" / "templates" / "ux.config.yaml").read_text())
+
+    with tempfile.TemporaryDirectory() as d:
+        proj = Path(d)
+        (proj / "package.json").write_text(
+            '{"name":"p","dependencies":{"react":"^18","tailwindcss":"^3.4.0"}}')
+        (proj / "Probe.tsx").write_text(CFG_PROBE)
+        sub = proj / "nested"; sub.mkdir()
+        (sub / "Other.tsx").write_text(CFG_PROBE)
+        cfgdir = proj / ".deluxui"; cfgdir.mkdir()
+        cfg = cfgdir / "ux.config.yaml"
+
+        def write(text):
+            cfg.write_text(text)
+            return cfg
+
+        # --- <dir> must scope to that directory, not walk up to package.json
+        whole = _scan(proj)
+        part = _scan(sub)
+        if not whole.get("findings"):
+            fails.append("fixture produced no findings; the wiring tests cannot run")
+        elif len(part["findings"]) >= len(whole["findings"]):
+            fails.append("a subdirectory scan is not narrower than the whole project: "
+                         "the directory argument is being discarded")
+        if part.get("scanned", "").rstrip("/") != str(sub):
+            fails.append(f"scanned {part.get('scanned')!r}, asked for {str(sub)!r}")
+
+        # --- disabled_checks must move a rule to NOT_RUN, never leave it PASS
+        base = _scan(proj)
+        write("disabled_checks: [S-TARGET-SIZE, S-COLOR-ONLY]\n")
+        off = _scan(proj, cfg)
+        for did in ("S-TARGET-SIZE", "S-COLOR-ONLY"):
+            was = base["detectors"].get(did, {}).get("status")
+            now = off["detectors"].get(did, {}).get("status")
+            if now != "NOT_RUN":
+                fails.append(f"disabled_checks is inert: {did} is {now}, expected NOT_RUN")
+            if was == now == "PASS":
+                fails.append(f"disabled_checks turned {did} into a PASS")
+
+        # --- thresholds must reach the check that reads them
+        write("thresholds:\n  target_size:\n    web_coarse_min_px: 20\n")
+        loose = _scan(proj, cfg)
+        n_base = sum(1 for f in base["findings"] if f["detector"] == "S-TARGET-SIZE")
+        n_loose = sum(1 for f in loose["findings"] if f["detector"] == "S-TARGET-SIZE")
+        if not (n_base > 0 and n_loose < n_base):
+            fails.append(f"thresholds are inert: S-TARGET-SIZE gave {n_base} findings at "
+                         f"the 44px default and {n_loose} at an overridden 20px")
+
+        # --- a STANDARD value may not be lowered by config
+        write("thresholds:\n  contrast:\n    normal_text_min: 1.0\n")
+        bad = _scan(proj, cfg)
+        if not bad["config"]["refused_overrides"]:
+            fails.append("config lowered a STANDARD contrast threshold without refusal")
+
+        # --- exclude must keep a directory out of the report
+        write("exclude: [nested]\n")
+        ex = _scan(proj, cfg)
+        if any("nested" in f["file"] for f in ex["findings"]):
+            fails.append("exclude is inert: findings still come from the excluded directory")
+
+        # --- features must gate from the file, not only from --feature
+        write("features: [forms, charts]\n")
+        rep = subprocess.run(
+            [sys.executable, str(HERE / "ux_report.py"), "--merge",
+             "--static", "/dev/null", "--config", str(cfg)],
+            capture_output=True, text=True, cwd=str(proj))
+        doc = yaml.safe_load(rep.stdout) if rep.stdout.strip() else {}
+        if sorted(doc.get("declared_features") or []) != ["charts", "forms"]:
+            fails.append("features in the config do not reach the applicability gate "
+                         f"(got {doc.get('declared_features')!r})")
+
+        # --- app.* must reach the runtime driver
+        write("app:\n  dev_url: http://127.0.0.1:9/\n  api_pattern: '**/x/**'\n"
+              "  routes: ['/a']\n  viewports: [360]\n")
+        for key, want in (("app.dev_url", "http://127.0.0.1:9/"),
+                          ("app.api_pattern", "**/x/**"),
+                          ("app.routes", "/a"), ("app.viewports", "360")):
+            got = subprocess.run([sys.executable, str(HERE / "uxconfig.py"),
+                                  "--get", key, "--config", str(cfg)],
+                                 capture_output=True, text=True).stdout.strip()
+            if got != want:
+                fails.append(f"{key} is not readable by the shell driver "
+                             f"(got {got!r}, want {want!r})")
+
+        # --- and every key the template ships must be one this test covers
+        covered = {"app", "features", "thresholds", "disabled_checks", "exclude"}
+        stray = set(tmpl or {}) - covered
+        if stray:
+            fails.append(f"ux.config.yaml documents {sorted(stray)}, which no wiring "
+                         "test covers -- either wire it or remove it from the template")
+
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 def contract_checks():
     """Invariants the check corpus cannot catch on its own."""
     fails = []
@@ -83,6 +211,7 @@ def contract_checks():
 
 def main():
     contract = contract_checks()
+    wiring = config_wiring()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
     with tempfile.TemporaryDirectory() as d:
@@ -99,7 +228,8 @@ def main():
     print(f"expected but silent: {missed or 'none'}")
     print(f"false positives on good: {leaked or 'none'}")
     print(f"contract invariants: {'all ok' if not contract else str(len(contract)) + ' FAILING'}")
-    ok = not missed and not leaked and not contract
+    print(f"config wiring:       {'all ok' if not wiring else str(len(wiring)) + ' FAILING'}")
+    ok = not missed and not leaked and not contract and not wiring
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

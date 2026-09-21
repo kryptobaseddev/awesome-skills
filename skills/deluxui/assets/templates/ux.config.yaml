@@ -1,6 +1,13 @@
 # .deluxui/ux.config.yaml -- project settings for the deluxui checks.
 # Everything here is optional; the defaults come from
 # references/rules/thresholds.yaml.
+#
+# Every key below changes behaviour, and scripts/selftest.py holds a positive
+# control for each one: set the key, and the observable result has to move. A key
+# that were merely parsed and ignored would be worse than no key, because it
+# would report itself as configured.
+#
+# Command-line flags override this file; this file overrides the defaults.
 
 app:
   dev_url: http://localhost:5173
@@ -49,3 +56,12 @@ thresholds:
 # which is exactly what it is.
 disabled_checks: []
   # - S-CONTENT-I18N            # single-locale product, will not change
+
+# Directories to keep out of the scan entirely, beyond the built-in list
+# (node_modules, dist, tests, tmp and so on). Use this for generated output or a
+# vendored copy -- not to hide a directory that is failing. One project's tmp/
+# supplied 1,344 of 6,852 findings and was the only source of two P0 failures,
+# which is what this key and the built-in tmp/ skip exist to prevent.
+exclude: []
+  # - generated
+  # - vendor-copy

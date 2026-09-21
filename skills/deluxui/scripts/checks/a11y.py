@@ -397,14 +397,66 @@ def target_size(f, p):
         if "h" not in dims and "w" not in dims:
             continue                    # padding-sized control -- cannot tell from source
         small = min(v for k, v in dims.items() if k in ("h", "w"))
-        if small < 24:
+        # NUM-004 is the WCAG floor and is not overridable; NUM-005 is a PROJECT
+        # default a project may lower in .deluxui/ux.config.yaml.
+        floor = p.num("target_size", "web_min_px", 24)
+        coarse = p.num("target_size", "web_coarse_min_px", 44)
+        if small < floor:
             out.append(finding("S-TARGET-SIZE", f, t.line, " ".join(t.classes())[:100],
-                               f"Hit area about {small:.0f}px, under the 24px floor "
+                               f"Hit area about {small:.0f}px, under the {floor:g}px floor "
                                "(NUM-004). Grow the target or add spacing that satisfies "
                                "the SC 2.5.8 exception.", "low"))
-        elif small < 44:
+        elif small < coarse:
             out.append(finding("S-TARGET-SIZE", f, t.line, " ".join(t.classes())[:100],
-                               f"Hit area about {small:.0f}px. Meets the 24px standard but "
-                               "is under the 44px coarse-pointer default (NUM-005). Fine "
-                               "for dense desktop UI; check it on a phone.", "low"))
+                               f"Hit area about {small:.0f}px. Meets the {floor:g}px standard "
+                               f"but is under the {coarse:g}px coarse-pointer default "
+                               "(NUM-005). Fine for dense desktop UI; check it on a phone.",
+                               "low"))
     return out
+
+
+# ------------------------------------------------------- colour as the only cue
+_SEMANTIC_BG = re.compile(
+    # Semantic palette families: these carry status meaning in every design
+    # system that uses Tailwind's defaults. Greys and brand hues do not.
+    r"^(?:\w+:)*bg-(red|rose|green|emerald|lime|amber|yellow|orange|"
+    r"sky|blue|indigo|violet)-[3-7]\d{2}$")
+# An explicit small dimension, not `rounded-full` on its own: rounded-full is
+# also how progress bars, pills and avatars are drawn, and a progress fill
+# (`h-full w-full bg-green-500 rounded-full`) is not status encoded in hue.
+_DOT = re.compile(r"^(?:\w+:)*(?:h|w|size)-(?:0\.5|1|1\.5|2|2\.5|3|3\.5|4)$")
+_CUE_ATTR = ("aria-label", "aria-labelledby", "title", "role", "aria-describedby",
+             "alt", "aria-live", "data-testid")
+
+
+@check("S-COLOR-ONLY", exts=SRC)
+def colour_only_status(f, p):
+    """A coloured dot with nothing else in it encodes status in hue alone.
+
+    Roughly eight percent of men cannot separate the red one from the green one,
+    and a screen reader reads neither. The fix is cheap -- a word, or an icon with
+    a label beside the dot -- but it is invisible to whoever built it, because
+    they know which colour means which (A11Y-005, SC 1.4.1)."""
+    out = []
+    for t in f.tags:
+        if t.closing or t.name not in ("span", "div", "i", "s", "circle"):
+            continue
+        cls = t.classes()
+        if not any(_SEMANTIC_BG.match(c) for c in cls):
+            continue
+        if not any(_DOT.match(c) for c in cls):
+            continue                     # a coloured panel, not a status marker
+        if t.has(*_CUE_ATTR) or t.has_spread():
+            continue                     # it names itself, or we cannot see inside
+        if re.search(r"[A-Za-z]{3}", re.sub(r"<[^>]*>", "", t.inner or "")):
+            continue                     # carries its own text
+        # A word within the same element's tail is a legitimate adjacent label.
+        tail = f.text[t.end:t.end + 160]
+        if re.search(r">\s*[A-Za-z][A-Za-z ]{2,}|\{[\w.]*(?:label|status|state|"
+                     r"text|name|title)[\w.]*\}|aria-label", tail, re.I):
+            continue
+        out.append(finding("S-COLOR-ONLY", f, t.line, " ".join(cls)[:90],
+                           "Status shown as a bare coloured dot. Colour alone is not a cue "
+                           "-- add the word beside it, or give the dot an aria-label saying "
+                           "what the colour means (A11Y-005, SC 1.4.1).", "medium"))
+    return out[:6]

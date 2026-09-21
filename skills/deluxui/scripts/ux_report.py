@@ -22,7 +22,13 @@ sys.dont_write_bytecode = True
 import yaml
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import uxconfig
+
 RULES = HERE.parent / "references" / "rules"
+# Defaults. merge() and collect() rebind this to the project-merged thresholds so
+# an overridable value set in .deluxui/ux.config.yaml actually reaches the probes
+# that read it -- previously the file was validated and then never consulted.
 TH = yaml.safe_load((RULES / "thresholds.yaml").read_text())
 
 
@@ -341,7 +347,8 @@ def collect(out_dir: Path, meta: dict):
 # rather than walked past, and whether project config was used to silence a
 # standard. That is the only honest way to automate them, so it is what happens.
 
-def self_audit(results, dstat, static, runtime, config, release, manual=None):
+def self_audit(results, dstat, static, runtime, config, release, manual=None,
+               features=None):
     """Returns {detector_id: (status, note)} for the A-* family."""
     out = {}
 
@@ -377,24 +384,16 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None):
         out["A-UNKNOWN-DECLARED"] = ("PASS", "No P0 rule is unverified.")
 
     # --- GOV-008: project config may not silence a STANDARD
-    disabled = set(config.get("disabled_checks") or [])
-    overrides = (config.get("thresholds") or {})
+    disabled = uxconfig.disabled(config)
     violations = []
     if disabled:
         violations.append(f"{len(disabled)} checks disabled in project config "
                           f"({', '.join(sorted(disabled)[:5])}) -- the rules they "
                           "cover now report NOT_RUN, not PASS")
-    for group, vals in overrides.items():
-        block = TH.get(group, {})
-        allowed = block.get("overridable")
-        if allowed is False:
-            violations.append(f"thresholds.{group} is marked non-overridable "
-                              "(it comes from a standard) but the project overrides it")
-        elif isinstance(allowed, list):
-            bad = [k for k in vals if k not in allowed]
-            if bad:
-                violations.append(f"thresholds.{group}: {', '.join(bad)} "
-                                  "is not in the overridable list")
+    # The refusals come from the same loader that applied the legal overrides, so
+    # this reports what was actually rejected rather than re-deriving it and
+    # risking the two disagreeing.
+    violations.extend(uxconfig.thresholds(config)[1])
     # --- QA-001/QA-005: every assessed rule carries a status and a reason
     assessed = [r for r in results if r["status"] != "NOT_APPLICABLE"]
     silent = [r["rule_id"] for r in assessed if not r["reason"].strip()]
@@ -467,7 +466,9 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None):
             if exc else "No exceptions claimed.")
 
     # --- CTX-002/003/004: the product's own facts were declared, not assumed
-    feats = config.get("features") or []
+    # The merged list (config + --feature), not the raw config, or the audit
+    # reports a different set of features from the one that did the gating.
+    feats = features if features is not None else uxconfig.features(config)
     gated = [r for r in results if r["status"] == "NOT_APPLICABLE"]
     if not feats and gated:
         out["A-CONTEXT-DECLARED"] = ("FAIL",
@@ -504,6 +505,16 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None):
 # ------------------------------------------------------------ merge + gate
 def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
           features: list, release: bool, config_path: Path | None = None):
+    global TH
+    # The config is read FIRST. It used to load about twenty-five lines below the
+    # applicability gate, which meant `features:` in the file could not possibly
+    # affect gating -- only the --feature flag did, while the documentation
+    # promised otherwise.
+    config = uxconfig.load(Path.cwd(), str(config_path) if config_path else None)
+    TH, refused_overrides = uxconfig.thresholds(config)
+    features = uxconfig.features(config, features)
+    off = uxconfig.disabled(config)
+
     reg = yaml.safe_load((RULES / "registry.yaml").read_text())
     det = yaml.safe_load((RULES / "detectors.yaml").read_text())["detectors"]
     static = load(static_json, {}) or {}
@@ -519,6 +530,11 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         dstat[k] = (v["status"], v.get("note", ""))
     for k, v in (manual.get("attestations") or {}).items():
         dstat[k] = (v.get("status", "NOT_RUN"), v.get("evidence", ""))
+    # A disabled check cannot contribute a PASS, including from a report file
+    # produced before it was disabled. Config narrows what was examined; it never
+    # converts an unexamined rule into a passing one.
+    for k in off:
+        dstat[k] = ("NOT_RUN", "Disabled in .deluxui/ux.config.yaml (disabled_checks).")
 
     by_rule = {}
     for did, (st, note) in dstat.items():
@@ -557,10 +573,8 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         results.append({"rule_id": rid, "severity": r["severity"], "class": r["class"],
                         "basis": r["basis"], "status": status, "reason": reason})
 
-    config = {}
-    if config_path and config_path.exists():
-        config = yaml.safe_load(config_path.read_text()) or {}
-    audit = self_audit(results, dstat, static, runtime, config, release, manual)
+    audit = self_audit(results, dstat, static, runtime, config, release, manual,
+                       features=features)
     # fold the A-* results back in as rule statuses for the GOV rules they cover
     A_RULES = {"A-EVIDENCE-BACKED": ["GOV-006"], "A-UNKNOWN-DECLARED": ["GOV-005"],
                "A-CONFIG-AUTHORITY": ["GOV-008"],

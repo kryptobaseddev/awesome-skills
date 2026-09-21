@@ -66,12 +66,13 @@ def arbitrary_values(f, p):
         if not num:
             continue
         px = float(num.group(1))
-        if px % 4 == 0 or m.group(0) in seen:
+        unit = p.num("spacing", "base_unit_px", 4)
+        if (unit and px % unit == 0) or m.group(0) in seen:
             continue
         seen.add(m.group(0))
         line = f.text[:m.start()].count("\n") + 1
         out.append(finding("S-TOKEN-ARBITRARY", f, line, m.group(0),
-                           f"{px:g}px is off the 4px spacing scale. One-off values are how a "
+                           f"{px:g}px is off the {unit:g}px spacing scale. One-off values are how a "
                            "system turns back into a pile of magic numbers -- snap to the "
                            "scale, or add a named step if the scale is genuinely missing one "
                            "(VIS-001, NUM-017).", "high"))

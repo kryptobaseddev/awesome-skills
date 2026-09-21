@@ -26,6 +26,18 @@ class Finding:
 @dataclass
 class Project:
     root: Path
+    # Merged thresholds: references/rules/thresholds.yaml with the project's
+    # overridable values applied. Checks read their numbers from here so a
+    # project override actually reaches them.
+    th: dict = field(default_factory=dict)
+    threshold_overrides_refused: list = field(default_factory=list)
+
+    def num(self, group: str, key: str, default=None):
+        """A threshold value, falling back to the literal the check was written
+        with. Written as an accessor rather than direct indexing so a check still
+        works when Project is constructed bare, as the fixtures do."""
+        v = (self.th.get(group) or {}).get(key)
+        return default if v is None else v
     deps: set = field(default_factory=set)
     has_tailwind: bool = False
     token_sources: list = field(default_factory=list)

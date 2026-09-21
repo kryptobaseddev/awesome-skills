@@ -1,7 +1,13 @@
-# NUM-001..020 as machine-readable values, consumed by scripts/ux_check.py and
-# scripts/ux_browser.sh. A project may override any PROJECT-class value in
-# .deluxui/ux.config.yaml. STANDARD-class values are not overridable -- an
-# approved exception (section 20) records a deviation, it does not move the bar.
+# NUM-001..020 as machine-readable values. scripts/uxconfig.py merges a project's
+# overridable values over these; the static checks read them through Project.num
+# and the browser probes through window.__uxTh, so an override reaches the
+# measurement rather than stopping at the config file.
+#
+# `overridable` is the contract: false means the value comes from a standard,
+# a list names the only keys a project may move, true means the whole group.
+# STANDARD-class values are refused, loudly -- an approved exception (section 20)
+# records a deviation against a named rule, it does not move the bar for
+# everything silently.
 meta:
   units: "CSS px unless stated. Apple pt and Android dp are distinct platform units."
   measurement: "Rendered and interactive behaviour, not design-file dimensions."
