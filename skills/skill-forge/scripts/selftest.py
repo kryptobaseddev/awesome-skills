@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 FIX = HERE / "fixtures"
 ENVIRONMENTAL = {"generated files"}
 
-MUST_FAIL_ON_BAD = {"progressive disclosure", "category"}
+MUST_FAIL_ON_BAD = {"progressive disclosure", "category", "executable bits"}
 MUST_WARN_ON_BAD = {"description trigger", "description boundary", "evals"}
 
 

@@ -127,21 +127,34 @@ def check_category(root: Path, skill: Path, fm: dict, rep: Report):
 
 
 def check_exec_bits(root: Path, skill: Path, body: str, rep: Report):
-    """core.fileMode=false means the on-disk bit never reaches git."""
-    # Bodies invoke scripts either skill-relative (scripts/x.py) or repo-relative
-    # (skills/<name>/scripts/x.py). Missing the second form made this check
-    # silently pass on the very skill that ships it.
-    told_to_run = set()
-    for m in re.finditer(r"(?:python3|bash|sh|node)\s+(?:skills/([\w-]+)/)?(scripts/[\w./-]+)",
-                         body):
-        owner = m.group(1)
-        # A skill may point at a SIBLING skill's script. That file's executable
-        # bit is the sibling's problem, not this skill's.
-        if owner and owner != skill.name:
+    """The bit only matters for DIRECT invocation.
+
+    `bash scripts/x.sh`, `node scripts/x.js` and `python3 scripts/x.py` all run
+    a mode-644 file perfectly well -- the interpreter opens it, the kernel never
+    execs it. Only `scripts/x` or `./scripts/x` needs +x. Flagging the
+    interpreter-prefixed form produces exactly the noise that gets a linter
+    ignored, so this looks for direct invocation only.
+
+    It still matters, because core.fileMode=false means a local chmod never
+    reaches the commit.
+    """
+    direct: set[str] = set()
+    for line in body.splitlines():
+        # inside a fenced block or not, a command line starting with the path
+        stripped = line.strip().lstrip("$ ").strip()
+        m = re.match(r"\.?/?(?:skills/([\w-]+)/)?(scripts/[\w.-]+)(?:\s|$)", stripped)
+        if not m:
             continue
-        told_to_run.add(m.group(2))
-    if not told_to_run:
-        rep.ok("executable bits", "SKILL.md invokes no bundled script directly")
+        owner, path = m.group(1), m.group(2)
+        if owner and owner != skill.name:
+            continue          # a sibling skill's script is the sibling's problem
+        if re.search(r"\.(md|json|ya?ml|txt)$", path):
+            continue
+        direct.add(path)
+
+    if not direct:
+        rep.ok("executable bits", "no script is invoked directly (interpreter-prefixed "
+                                  "invocations run fine at 644)")
         return
     rel = skill.relative_to(root)
     r = run(["git", "ls-files", "-s", str(rel / "scripts")], cwd=root)
@@ -150,16 +163,16 @@ def check_exec_bits(root: Path, skill: Path, body: str, rep: Report):
         parts = line.split()
         if len(parts) >= 4:
             modes[str(Path(parts[3]).relative_to(rel))] = parts[0]
-    missing = [s for s in sorted(told_to_run)
-               if s in modes and modes[s] != "100755"]
-    untracked = [s for s in sorted(told_to_run) if s not in modes]
+    missing = [s for s in sorted(direct) if s in modes and modes[s] != "100755"]
+    untracked = [s for s in sorted(direct) if s not in modes]
     if missing:
-        rep.fail("executable bits", "not +x in git: " + ", ".join(missing)
-                 + "  -> git update-index --chmod=+x " + " ".join(f"{rel}/{s}" for s in missing))
+        rep.fail("executable bits", "invoked directly but not +x in git: "
+                 + ", ".join(missing) + "  -> git update-index --chmod=+x "
+                 + " ".join(f"{rel}/{s}" for s in missing))
     elif untracked:
         rep.warn("executable bits", "not tracked yet: " + ", ".join(untracked))
     else:
-        rep.ok("executable bits", f"{len(told_to_run)} invoked script(s) are +x in git")
+        rep.ok("executable bits", f"{len(direct)} directly-invoked script(s) are +x")
 
 
 def check_generated(root: Path, rep: Report):
