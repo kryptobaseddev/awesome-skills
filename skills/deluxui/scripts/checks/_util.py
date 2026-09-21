@@ -124,6 +124,11 @@ class Tag:
         v = self.attr("class", "className", "classList") or ""
         return re.findall(r"[A-Za-z0-9_:\-\[\]./%#()!,'\"+*$&~=<>|^@]+", v)
 
+    def has_spread(self) -> bool:
+        """`{...getRootProps()}` can carry onClick, role and tabIndex. A checker
+        that cannot see inside it must not conclude their absence."""
+        return bool(re.search(r"\{\s*\.\.\.", self.raw))
+
     def is_interactive(self) -> bool:
         if self.name in INTERACTIVE_TAGS:
             return not (self.name == "a" and not self.has("href", "to"))

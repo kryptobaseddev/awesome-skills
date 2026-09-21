@@ -139,6 +139,8 @@ def div_click(f, p):
             continue
         if t.attr("role") and t.has("tabIndex", "tabindex"):
             continue
+        if t.has_spread():
+            continue      # props spread in from a hook may already supply both
         out.append(finding("S-A11Y-DIVCLICK", f, t.line, t.raw,
                            f"<{t.name}> renders a plain container, so this click target is "
                            "invisible to keyboard and assistive technology. Use a <button> "

@@ -11,7 +11,7 @@ BLOCKED. If that feels obstructive, the answer is to run the missing check --
 not to reinterpret the status.
 """
 from __future__ import annotations
-import argparse, json, sys
+import argparse, json, re, sys
 from pathlib import Path
 
 import yaml
@@ -293,7 +293,7 @@ def collect(out_dir: Path, meta: dict):
 # rather than walked past, and whether project config was used to silence a
 # standard. That is the only honest way to automate them, so it is what happens.
 
-def self_audit(results, dstat, static, runtime, config, release):
+def self_audit(results, dstat, static, runtime, config, release, manual=None):
     """Returns {detector_id: (status, note)} for the A-* family."""
     out = {}
 
@@ -347,6 +347,47 @@ def self_audit(results, dstat, static, runtime, config, release):
             if bad:
                 violations.append(f"thresholds.{group}: {', '.join(bad)} "
                                   "is not in the overridable list")
+    # --- QA-001/QA-005: every assessed rule carries a status and a reason
+    assessed = [r for r in results if r["status"] != "NOT_APPLICABLE"]
+    silent = [r["rule_id"] for r in assessed if not r["reason"].strip()]
+    if silent:
+        out["A-EVIDENCE-MAP"] = ("FAIL",
+            f"{len(silent)} assessed rules carry a status with no reason: "
+            + ", ".join(silent[:8]))
+    else:
+        out["A-EVIDENCE-MAP"] = ("PASS",
+            f"All {len(assessed)} assessed rules state how they were decided.")
+
+    # --- QA-002/QA-003/GOV-009: the report must say what it looked at
+    tiers = [k for k, v in {"static": static, "runtime": runtime}.items() if v]
+    manual_present = bool(manual)
+    parts = []
+    if not manual_present:
+        parts.append("no manual tier was recorded, so screen-reader, keyboard and "
+                     "real-device coverage is absent")
+    if "runtime" not in tiers:
+        parts.append("the runtime tier did not run, so nothing was measured on a live page")
+    out["A-SCOPE-STATED"] = ("PASS",
+        ("Scope: " + ", ".join(tiers) + " tier(s). " + " ".join(parts)) if parts
+        else f"Scope: {', '.join(tiers)} and manual. Full coverage of the declared scope.")
+
+    # --- MEASURE-002/005/007: no numbers the report did not measure
+    invented = []
+    for r in results:
+        if re.search(r"\b\d{1,3}%\s*(?:better|faster|improvement|increase|of users)",
+                     r["reason"], re.I):
+            invented.append(r["rule_id"])
+        if re.search(r"\busers? (?:said|reported|found|preferred)\b", r["reason"], re.I):
+            invented.append(r["rule_id"])
+    if invented:
+        out["A-NO-INVENTED-METRICS"] = ("FAIL",
+            "Reasons contain percentage or user-research claims that no tier produced: "
+            + ", ".join(sorted(set(invented))[:6]))
+    else:
+        out["A-NO-INVENTED-METRICS"] = ("PASS",
+            "No percentage improvement or user-research claim appears that a tier did "
+            "not produce. Lab vitals are reported as NOT_RUN for the same reason.")
+
     if any("non-overridable" in v or "not in the overridable" in v for v in violations):
         out["A-CONFIG-AUTHORITY"] = ("FAIL", "; ".join(violations))
     elif violations:
@@ -397,9 +438,16 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
             elif "PASS" in sts:
                 status, reason = "PASS", "; ".join(
                     d for d, s, _n in entries if s == "PASS")
-            elif sts:
+            elif "NOT_RUN" in sts:
                 status, reason = "NOT_RUN", "; ".join(
                     f"{d}: {n}" for d, s, n in entries if s == "NOT_RUN")[:300]
+            elif sts:
+                # Every detector said NOT_APPLICABLE -- no file in scope was the
+                # kind it examines. That is not a pass and it is not a decision
+                # about the product; it means nothing established this rule.
+                status = "NOT_RUN"
+                reason = ("no detector had anything in scope to examine ("
+                          + ", ".join(d for d, _s, _n in entries)[:160] + ")")
             else:
                 status, reason = "NOT_RUN", ("No detector covers this rule. It needs a "
                                              "human to check it and record the result.")
@@ -410,14 +458,17 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
     config = {}
     if config_path and config_path.exists():
         config = yaml.safe_load(config_path.read_text()) or {}
-    audit = self_audit(results, dstat, static, runtime, config, release)
+    audit = self_audit(results, dstat, static, runtime, config, release, manual)
     # fold the A-* results back in as rule statuses for the GOV rules they cover
-    A_RULES = {"A-EVIDENCE-BACKED": "GOV-006", "A-UNKNOWN-DECLARED": "GOV-005",
-               "A-CONFIG-AUTHORITY": "GOV-008"}
-    for did, rid in A_RULES.items():
+    A_RULES = {"A-EVIDENCE-BACKED": ["GOV-006"], "A-UNKNOWN-DECLARED": ["GOV-005"],
+               "A-CONFIG-AUTHORITY": ["GOV-008"],
+               "A-EVIDENCE-MAP": ["QA-001", "QA-005", "GOV-002"],
+               "A-SCOPE-STATED": ["QA-002", "QA-003", "GOV-009", "A11Y-013"],
+               "A-NO-INVENTED-METRICS": ["MEASURE-002", "MEASURE-005", "MEASURE-007"]}
+    for did, rids in A_RULES.items():
         st, note = audit[did]
         for r in results:
-            if r["rule_id"] == rid:
+            if r["rule_id"] in rids:
                 if r["status"] in ("NOT_RUN", "NOT_APPLICABLE"):
                     counts[r["status"]] -= 1
                     counts[st] += 1

@@ -186,6 +186,23 @@ detectors:
   R-STATE-SLOW:      {engine: runtime_state, rules: [NUM-013, NUM-014, STATE-006], confidence: high,
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
 
+  # --- Component and navigation contracts (scripts/checks/components.py) ---
+  S-COMP-VAGUE-LABEL: {engine: element, rules: [COMP-003], confidence: medium}
+  S-COMP-DISABLED-MUTE: {engine: element, rules: [COMP-004, FORM-007], confidence: low}
+  S-COMP-KEYBOARD-PATTERN: {engine: element, rules: [COMP-005, COMP-006], confidence: medium}
+  S-COMP-ACCORDION: {engine: element, rules: [COMP-013], confidence: medium}
+  S-COMP-TABLE-SEMANTICS: {engine: element, rules: [COMP-014], confidence: medium}
+  S-COMP-UPLOAD: {engine: element, rules: [COMP-021], confidence: medium}
+  S-COMP-TOAST-ONLY: {engine: source, rules: [COMP-022], confidence: low}
+  S-COMP-BULK-SCOPE: {engine: source, rules: [COMP-024], confidence: low}
+  S-NAV-CURRENT: {engine: element, rules: [NAV-007], confidence: medium}
+  S-NAV-TITLE: {engine: source, rules: [NAV-001], confidence: medium,
+                not_run_when: "No route components found in scope."}
+  S-FORM-ERROR-LINK: {engine: element, rules: [FORM-006], confidence: medium}
+  S-FORM-LOST-INPUT: {engine: source, rules: [FORM-004], confidence: medium}
+  S-FORM-PASTE-BLOCK: {engine: source, rules: [FORM-015], confidence: medium}
+  S-UX-FAKE-INTERACTIVE: {engine: element, rules: [UX-011], confidence: low}
+
   # --- Report self-audit (scripts/ux_report.py). These check THIS DOCUMENT,
   # not the product. GOV-005/006/008 are properties of the agent's honesty, and
   # no scan of someone's app can establish them -- but whether every PASS here
@@ -194,6 +211,10 @@ detectors:
   A-EVIDENCE-BACKED: {engine: report, rules: [GOV-006], confidence: high}
   A-UNKNOWN-DECLARED: {engine: report, rules: [GOV-005], confidence: high}
   A-CONFIG-AUTHORITY: {engine: report, rules: [GOV-008], confidence: high}
+  A-EVIDENCE-MAP: {engine: report, rules: [QA-001, QA-005, GOV-002], confidence: high}
+  A-SCOPE-STATED: {engine: report, rules: [QA-002, QA-003, GOV-009, A11Y-013], confidence: high}
+  A-NO-INVENTED-METRICS: {engine: report, rules: [MEASURE-002, MEASURE-005, MEASURE-007],
+                          confidence: high}
 
   # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}
