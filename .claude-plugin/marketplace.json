@@ -10,7 +10,7 @@
     {
       "name": "deluxui",
       "source": "./deluxui-plugin",
-      "description": "UX engineering with a verdict. Adds /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive and /ux-optimize, an independent ux-reviewer subagent, and a PostToolUse hook that checks every interface file as it is written. Wraps the deluxui skill (190-rule contract, 163 detectors, release gate where NOT_RUN is never a pass)."
+      "description": "UX engineering with a verdict. Adds /ux (the router), /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive, /ux-optimize, /ux-design, /ux-uplift, /ux-doctor, /ux-live, /ux-color, /ux-type, /ux-native, /ux-polish, /ux-bolder, /ux-quieter, /ux-distill, /ux-clarify, /ux-extract and /ux-onboard, an independent ux-reviewer subagent, and a PostToolUse hook that checks every interface file as it is written. Wraps the deluxui skill: a 228-rule contract, 238 detectors across static, browser, native and manual tiers, 30 named operations, palette and type-scale generators, and a release gate where NOT_RUN is never a pass."
     }
   ]
 }
