@@ -94,6 +94,28 @@ class Review:
         # another note produced a second, unrelated REQ-002 -- one id, two
         # different work items, and the agent's log showing it twice.
         self.base = _highest(REQUESTS, "REQ")
+        self.resume()
+
+    def resume(self) -> None:
+        """Pick up notes this project already has for these variants.
+
+        A review is not one sitting. Restarting the server used to empty the
+        panel and drop every pin while the work items sat on disk, which reads as
+        "your notes are gone" -- the one thing that stops somebody leaving more."""
+        mine = {v for v in self.variants}
+        for f in sorted(REQUESTS.glob("REQ-*.yaml")) if REQUESTS.exists() else []:
+            try:
+                d = yaml.safe_load(f.read_text()) or {}
+            except (OSError, yaml.YAMLError):
+                continue
+            if d.get("source") != "review" or d.get("variant") not in mine:
+                continue
+            d["_file"] = str(f)
+            d["req"] = f.stem
+            d["n"] = int(d.get("n") or (self.seq + 1))
+            self.seq = max(self.seq, d["n"])
+            self.notes.append(d)
+        self.notes.sort(key=lambda x: x.get("n", 0))
         self.decision: dict | None = None
         self.done = threading.Event()
         self.lock = threading.Lock()
@@ -634,10 +656,13 @@ function edit(n) {{ editing = n; refresh(); const el = document.getElementById('
 let LAST = '';
 async function refresh(force) {{
   const r = await fetch('/api/state'); const s = await r.json();
+  // Sync the pins on every tick, not only when the notes changed. A frame that
+  // finished loading after the last change never received one, so a note left on
+  // the second variant lost its pin the moment the page was reloaded.
+  post('sync', {{notes: s.notes}});
   const sig = JSON.stringify(s.notes) + '|' + editing;
   if (!force && sig === LAST) return;
   LAST = sig;
-  post('sync', {{notes: s.notes}});
   const box = document.getElementById('notes');
   document.getElementById('count').textContent =
     s.notes.length ? s.notes.length + ' note' + (s.notes.length === 1 ? '' : 's') : '';
@@ -701,6 +726,7 @@ function wire(n) {{
     }}
   }});
 }}
+frames().forEach(f => f.addEventListener('load', () => refresh(true)));
 setInterval(() => refresh(false), 1500); refresh(true); fit(); addEventListener('resize', fit);
 const e = document.getElementById('errors'); if (e) e.focus();
 </script></body></html>"""
