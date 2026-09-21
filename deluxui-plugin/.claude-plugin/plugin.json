@@ -1,7 +1,7 @@
 {
   "name": "deluxui",
-  "version": "2.2.0",
-  "description": "UX engineering with a verdict: a 190-rule interface contract, a static analyzer, a browser tier that forces the offline/empty/failed states nobody tests, and a release gate where NOT_RUN never counts as a pass.",
+  "version": "2.3.0",
+  "description": "UX engineering with a verdict: a 228-rule interface contract, 182 static checks, a browser tier that forces the offline/empty/failed states nobody tests, 38 iOS and Android rules with Simulator and emulator evidence, generators for the palette and type scale it then checks, and a release gate where NOT_RUN never counts as a pass.",
   "author": {
     "name": "kryptobaseddev",
     "url": "https://github.com/kryptobaseddev"
@@ -14,6 +14,12 @@
     "wcag",
     "design-system",
     "frontend",
-    "audit"
+    "audit",
+    "ios",
+    "android",
+    "swiftui",
+    "jetpack-compose",
+    "react-native",
+    "design"
   ]
 }

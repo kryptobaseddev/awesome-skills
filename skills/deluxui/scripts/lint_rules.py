@@ -21,6 +21,12 @@ HERE = Path(__file__).resolve().parent
 SKILL = HERE.parent
 RULES = SKILL / "references" / "rules"
 
+# Detector IDs cited in prose. A doc that names `S-CRAFT-HALOO` reads exactly as
+# authoritative as one that names the real detector, and the reader who tries to
+# run it finds nothing. A trailing hyphen or asterisk marks a family reference
+# (`S-CRAFT-*`, `S-IOS-`), which is allowed.
+DET_RE = re.compile(r"\b((?:S|R|M|A)-[A-Z0-9]+(?:-[A-Z0-9]+)*)\b(?![-*])")
+
 RULE_RE = re.compile(r"\b((?:GOV|CTX|UX|NUM|VIS|LAY|NAV|FORM|COMP|STATE|A11Y|PERF|"
                      r"CONTENT|TRUST|AI|MEASURE|QA|IOS|AND|TEST|LAW)-\d{2,3})\b")
 
@@ -119,6 +125,19 @@ def main() -> int:
         if rid not in known:
             errors.append(f"{rid} cited in {', '.join(sorted(where))} but not in the registry")
 
+    # --- prose may not invent detector IDs either
+    cited_det = {}
+    for md in sorted(SKILL.rglob("*.md")):
+        if "docs/" in md.as_posix():
+            continue
+        for m in DET_RE.finditer(md.read_text(errors="replace")):
+            cited_det.setdefault(m.group(1), set()).add(md.relative_to(SKILL).as_posix())
+    for did, where in sorted(cited_det.items()):
+        if did not in det["detectors"]:
+            errors.append(f"{did} cited in {', '.join(sorted(where))} but no such "
+                          f"detector exists. A doc that names a detector nobody can "
+                          f"run is worse than one that names none.")
+
     # --- every check must tell the reader what to do about a hit. The fix text
     # is the user-facing explanation, so a thin one is a real defect.
     for did, chk in IMPLEMENTED.items():
@@ -174,7 +193,8 @@ def main() -> int:
           + (f" ({', '.join(law_unreachable)})" if law_unreachable else ""))
     print(f"runtime detectors declared but not yet implemented: "
           f"{len(unimplemented)} ({', '.join(unimplemented) or 'none'})")
-    print(f"distinct rule IDs cited in prose: {len(cited)}")
+    print(f"distinct rule IDs cited in prose: {len(cited)}  "
+          f"detector IDs cited: {len(cited_det)}")
 
     for w in warnings:
         print(f"  warn  {w}")

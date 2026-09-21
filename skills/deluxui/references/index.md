@@ -24,6 +24,21 @@ something specific.
 | `workflows/responsive.md` | Layout, reflow, phone ergonomics |
 | `workflows/optimize.md` | Perceived and measured performance |
 
+## Operations — the thirty named moves
+
+A workflow is the shape of a job; an operation is one move inside it. Each one
+names the detectors that judge its output.
+
+| File | What it is |
+|---|---|
+| `ops/index.md` | All thirty, grouped by what they are for |
+| `ops/routing.md` | **Read this when the request does not name an operation.** Maps what people actually say onto a move, from measured signals |
+| `ops/colorize.md`, `ops/typeset.md`, `ops/layout.md`, `ops/animate.md`, `ops/craft.md` | Making the system. The first two have generators behind them |
+| `ops/bolder.md`, `ops/quieter.md`, `ops/distill.md`, `ops/clarify.md`, `ops/delight.md`, `ops/overdrive.md`, `ops/extract.md`, `ops/adapt.md`, `ops/polish.md` | Changing what exists. `polish` is where every other one hands off |
+| `ops/shape.md`, `ops/new-work.md`, `ops/visualize.md`, `ops/document.md`, `ops/generate.md` | Deciding and originating |
+| `ops/ios.md`, `ops/android.md`, `ops/adapt-native.md`, `ops/audit-native.md` | The native platforms, detector by detector |
+| `ops/onboard.md`, `ops/live.md`, `ops/live-setup.md`, `ops/hooks.md`, `ops/doctor.md`, `ops/operate.md` | Working: setup, the iteration loop, the hook, diagnosis |
+
 ## The contract
 
 | File | What it is |
@@ -32,10 +47,10 @@ something specific.
 | `design/craft-floor.md` | Every craft number and the detector that decides it. Also defines "optical", which this skill used for a long time without saying what it meant |
 | `workflows/design.md` | Greenfield: originate a world and a contract, then build |
 | `workflows/uplift.md` | Brownfield: derive the contract from the code that is already there, then raise the floor |
-| `rules/registry.yaml` | **Source of truth.** 190 rules, 47 sources, severities, applicability, and the 20 UX laws. 19 are enforceable (LAW-17 is an alias): **14 have a live detector, 5 are manual-only, 0 unreachable** — `lint_rules.py` prints the split and errors on an unreachable law |
+| `rules/registry.yaml` | **Source of truth.** 228 rules, 49 sources, severities, applicability, and the 20 UX laws. 19 are enforceable (LAW-17 is an alias): **14 have a live detector, 5 are manual-only, 0 unreachable** — `lint_rules.py` prints the split and errors on an unreachable law |
 | `rules/detectors.yaml` | Which detector tests which rule, on which engine, with what confidence |
 | `rules/thresholds.yaml` | Every number, and which ones a project may override |
-| `rules/00-governance.md` … `12-measurement-qa.md` | The same rules as readable tables, by domain. Generated — edit the registry |
+| `rules/00-governance.md` … `14-android.md` | The same rules as readable tables, by domain. Generated — edit the registry |
 
 Rule ID prefixes: `GOV` `CTX` governance · `UX` usability · `NUM` thresholds ·
 `VIS` `LAY` visual and layout · `NAV` navigation · `FORM` forms · `COMP` components ·

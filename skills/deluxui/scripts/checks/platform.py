@@ -23,7 +23,17 @@ from pathlib import Path
 from . import check, finding
 from ._util import strip_comments
 
-NATIVE = (".swift", ".kt", ".kts", ".dart", ".tsx", ".jsx", ".ts", ".js")
+# The file kinds each family may draw a verdict from. Declared as one NATIVE set
+# for both, an Android detector pooled a .swift file, found no Toast in it, and
+# reported PASS -- the delta then showed fifteen Android rules "fixed" when the
+# only Kotlin file in the project was deleted. A detector must not be able to
+# pass on evidence from a platform it does not describe.
+#
+# Dart and the React Native extensions appear in both because a cross-platform
+# file genuinely ships to both; a Swift file never ships to Android.
+CROSS = (".dart", ".tsx", ".jsx", ".ts", ".js")
+IOS_EXTS = (".swift",) + CROSS
+AND_EXTS = (".kt", ".kts") + CROSS
 IOS_ONLY = (".swift",)
 AND_ONLY = (".kt", ".kts")
 
@@ -57,7 +67,7 @@ def dialect(f) -> str:
 
 
 # ===================================================================== iOS
-@check("S-IOS-SAFEAREA", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-SAFEAREA", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def safe_area(f, p):
     """Content under the Dynamic Island, the home indicator or a rounded corner is
     content the user cannot read or a control they cannot hit (IOS-001).
@@ -96,7 +106,7 @@ def safe_area(f, p):
     return out[:4]
 
 
-@check("S-IOS-NAVSTRUCTURE", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-NAVSTRUCTURE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def nav_structure(f, p):
     """A tab bar carries 2 to 5 top-level *sections*. One tab is not a tab bar,
     six do not fit, and a tab that performs an action rather than switching
@@ -121,7 +131,7 @@ def nav_structure(f, p):
     return out
 
 
-@check("S-IOS-EDGESWIPE", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-EDGESWIPE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def edge_swipe(f, p):
     """The left-edge back swipe is muscle memory older than most apps. Disabling
     it strands the user on a screen whose only exit is a button they have to find
@@ -157,7 +167,7 @@ _RN_FONTSIZE = re.compile(r"fontSize\s*:\s*(\d+(?:\.\d+)?)")
 _FLUTTER_FONTSIZE = re.compile(r"fontSize\s*:\s*(\d+(?:\.\d+)?)")
 
 
-@check("S-IOS-DYNAMICTYPE", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-DYNAMICTYPE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def dynamic_type(f, p):
     """A hard-coded point size does not follow the user's reading size, so the
     accessibility setting that matters most to the most people does nothing
@@ -192,7 +202,7 @@ def dynamic_type(f, p):
     return out[:5]
 
 
-@check("S-IOS-MINSIZE", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-MINSIZE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def min_text_size(f, p):
     """Below 11 pt is not a size choice; it is text the platform's own guidance
     says a reader cannot be expected to read (IOS-007)."""
@@ -212,7 +222,7 @@ def min_text_size(f, p):
     return out[:5]
 
 
-@check("S-IOS-TARGET44", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-TARGET44", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def target_44pt(f, p):
     """44 by 44 points is the tappable minimum, and it is the *tappable* area,
     not the icon inside it (NUM-006).
@@ -278,7 +288,7 @@ def semantic_color(f, p):
     return out[:5]
 
 
-@check("S-IOS-DARKMODE", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-DARKMODE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def dark_mode(f, p):
     """Forcing one appearance means the user's system setting does nothing, and
     the appearance you skipped was never designed (IOS-009)."""
@@ -296,7 +306,7 @@ def dark_mode(f, p):
     return out[:4]
 
 
-@check("S-IOS-TINT", scope="project", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-TINT", scope="project", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def single_tint(f, p):
     """One tint colour tells the user what is actionable. Three tints tell them
     nothing, because the signal is no longer a signal (IOS-010)."""
@@ -346,7 +356,7 @@ def system_materials(f, p):
     return out[:3]
 
 
-@check("S-IOS-NATIVECONTROLS", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-NATIVECONTROLS", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def native_controls(f, p):
     """Reinventing a switch is the most common native slop, and the copy is always
     worse: it loses the accessibility trait, the haptic, the animation curve and
@@ -371,7 +381,7 @@ _WEB_ICON_LIBS = re.compile(r"""from\s+["'](?:react-icons|lucide-react|@heroicon
                             r"""feather-icons|font-awesome|@fortawesome|react-feather)""")
 
 
-@check("S-IOS-SFSYMBOLS", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-SFSYMBOLS", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def sf_symbols(f, p):
     """A web icon set on iOS does not align to the text baseline, does not follow
     Dynamic Type, and has no weight to match the label beside it (IOS-013)."""
@@ -446,7 +456,7 @@ def system_transitions(f, p):
     return out[:3]
 
 
-@check("S-IOS-REDUCEMOTION", exts=NATIVE, requires=on_ios, surfaces=("native",))
+@check("S-IOS-REDUCEMOTION", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
 def reduce_motion_ios(f, p):
     """Reduce Motion exists because large parallax and slide animations make some
     people ill. An animation that never consults it does not have an accessibility
@@ -471,7 +481,7 @@ def reduce_motion_ios(f, p):
 
 
 # ================================================================= Android
-@check("S-AND-ADAPTIVENAV", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-ADAPTIVENAV", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def adaptive_nav(f, p):
     """A phone's bottom navigation bar shipped unchanged to a tablet puts the
     whole navigation an arm's length from where the hands are (AND-001)."""
@@ -496,7 +506,7 @@ def adaptive_nav(f, p):
     return out
 
 
-@check("S-AND-SYSTEMBACK", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-SYSTEMBACK", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def system_back(f, p):
     """Back is the one gesture every Android user has. A handler that swallows it
     without navigating leaves them with no way out but the app switcher
@@ -525,7 +535,7 @@ def system_back(f, p):
     return out[:4]
 
 
-@check("S-AND-INSETS", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-INSETS", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def window_insets(f, p):
     """Edge-to-edge without insets means the bottom row of content sits under the
     navigation bar and the field you are typing in sits under the keyboard
@@ -548,7 +558,7 @@ def window_insets(f, p):
     return out
 
 
-@check("S-AND-TOPBAR", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-TOPBAR", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def top_app_bar(f, p):
     """A screen inside a Scaffold with a hand-built header loses the top app bar's
     scroll behaviour, its overflow menu and its title metrics (AND-004)."""
@@ -567,7 +577,7 @@ def top_app_bar(f, p):
     return out[:3]
 
 
-@check("S-AND-TYPESCALE", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-TYPESCALE", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def type_scale(f, p):
     """Hand-picking a size per screen is how a product ends up with eleven type
     sizes and no hierarchy. The scale has roles for a reason (AND-005)."""
@@ -584,7 +594,7 @@ def type_scale(f, p):
     return out[:5]
 
 
-@check("S-AND-SYSTEMFONT", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-SYSTEMFONT", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def android_font(f, p):
     """A brand face belongs in the theme, applied through the type scale. Set per
     call site it drifts, and the roles stop being comparable (AND-006)."""
@@ -603,7 +613,7 @@ def android_font(f, p):
     return out[:4]
 
 
-@check("S-AND-SP", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-SP", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def scalable_sp(f, p):
     """Text sized in dp ignores the system font-size setting entirely. This is the
     Android equivalent of pinning point sizes, and it fails the same reader
@@ -625,7 +635,7 @@ def scalable_sp(f, p):
     return out[:5]
 
 
-@check("S-AND-ROLETOKENS", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-ROLETOKENS", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def role_tokens(f, p):
     """`Color(0xFF1A1A1A)` is a value. `MaterialTheme.colorScheme.surface` is a
     decision that resolves for the light scheme, the dark scheme and the
@@ -660,7 +670,7 @@ def role_tokens(f, p):
     return out[:5]
 
 
-@check("S-AND-DYNAMICCOLOR", scope="project", exts=NATIVE, requires=on_android,
+@check("S-AND-DYNAMICCOLOR", scope="project", exts=AND_EXTS, requires=on_android,
        surfaces=("native",))
 def dynamic_color(f, p):
     """Dynamic Color is the one thing that makes an Android app feel like it
@@ -690,7 +700,7 @@ def dynamic_color(f, p):
     return out
 
 
-@check("S-AND-DARKTHEME", scope="project", exts=NATIVE, requires=on_android,
+@check("S-AND-DARKTHEME", scope="project", exts=AND_EXTS, requires=on_android,
        surfaces=("native",))
 def dark_theme(f, p):
     """A light scheme with no dark one means the dark theme is an inversion the
@@ -717,7 +727,7 @@ def dark_theme(f, p):
     return out
 
 
-@check("S-AND-ELEVATION", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-ELEVATION", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def tonal_elevation(f, p):
     """Material conveys elevation through surface tone. An arbitrary drop shadow
     on top of that reads as two depth systems disagreeing (AND-011)."""
@@ -739,7 +749,7 @@ def tonal_elevation(f, p):
     return out[:4]
 
 
-@check("S-AND-MATERIAL", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-MATERIAL", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def material_components(f, p):
     """An iOS control on Android is the clearest possible signal that nobody
     looked at the app on this platform (AND-012)."""
@@ -759,7 +769,7 @@ def material_components(f, p):
     return out[:4]
 
 
-@check("S-AND-FAB", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-FAB", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def single_fab(f, p):
     """Two floating action buttons mean neither is the primary action (AND-013)."""
     out, t = [], _src(f)
@@ -776,7 +786,7 @@ def single_fab(f, p):
     return out[:3]
 
 
-@check("S-AND-TOAST", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-TOAST", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def snackbar_not_toast(f, p):
     """A toast cannot be acted on, cannot be dismissed, is not announced reliably,
     and on newer versions the system may not show it at all (AND-014)."""
@@ -791,7 +801,7 @@ def snackbar_not_toast(f, p):
     return out[:4]
 
 
-@check("S-AND-REDUCEMOTION", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-REDUCEMOTION", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def reduce_motion_android(f, p):
     """Android's 'Remove animations' setting is an accessibility setting, and an
     animation that never reads it ignores a person who asked (AND-015)."""
@@ -816,7 +826,7 @@ def reduce_motion_android(f, p):
     return out
 
 
-@check("S-AND-TARGET48", exts=NATIVE, requires=on_android, surfaces=("native",))
+@check("S-AND-TARGET48", exts=AND_EXTS, requires=on_android, surfaces=("native",))
 def target_48dp(f, p):
     """48 by 48 dp is the touch minimum, with 8 dp between adjacent targets
     (NUM-007)."""

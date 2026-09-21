@@ -1,6 +1,6 @@
 ---
 name: deluxui
-description: "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 166 checks bound to cited rule IDs and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'."
+description: "Engineer and verify interfaces against a 228-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 182 static checks bound to cited rule IDs, a browser tier that measures contrast, focus rings and 320px reflow and forces the states nobody tests, and 38 iOS and Android rules - behind a gate where NOT_RUN is never a pass. Generates the palette and type scale it then checks. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, SwiftUI, Compose, React Native, Flutter. Use even if the user only says 'make this look better'."
 license: MIT
 compatibility: >-
   Python 3.9+ with pyyaml for the static tier and the report. The runtime tier
@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "3.2.0"
-  last_updated: "2026-09-21 11:56:20"
+  version: "3.5.0"
+  last_updated: "2026-09-21 12:48:58"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -110,7 +110,16 @@ Match the request to a mode, then read that workflow file. Do not read all of th
 | `optimize` | It feels slow, janky, shifts around | `references/workflows/optimize.md` | runtime |
 
 When the request is ambiguous, `critique` is the safe default: it reads and
-reports without touching anything.
+reports without touching anything. When it does not name a mode at all, read
+`references/ops/routing.md` — it maps what people actually say ("make it bolder",
+"clean this up", "the design feels off") onto one of the 30 operations, and it
+decides from measured signals rather than from the wording.
+
+A mode is the shape of the whole job. An **operation** is one move inside it —
+`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty
+are indexed in `references/ops/index.md`, and each one ends by naming the
+detectors that judge its output, so it finishes in a status rather than an
+impression.
 
 ## The preserve ladder
 
@@ -196,11 +205,14 @@ Each reference is self-contained. Read the one you need.
 | The visual contract a project declares | `assets/templates/design.contract.yaml` |
 | Identity lock, preserve vs depart, variants | `references/preserve.md` |
 | The AI-tell catalogue and why each one reads as generated | `references/anti-slop.md` |
+| **The 30 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
+| Which operation, for what the user actually said | `references/ops/routing.md` |
+| iOS and Android rules, detector by detector | `references/ops/ios.md`, `references/ops/android.md` |
 | Everything in this skill, indexed | `references/index.md` |
 | Governance, priority order, exceptions | `references/rules/00-governance.md` |
 | Rule packs by domain (a11y, forms, state, layout, …) | `references/rules/` |
-| The machine registry: 190 rules, severities, sources | `references/rules/registry.yaml` |
-| The 20 UX laws, with limits and `verify:` clauses — **carried, not enforced**: no detector reads them, so cite one as reasoning, never as a result | `references/rules/registry.yaml` (`laws:`) |
+| The machine registry: 228 rules, severities, sources | `references/rules/registry.yaml` |
+| The 20 UX laws, with limits and `verify:` clauses. 19 are enforceable and `ux_report.py` rolls each one up to a status — 14 from live detectors, 5 from a human attestation, stated apart because a signature and a measurement are not the same evidence | `references/rules/registry.yaml` (`laws:`) |
 | What each detector tests and with which engine | `references/rules/detectors.yaml` |
 | Numeric thresholds, and which are overridable | `references/rules/thresholds.yaml` |
 | React, Svelte, Vue, plain CSS, 3D, video specifics | `references/stacks/` |
@@ -212,10 +224,17 @@ Each reference is self-contained. Read the one you need.
 
 | Script | Purpose |
 |---|---|
-| `scripts/ux_check.py` | **Static tier.** 125 source checks bound to rule IDs. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
+| `scripts/ux_check.py` | **Static tier.** 182 source checks bound to rule IDs, across web and native source. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
 | `scripts/ux_browser.sh` | **Runtime tier.** Drives agent-browser across your viewport matrix, measures contrast, targets, focus and vitals, and forces aborted, empty and offline states. |
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
 | `scripts/derive_contract.py` | **Brownfield's first move.** Reads the real type steps, families, radii, shadows, durations and colour roles out of an existing codebase and writes the visual contract, with the spread beside each dominant value so you can tell the scale from the drift. `--write`, `--json`. |
+| `scripts/ux_native.sh` | **Native tier.** Drives `xcrun simctl` or `adb` for light, dark and enlarged-text captures, naming the device. Where the tooling is absent it records that and the evidence rules report NOT_RUN. |
+| `scripts/ux_live.sh` | **The iteration loop.** Runs the tiers and prints the delta against the last run: regressed, stopped, fixed, still failing. A check that stopped running is never counted as a fix. |
+| `scripts/palette.py` | **Colour, generated and measured.** OKLCH roles placed against the contrast each owes, chroma tapered at the extremes. `--contract`, `--css`, `--dark`, `--check`. |
+| `scripts/typescale.py` | **Type, generated and measured.** A role ladder whose steps clear 1.25x by construction, leading tuned to the measure, tracking tuned to the size. `--contract`, `--css`, `--check`. |
+| `scripts/doctor.py` | **What can run here.** Names every tier that cannot, what it costs in rules, and how to fix it. Exit 2 when something is unavailable, so CI cannot go green on a fraction of the rules. |
+| `scripts/manual_sheet.py` | **The manual tier as questions.** Emits one specific question per manual detector and reports what is unanswered. `--write`, `--check`, `--detector`. |
+| `scripts/browsertest.py` | **Integration test for the runtime tier.** Serves a fixture with known defects and requires each probe's numbers to match the pixels the browser painted. |
 | `scripts/uxconfig.py` | The only reader of `.deluxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
 | `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
