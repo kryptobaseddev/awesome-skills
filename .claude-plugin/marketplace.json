@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/marketplace.json",
+  "name": "awesome-skills",
+  "owner": {
+    "name": "kryptobaseddev",
+    "url": "https://github.com/kryptobaseddev/awesome-skills"
+  },
+  "description": "Agent Skills by @kryptobaseddev, plus the plugins that wrap them. Skills install on their own by copy or symlink; a plugin is only needed where a skill cannot reach — slash commands, subagents, and hooks.",
+  "plugins": [
+    {
+      "name": "deluxui",
+      "source": "./deluxui-plugin",
+      "description": "UX engineering with a verdict. Adds /ux-audit, /ux-harden, /ux-critique, /ux-create and /ux-init, an independent ux-reviewer subagent, and a PostToolUse hook that checks every UI file as it is written. Wraps the deluxui skill (190-rule contract, 163 checks, release gate)."
+    }
+  ]
+}
