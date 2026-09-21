@@ -14,8 +14,13 @@ is preserve, because the cost of being wrong is not symmetric.
 agent-browser open <url> && agent-browser screenshot .deluxui/reports/baseline.png
 ```
 
-Without this, `R-BASELINE-DIFF` reports NOT_RUN and you have no way to show that the
-parts you were not asked to change did not move.
+Then pass it back on the way out — `ux_browser.sh <url> --baseline .deluxui/reports/baseline.png`
+— and `R-BASELINE-DIFF` reports the actual pixel difference. Without a baseline it reports
+NOT_RUN and names the path it looked for, and you have no way to show that the parts you
+were not asked to change did not move.
+
+The detector reports the number and does not set a threshold. How much movement was the
+change you asked for is your call; what it removes is the option of not knowing.
 
 ## 3. Find out what is actually wrong
 
@@ -24,9 +29,17 @@ python3 scripts/ux_check.py <path> --json > .deluxui/reports/static.json
 bash scripts/ux_browser.sh <url> --routes <routes> --api '**/api/**'
 ```
 
-Work from findings, not impressions. "The spacing feels off" is usually one of:
-inconsistent scale steps, groups spaced the same as their contents (LAW-04), or
-optical misalignment. The checks distinguish them; squinting does not.
+Work from findings, not impressions. "The spacing feels off" is usually one of three
+things, and they are not equally checkable — which is worth knowing before you go looking:
+
+| Diagnosis | What can decide it |
+|---|---|
+| Values off the spacing scale | `S-TOKEN-ARBITRARY` measures it. Arbitrary escapes per file are the one design-coherence signal that separates disciplined codebases from sprawling ones by roughly 10x. |
+| Groups spaced the same as their contents | **No detector.** The proximity law (LAW-04) describes it, and nothing reads the laws yet. Look at it at 320px and at your widest viewport, where the failure is most visible. |
+| Optical misalignment | **No detector, and no definition in this skill.** An icon or a round shape can sit on the geometric centre and read as off-centre. Only a person looking can call it. |
+
+So: one of the three is measured and two are yours. Squinting is the instrument for the
+second and third — say which one you used, and do not report the other two as checked.
 
 ## 4. Change the smallest thing that fixes it
 

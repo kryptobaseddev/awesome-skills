@@ -12,7 +12,12 @@ meta:
     rules: 190
     tests: 20
     laws: 20
-    enforceable_laws: 19
+    # 19 of the 20 laws are marked enforceable (LAW-17 is an alias of LAW-16).
+    # "enforceable" means the law is shaped as a contract with verify: clauses --
+    # NOT that anything enforces it. No detector reads this block today; see
+    # lint_rules.py, which uses these IDs only to spell-check prose citations.
+    laws_shaped_as_contracts: 19
+    laws_with_a_detector: 0
     sources: 47
   status_vocabulary:
   - PASS

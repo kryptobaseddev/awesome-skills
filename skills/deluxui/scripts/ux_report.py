@@ -267,6 +267,59 @@ def _override(mode, label, criterion):
     return fn
 
 
+def _baseline(raws, out):
+    """GOV-004 -- did anything move that nobody asked to move?
+
+    The driver already screenshots every route at every viewport; until now it
+    never called `agent-browser diff screenshot --baseline`, so this detector was
+    hardcoded NOT_RUN and its reason blamed the user for not recording a baseline
+    the code could not have read. The output shape of the diff is not documented,
+    so read it defensively: any of a percentage, a changed-pixel count or a plain
+    "identical" verdict is enough to decide, and anything unrecognised reports
+    NOT_RUN rather than guessing at a pass."""
+    seen = False
+    for name, d in raws.items():
+        if not name.endswith("__baseline.json"):
+            continue
+        seen = True
+        if d.get("absent"):
+            return ("NOT_RUN", f"No baseline image at {d.get('looked_for')}. Capture one "
+                               "before the change and pass --baseline, or this cannot be "
+                               "measured.", [])
+        if d.get("error"):
+            return ("NOT_RUN", f"The baseline diff did not run: {d['error']}.", [])
+        pct = None
+        for k in ("diffPercent", "diff_percent", "percentChanged", "percent",
+                  "differencePercent"):
+            if isinstance(d.get(k), (int, float)):
+                pct = float(d[k])
+                break
+        px = None
+        for k in ("diffPixels", "diff_pixels", "changedPixels", "pixelsChanged"):
+            if isinstance(d.get(k), (int, float)):
+                px = int(d[k])
+                break
+        same = d.get("identical")
+        if same is True or pct == 0 or px == 0:
+            return ("PASS", "The render is pixel-identical to the baseline, so nothing "
+                            "outside the change moved.", [])
+        if pct is not None:
+            # A threshold here would be a taste call dressed as a measurement. The
+            # number is the evidence; a human decides whether that much movement was
+            # the change they asked for.
+            return ("FAIL", f"{pct:.2f}% of pixels differ from the baseline. Confirm "
+                            f"every difference is one you intended.",
+                    [f"pixel difference {pct:.2f}%"])
+        if px is not None:
+            return ("FAIL", f"{px} pixels differ from the baseline. Confirm every "
+                            f"difference is one you intended.", [f"{px} pixels changed"])
+        return ("NOT_RUN", "The baseline diff ran but returned nothing this reader "
+                           "recognises, so no verdict is claimed.", [])
+    if not seen:
+        return ("NOT_RUN", "The driver produced no baseline comparison.", [])
+    return ("NOT_RUN", "No baseline comparison was interpretable.", [])
+
+
 # Declared runtime detectors. None means "declared but not implemented yet" --
 # it reports NOT_RUN with that reason rather than quietly vanishing.
 RUNTIME = {
@@ -290,7 +343,7 @@ RUNTIME = {
     "R-TEXTSPACING": _override("spacing", "The text-spacing override",
                                "NUM-010 / SC 1.4.12"),
     "R-PIXEL-CONTRAST": None,
-    "R-BASELINE-DIFF": None,
+    "R-BASELINE-DIFF": _baseline,
     "R-FORCED-COLORS": None,
 }
 UNIMPLEMENTED = {
@@ -299,7 +352,6 @@ UNIMPLEMENTED = {
              "to add rule-level coverage this probe set does not reproduce.",
     "R-PIXEL-CONTRAST": "Pixel sampling is not implemented. Text over images is "
                         "reported by R-CONTRAST as unjudged rather than guessed.",
-    "R-BASELINE-DIFF": "No baseline screenshot was recorded before the change.",
     "R-FORCED-COLORS": "Forced-colors emulation is not available through the driver yet.",
     "R-CONSOLE": "",
 }

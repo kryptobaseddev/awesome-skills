@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "run_id": "2a21f4d3",
+  "ts": "20260921T174903Z",
+  "title": "deluxui: designer or auditor?",
+  "description": "Whether the deluxui skill+plugin handles all UX/UI functionality across design, testing and validation, versus impeccable; and the minimum additions to make it a design director without bloating it with unfalsifiable taste prose.",
+  "created_at": "2026-09-21T17:49:03+00:00",
+  "question": "Is deluxui a world-class UX engineering and QA system but not a design director, and what is the minimum highest-leverage set of additions that would make it function as a seasoned executive UX/UI designer without destroying its NOT_RUN evidence discipline?",
+  "scenario": "baseline",
+  "subagent_mode": false
+}

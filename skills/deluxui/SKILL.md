@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "2.2.0"
-  last_updated: "2026-09-21 10:41:05"
+  version: "2.3.0"
+  last_updated: "2026-09-21 11:04:31"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -66,6 +66,7 @@ Read this table first — each row is a failure that reaches real users.
 | **The static tier is heuristic.** | It scans source text and is wrong sometimes. Every finding carries a confidence. The runtime tier is what settles arguments. |
 | **Creating is easier than reading.** | This is why agents turn mature apps into a collage of unrelated screens. The preserve ladder exists to make that cost visible. |
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
+| **The 20 UX laws are reasoning, not verdicts.** | They carry `MUST`/`MUST_NOT`/`verify:` clauses and look like enforceable contracts, and nothing reads them. Roughly 14 of the 19 have a `verify:` clause an existing detector already covers — but the rule ID is what the gate adjudicates, so cite `NUM-004`, not `LAW-02`, when you mean a result. |
 | **169 of the 190 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The report audits itself.** | `GOV-005/006/008`, the `QA-*` and several `MEASURE-*` rules are about the report, not the product — no scan of an app can tell you whether the agent describing it invented a result. `ux_report.py` checks that every PASS names a detector that ran, that unknowns are declared, and that project config has not been used to weaken a standard. |
 
@@ -193,6 +194,7 @@ Each reference is self-contained. Read the one you need.
 | Governance, priority order, exceptions | `references/rules/00-governance.md` |
 | Rule packs by domain (a11y, forms, state, layout, …) | `references/rules/` |
 | The machine registry: 190 rules, severities, sources | `references/rules/registry.yaml` |
+| The 20 UX laws, with limits and `verify:` clauses — **carried, not enforced**: no detector reads them, so cite one as reasoning, never as a result | `references/rules/registry.yaml` (`laws:`) |
 | What each detector tests and with which engine | `references/rules/detectors.yaml` |
 | Numeric thresholds, and which are overridable | `references/rules/thresholds.yaml` |
 | React, Svelte, Vue, plain CSS, 3D, video specifics | `references/stacks/` |

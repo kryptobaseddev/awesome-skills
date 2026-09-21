@@ -28,7 +28,7 @@ something specific.
 
 | File | What it is |
 |---|---|
-| `rules/registry.yaml` | **Source of truth.** 190 rules, 19 enforceable laws, 47 sources, severities, applicability |
+| `rules/registry.yaml` | **Source of truth.** 190 rules, 47 sources, severities, applicability. Also carries the 20 UX laws, 19 of them with `verify:` clauses — **no detector reads them yet**, so a law citation is not an adjudicated result |
 | `rules/detectors.yaml` | Which detector tests which rule, on which engine, with what confidence |
 | `rules/thresholds.yaml` | Every number, and which ones a project may override |
 | `rules/00-governance.md` … `12-measurement-qa.md` | The same rules as readable tables, by domain. Generated — edit the registry |

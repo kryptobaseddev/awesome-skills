@@ -3,7 +3,7 @@
 #
 #   ux_browser.sh [base-url] [--routes /,/settings] [--api '**/api/**']
 #                             [--out DIR] [--viewports 320,390,768,1024,1440]
-#                             [--config PATH]
+#                             [--config PATH] [--baseline PNG]
 #
 # Every value defaults to app.* in .deluxui/ux.config.yaml; a flag overrides the
 # file. The config used to be ignored entirely here, so `api_pattern` in it did
@@ -16,6 +16,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROBES="$HERE/checks/browser"
 BASE=""; ROUTES=""; API=""; OUT=".deluxui/reports/runtime"; VIEWPORTS=""; CONFIG=""
+BASELINE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -24,6 +25,7 @@ while [ $# -gt 0 ]; do
     --out) OUT="$2"; shift 2;;
     --viewports) VIEWPORTS="$2"; shift 2;;
     --config) CONFIG="$2"; shift 2;;
+    --baseline) BASELINE="$2"; shift 2;;
     -h|--help) sed -n '2,16p' "$0"; exit 0;;
     *) BASE="$1"; shift;;
   esac
@@ -110,6 +112,22 @@ for route in "${ROUTE_LIST[@]}"; do
   probe focus    "$OUT/raw/${R}__focus.json"
   probe measure  "$OUT/raw/${R}__measure.json"
   probe obstruction "$OUT/raw/${R}__obstruction.json"
+
+  # --- GOV-004: prove the parts nobody asked you to change did not move.
+  # The corpus was already being written and then thrown away: agent-browser has
+  # `diff screenshot --baseline`, R-BASELINE-DIFF was declared, and nothing ever
+  # called it -- so the instruction to capture a baseline was futile and the
+  # detector's reason blamed the user for the code's omission.
+  BL="$BASELINE"
+  [ -n "$BL" ] || BL="$(dirname "$OUT")/baseline_${R}_${LAST_VP}.png"
+  [ -n "$BASELINE" ] || [ -f "$BL" ] || BL="$(dirname "$OUT")/baseline.png"
+  if [ -f "$BL" ]; then
+    ab diff screenshot --baseline "$BL" > "$OUT/raw/${R}__baseline.json" 2>/dev/null \
+      || echo '{"probe":"baseline","error":"diff failed"}' > "$OUT/raw/${R}__baseline.json"
+  else
+    printf '{"probe":"baseline","absent":true,"looked_for":"%s"}\n' "$BL" \
+      > "$OUT/raw/${R}__baseline.json"
+  fi
   ab snapshot    > "$OUT/raw/${R}__a11ytree.txt" 2>/dev/null
   ab vitals --json > "$OUT/raw/${R}__vitals.json" 2>/dev/null
   ab console     > "$OUT/raw/${R}__console.txt" 2>/dev/null
