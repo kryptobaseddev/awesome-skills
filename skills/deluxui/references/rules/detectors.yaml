@@ -31,6 +31,11 @@ engines:
     description: Decoded pixels from a screenshot. Ground truth when CSS cannot resolve a colour.
     available_when: agent-browser is installed and a URL is reachable.
     confidence_ceiling: high
+  report:
+    tier: report
+    description: Checks the produced report rather than the product under test.
+    available_when: A merged report exists (scripts/ux_report.py --merge).
+    confidence_ceiling: high
   manual:
     tier: manual
     description: A human did it and said so. Nothing else counts.
@@ -101,6 +106,28 @@ detectors:
   S-VIDEO-LEGIBILITY: {engine: source, rules: [NUM-015, CONTENT-011], confidence: low,
               not_run_when: "No Remotion composition detected."}
 
+  # --- P0 safety, privacy and credentials (scripts/checks/safety.py) ---
+  S-PRIVACY-URL: {engine: source, rules: [NAV-009], confidence: high}
+  S-SECRET-LOG: {engine: source, rules: [TRUST-005, FORM-012], confidence: high}
+  S-PASSWORD-HANDLING: {engine: element, rules: [FORM-012], confidence: high}
+  S-PERM-ONMOUNT: {engine: source, rules: [TRUST-003], confidence: medium}
+  S-DARK-PATTERN: {engine: element, rules: [TRUST-002], confidence: medium}
+  S-FAKE-STATS: {engine: source, rules: [CONTENT-010], confidence: medium}
+  S-STATE-PREMATURE: {engine: source, rules: [STATE-002], confidence: medium}
+  S-DRAFT-BOUNDARY: {engine: source, rules: [STATE-009], confidence: medium}
+  S-CONFLICT-OVERWRITE: {engine: source, rules: [STATE-010], confidence: low}
+  S-RETRY-SAFETY: {engine: source, rules: [STATE-011, NUM-020], confidence: low}
+
+  # --- P0 commitment, authorization and generated output (checks/commitment.py) ---
+  S-COMMIT-DISCLOSURE: {engine: element, rules: [TRUST-001, FORM-014], confidence: medium}
+  S-COMMIT-REVIEW: {engine: element, rules: [FORM-013], confidence: medium}
+  S-SERVER-VALIDATION: {engine: source, rules: [FORM-009, TRUST-004], confidence: medium,
+                        not_run_when: "No server mutation handler found in scope."}
+  S-AUTHZ-UI-ONLY: {engine: source, rules: [TRUST-004], confidence: low}
+  S-ACCOUNT-CONTEXT: {engine: element, rules: [TRUST-008], confidence: low}
+  S-AI-PROVENANCE: {engine: source, rules: [AI-001, AI-003], confidence: medium,
+                    not_run_when: "No model SDK in the project dependencies."}
+
   # Runtime tier -- scripts/ux_browser.sh
   R-AXE:             {engine: computed, rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011,
                                                 NUM-001, NUM-002, NUM-003], confidence: high}
@@ -133,6 +160,15 @@ detectors:
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
   R-STATE-SLOW:      {engine: runtime_state, rules: [NUM-013, NUM-014, STATE-006], confidence: high,
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+
+  # --- Report self-audit (scripts/ux_report.py). These check THIS DOCUMENT,
+  # not the product. GOV-005/006/008 are properties of the agent's honesty, and
+  # no scan of someone's app can establish them -- but whether every PASS here
+  # traces to a detector that ran, whether unknowns were declared, and whether
+  # project config was used to silence a standard all can be.
+  A-EVIDENCE-BACKED: {engine: report, rules: [GOV-006], confidence: high}
+  A-UNKNOWN-DECLARED: {engine: report, rules: [GOV-005], confidence: high}
+  A-CONFIG-AUTHORITY: {engine: report, rules: [GOV-008], confidence: high}
 
   # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
   M-SCREENREADER:    {engine: manual, rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]}

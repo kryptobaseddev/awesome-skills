@@ -61,6 +61,16 @@ def read(path: Path) -> str:
         return ""
 
 
+_COMMENT = re.compile(r"/\*.*?\*/|(?<![:\\])//[^\n]*", re.S)
+
+
+def strip_comments(text: str) -> str:
+    """Prose in a comment is not code. Matching `generates` in a docblock, or a
+    banned phrase in a TODO, produces findings nobody can act on -- replace each
+    comment with blanks so line numbers still line up."""
+    return _COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
 def is_generated(path: Path, text: str) -> bool:
     """Never report on, or propose edits to, a file the build owns."""
     head = text[:300]

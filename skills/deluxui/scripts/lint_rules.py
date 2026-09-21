@@ -70,6 +70,16 @@ def main() -> int:
     for did in sorted(set(ux_report.RUNTIME) - declared_runtime):
         errors.append(f"{did} is handled in ux_report but not declared in detectors.yaml")
 
+    # the report tier must be produced by the self-audit, or it is a claim with
+    # nothing behind it -- exactly what A-EVIDENCE-BACKED exists to catch
+    declared_report = {k for k, v in det["detectors"].items()
+                       if det["engines"][v["engine"]]["tier"] == "report"}
+    audit_src = (HERE / "ux_report.py").read_text()
+    for did in sorted(declared_report):
+        if f'"{did}"' not in audit_src:
+            errors.append(f"{did} is declared as a report check but ux_report.py "
+                          "never emits it")
+
     unimplemented = [k for k, v in ux_report.RUNTIME.items()
                      if v is None and k != "R-CONSOLE"]
     for did in unimplemented:
@@ -100,8 +110,8 @@ def main() -> int:
     print(f"rules {len(rule_ids)}  laws {len(law_ids)}  tests {len(test_ids)}  "
           f"sources {len(sources)}")
     print(f"detectors {len(det['detectors'])}  static {len(declared_static)}  "
-          f"runtime {len(declared_runtime)}  manual "
-          f"{len(det['detectors']) - len(declared_static) - len(declared_runtime)}")
+          f"runtime {len(declared_runtime)}  report {len(declared_report)}  manual "
+          f"{len(det['detectors']) - len(declared_static) - len(declared_runtime) - len(declared_report)}")
     print(f"rules with a detector {len(covered)}  without {len(rule_ids - covered)}")
     print(f"runtime detectors declared but not yet implemented: "
           f"{len(unimplemented)} ({', '.join(unimplemented) or 'none'})")

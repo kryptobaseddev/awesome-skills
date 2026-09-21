@@ -1,1 +1,1 @@
-{"name":"deluxui-fixture","dependencies":{"react":"19.0.0","tailwindcss":"4.1.0","@radix-ui/react-dialog":"1.1.0","three":"0.170.0","@react-three/fiber":"9.0.0"}}
+{"name": "deluxui-fixture", "dependencies": {"react": "19.0.0", "tailwindcss": "4.1.0", "@radix-ui/react-dialog": "1.1.0", "three": "0.170.0", "@react-three/fiber": "9.0.0", "ai": "4.0.0"}}

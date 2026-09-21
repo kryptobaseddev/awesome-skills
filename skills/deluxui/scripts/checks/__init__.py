@@ -71,4 +71,5 @@ def finding(detector, f, line, snippet, fix, confidence="medium"):
 
 
 # Importing the modules is what populates ALL.
-from . import a11y, forms, states, responsive, visual, content, designsystem, ecosystem  # noqa: E402,F401
+from . import (a11y, forms, states, responsive, visual, content, designsystem,  # noqa: E402,F401
+               ecosystem, safety, commitment)  # noqa: E402,F401

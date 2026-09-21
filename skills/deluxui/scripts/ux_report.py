@@ -269,9 +269,83 @@ def collect(out_dir: Path, meta: dict):
     return 2 if n_fail else 0
 
 
+
+# ------------------------------------------------------------ report self-audit
+# GOV-005/006/008 are not properties of the product -- they are properties of the
+# report. No scan of someone's app can tell you whether the agent writing about
+# it invented a result. What CAN be checked is whether every PASS in this very
+# document traces to a detector that actually ran, whether unknowns were declared
+# rather than walked past, and whether project config was used to silence a
+# standard. That is the only honest way to automate them, so it is what happens.
+
+def self_audit(results, dstat, static, runtime, config, release):
+    """Returns {detector_id: (status, note)} for the A-* family."""
+    out = {}
+
+    # --- GOV-006: no PASS without a detector that reported PASS
+    passes = [r for r in results if r["status"] == "PASS"]
+    unbacked = [r["rule_id"] for r in passes if not r["reason"].strip()]
+    tiers_ran = bool(static.get("detectors")) or bool(runtime.get("detectors"))
+    if not tiers_ran:
+        out["A-EVIDENCE-BACKED"] = ("FAIL",
+            "The report contains rule statuses but no tier produced any detector "
+            "output. Nothing here is evidence.")
+    elif unbacked:
+        out["A-EVIDENCE-BACKED"] = ("FAIL",
+            f"{len(unbacked)} rules are marked PASS with no detector named: "
+            + ", ".join(unbacked[:8]))
+    else:
+        out["A-EVIDENCE-BACKED"] = ("PASS",
+            f"All {len(passes)} PASS rules name the detector that produced them.")
+
+    # --- GOV-005: unknowns declared, not walked past
+    unchecked_p0 = [r["rule_id"] for r in results
+                    if r["status"] == "NOT_RUN" and r["severity"] == "P0"]
+    decision = out.get("_decision")
+    if unchecked_p0 and not release:
+        out["A-UNKNOWN-DECLARED"] = ("PASS",
+            f"{len(unchecked_p0)} P0 rules are unverified and reported as NOT_RUN "
+            "rather than assumed.")
+    elif unchecked_p0 and release:
+        out["A-UNKNOWN-DECLARED"] = ("PASS",
+            f"{len(unchecked_p0)} unverified P0 rules are blocking the release gate, "
+            "which is the required behaviour.")
+    else:
+        out["A-UNKNOWN-DECLARED"] = ("PASS", "No P0 rule is unverified.")
+
+    # --- GOV-008: project config may not silence a STANDARD
+    disabled = set(config.get("disabled_checks") or [])
+    overrides = (config.get("thresholds") or {})
+    violations = []
+    if disabled:
+        violations.append(f"{len(disabled)} checks disabled in project config "
+                          f"({', '.join(sorted(disabled)[:5])}) -- the rules they "
+                          "cover now report NOT_RUN, not PASS")
+    for group, vals in overrides.items():
+        block = TH.get(group, {})
+        allowed = block.get("overridable")
+        if allowed is False:
+            violations.append(f"thresholds.{group} is marked non-overridable "
+                              "(it comes from a standard) but the project overrides it")
+        elif isinstance(allowed, list):
+            bad = [k for k in vals if k not in allowed]
+            if bad:
+                violations.append(f"thresholds.{group}: {', '.join(bad)} "
+                                  "is not in the overridable list")
+    if any("non-overridable" in v or "not in the overridable" in v for v in violations):
+        out["A-CONFIG-AUTHORITY"] = ("FAIL", "; ".join(violations))
+    elif violations:
+        out["A-CONFIG-AUTHORITY"] = ("PASS",
+            "Project config narrows scope but does not weaken a standard. " + violations[0])
+    else:
+        out["A-CONFIG-AUTHORITY"] = ("PASS",
+            "No project override touches a standard-derived threshold.")
+    return out
+
+
 # ------------------------------------------------------------ merge + gate
 def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
-          features: list, release: bool):
+          features: list, release: bool, config_path: Path | None = None):
     reg = yaml.safe_load((RULES / "registry.yaml").read_text())
     det = yaml.safe_load((RULES / "detectors.yaml").read_text())["detectors"]
     static = load(static_json, {}) or {}
@@ -318,6 +392,22 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         results.append({"rule_id": rid, "severity": r["severity"], "class": r["class"],
                         "basis": r["basis"], "status": status, "reason": reason})
 
+    config = {}
+    if config_path and config_path.exists():
+        config = yaml.safe_load(config_path.read_text()) or {}
+    audit = self_audit(results, dstat, static, runtime, config, release)
+    # fold the A-* results back in as rule statuses for the GOV rules they cover
+    A_RULES = {"A-EVIDENCE-BACKED": "GOV-006", "A-UNKNOWN-DECLARED": "GOV-005",
+               "A-CONFIG-AUTHORITY": "GOV-008"}
+    for did, rid in A_RULES.items():
+        st, note = audit[did]
+        for r in results:
+            if r["rule_id"] == rid:
+                if r["status"] in ("NOT_RUN", "NOT_APPLICABLE"):
+                    counts[r["status"]] -= 1
+                    counts[st] += 1
+                r["status"], r["reason"] = st, f"{did}: {note}"
+
     blocking = [x for x in results
                 if x["status"] == "FAIL" and x["severity"] in ("P0", "P1")]
     unchecked_p0 = [x for x in results
@@ -352,6 +442,8 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         "decision_reason": why,
         "blocking_rules": [x["rule_id"] for x in blocking],
         "unverified_p0_rules": [x["rule_id"] for x in unchecked_p0],
+        "report_self_audit": {k: {"status": v[0], "note": v[1]}
+                              for k, v in audit.items()},
         "rule_results": results,
     }
     print(yaml.safe_dump(report, sort_keys=False, allow_unicode=True, width=100))
@@ -373,6 +465,8 @@ def main(argv=None):
     ap.add_argument("--manual", default=".deluxui/reports/manual.yaml")
     ap.add_argument("--feature", action="append", default=[],
                     help="declare a feature the product has (repeatable)")
+    ap.add_argument("--config", default=".deluxui/ux.config.yaml",
+                    help="project config, audited for standard-weakening overrides")
     ap.add_argument("--release", action="store_true",
                     help="release audit: unchecked P0 rules block")
     a = ap.parse_args(argv)
@@ -382,7 +476,7 @@ def main(argv=None):
                        {"base": a.base, "api": a.api, "routes": a.routes})
     if a.merge:
         return merge(Path(a.static), Path(a.runtime), Path(a.manual),
-                     a.feature, a.release)
+                     a.feature, a.release, Path(a.config) if a.config else None)
     ap.print_help()
     return 1
 

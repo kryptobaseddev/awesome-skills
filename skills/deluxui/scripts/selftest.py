@@ -22,6 +22,10 @@ EXPECT = [
     "S-SLOP-EMOJI", "S-SLOP-COPY", "S-TOKEN-HEX", "S-TOKEN-ARBITRARY",
     "S-DS-NEWDEP", "S-CONTENT-ERRORTEXT", "S-PERF-IMGDIM",
     "S-CANVAS-A11Y", "S-3D-PERF", "S-MEDIA-CAPTIONS",
+    # P0 family
+    "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
+    "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
+    "S-RETRY-SAFETY", "S-COMMIT-DISCLOSURE", "S-COMMIT-REVIEW", "S-AI-PROVENANCE",
 ]
 
 
@@ -30,6 +34,9 @@ def run(tmp: Path, which: str) -> set[str]:
         shutil.copy(FIX / name, tmp / name)
     for suf in (".tsx", ".css"):
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
+    p0 = FIX / f"{which}-p0.tsx"
+    if p0.exists():
+        shutil.copy(p0, tmp / "checkout.tsx")
     out = subprocess.run([sys.executable, str(HERE / "ux_check.py"), str(tmp), "--json"],
                          capture_output=True, text=True)
     data = json.loads(out.stdout)
