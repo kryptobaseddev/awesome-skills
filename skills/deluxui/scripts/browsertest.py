@@ -17,7 +17,7 @@ Exit 0 when every assertion holds, 1 when the environment is missing (reported,
 not passed), 2 when a probe disagrees with the page.
 """
 from __future__ import annotations
-import argparse, json, re, shutil, subprocess, sys, time, urllib.request
+import argparse, json, re, shutil, subprocess, sys, tempfile, time, urllib.request
 from pathlib import Path
 
 sys.dont_write_bytecode = True
@@ -106,9 +106,15 @@ def main(argv=None) -> int:
         return 1
 
     url = f"http://127.0.0.1:{a.port}/"
-    srv = subprocess.Popen([sys.executable, "-m", "http.server", str(a.port),
-                            "--bind", "127.0.0.1"], cwd=str(FIXTURE),
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # The fixture's OWN server, not http.server: `/slow-data.json` is synthesised
+    # with a deliberate delay. Network throttling does not reliably apply to
+    # localhost, so without a real delay R-STATE-SLOW has no waiting state to
+    # observe. This started as http.server, which 404s that path -- so the slow
+    # assertions were measuring a missing file and reporting "too fast to judge".
+    srv_log = Path(tempfile.gettempdir()) / f"deluxui-fixture-server-{a.port}.log"
+    _log = srv_log.open("wb")
+    srv = subprocess.Popen([sys.executable, str(FIXTURE / "serve.py"), str(a.port)],
+                           stdout=_log, stderr=_log)
     try:
         for _ in range(50):
             try:
@@ -206,7 +212,6 @@ def main(argv=None) -> int:
             # A temp dir, not the skill tree. A plugin install copies the working
             # tree verbatim, so a stray artifact here ships to the consumer -- the
             # same reason bytecode is guarded against in selftest.py.
-            import tempfile
             shot = Path(tempfile.gettempdir()) / "deluxui-fixture-fullpage.png"
             ab("screenshot", "--full", str(shot))
         import importlib
@@ -262,6 +267,112 @@ def main(argv=None) -> int:
             if body in ("{}", "null", "[]"):
                 fails.append(f"probe {name} returned an empty result on a page built "
                              f"to trip it")
+
+        # ------------------------------------ R-FORCED-COLORS, R-AXE, R-STATE-SLOW
+        # Three detectors that were declared unimplemented for a long time, each
+        # for a reason that turned out to be about the driver rather than the
+        # browser. Each gets a known-positive and a known-negative here so none of
+        # them can quietly regress to "not implemented" again.
+        import subprocess as _sp
+        w("\nR-FORCED-COLORS -- what the page loses when the OS takes the palette\n")
+        fc_out = Path(tempfile.mkdtemp(prefix="deluxui-fc-"))
+        _sp.run([sys.executable, str(HERE / "ux_forcedcolors.py"),
+                 "--out", str(fc_out), "--route", "/"], capture_output=True, text=True)
+        fcf = fc_out / "raw" / "root__forcedcolors.json"
+        fc = json.loads(fcf.read_text()) if fcf.exists() else {}
+        if not fc.get("emulated"):
+            fails.append(f"forced-colors was not emulated: {fc.get('reason', 'no reason')}")
+            w(f"  NOT EMULATED  {str(fc.get('reason', ''))[:70]}\n")
+        else:
+            kinds = {}
+            labels = {}
+            for f in (fc.get("findings") or []):
+                kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
+                labels.setdefault(f["kind"], []).append(f.get("label", ""))
+            w(f"  emulated, {fc.get('paired')} paired elements, findings {kinds}\n")
+            fl = " ".join(labels.get("focus-lost", []))
+            if "box-shadow" not in fl:
+                fails.append("the box-shadow-only focus ring was not reported as lost in "
+                             "forced-colors; that is the most common real instance and the "
+                             "fixture has one on purpose")
+            if "a real outline" in fl:
+                fails.append("the outline-based focus ring was reported as lost, but "
+                             "outline is preserved in forced-colors -- that is a false "
+                             "positive")
+            bl = " ".join(labels.get("boundary-lost", []))
+            if "delimited by its backgroun" not in bl:
+                fails.append("the background-only panel was not reported as losing its "
+                             "boundary")
+            if "has a real border as w" in bl:
+                fails.append("the bordered panel was reported as losing its boundary, but "
+                             "border-color is forced and survives -- false positive")
+            if any("Amber 800" in v or "Near-white on blue" in v
+                   for vs in labels.values() for v in vs):
+                fails.append("a tinted paragraph was reported as losing a boundary; its "
+                             "text survives the mode, so that is the false-positive class "
+                             "the region/text split exists to remove")
+
+        w("\nR-AXE -- axe-core over the live page\n")
+        ax_out = Path(tempfile.mkdtemp(prefix="deluxui-axe-"))
+        _sp.run([sys.executable, str(HERE / "ux_axe.py"),
+                 "--out", str(ax_out), "--route", "/"], capture_output=True, text=True)
+        axf = ax_out / "raw" / "root__axe.json"
+        ax = json.loads(axf.read_text()) if axf.exists() else {}
+        if not ax.get("ran"):
+            notes.append(f"axe-core could not be obtained here ({ax.get('reason', '')[:80]}), "
+                         f"so its assertions were skipped rather than passed")
+            w(f"  NOT RUN  {str(ax.get('reason', ''))[:70]}\n")
+        else:
+            ids = [v.get("id") for v in (ax.get("violations") or [])]
+            w(f"  axe {ax.get('axe_version')}: {len(ids)} violation(s) {ids[:4]}, "
+              f"{ax.get('suppressed_overlap')} overlapping suppressed\n")
+            if any(i in ("color-contrast", "target-size") for i in ids):
+                fails.append("axe reported a contrast or target-size violation; those are "
+                             "measured by R-CONTRAST and R-TARGET against the project's "
+                             "own thresholds and must be suppressed here")
+            if int(ax.get("passes") or 0) < 5:
+                fails.append(f"axe reported only {ax.get('passes')} passing checks, which "
+                             f"suggests it did not really run over the document")
+
+        w("\nR-STATE-SLOW -- what it says while it waits\n")
+        # The slow endpoint has to still be answering, or every verdict below is
+        # about a dead server rather than about the page. This check exists because
+        # it was not obvious which of those was happening.
+        t0 = time.time()
+        try:
+            urllib.request.urlopen(f"{url}slow-data.json", timeout=20).read()
+            delay = time.time() - t0
+            w(f"  fixture slow endpoint answered in {delay:.2f}s "
+              f"(server alive: {srv.poll() is None})\n")
+            if delay < 1.0:
+                fails.append(f"the fixture's slow endpoint answered in {delay:.2f}s; it is "
+                             f"supposed to delay, and without a delay this detector cannot "
+                             f"be tested either way")
+        except Exception as e:
+            fails.append(f"the fixture's slow endpoint is not answering ({type(e).__name__}); "
+                         f"server alive: {srv.poll() is None}; log: {srv_log}")
+            w(f"  slow endpoint DEAD: {type(e).__name__}, server alive "
+              f"{srv.poll() is None}\n")
+        for page, want in (("slow-good.html", "pass"), ("slow-bad.html", "fail")):
+            sl_out = Path(tempfile.mkdtemp(prefix="deluxui-slow-"))
+            _sp.run([sys.executable, str(HERE / "ux_slow.py"),
+                     "--url", f"{url}{page}", "--out", str(sl_out), "--route", "/" + page],
+                    capture_output=True, text=True)
+            slf = sl_out / "raw" / f"{page.replace('.', '_')}__slow.json"
+            if not slf.exists():
+                cand = list((sl_out / "raw").glob("*__slow.json"))
+                slf = cand[0] if cand else slf
+            sl = json.loads(slf.read_text()) if slf.exists() else {}
+            n = len(sl.get("findings") or [])
+            got = "fail" if n else ("pass" if sl.get("ran") else "not-run")
+            w(f"  {want:<5} {page:<16} ran={sl.get('ran')} "
+              f"inflight={(sl.get('pass1') or {}).get('inflight_samples')} "
+              f"findings={n} -> {got}\n")
+            if got != want:
+                fails.append(f"{page}: the slow-response probe came out {got}, the fixture "
+                             f"declares {want}. "
+                             + (str(sl.get('reason', ''))[:120] if not sl.get('ran') else
+                                str((sl.get('findings') or [''])[0])[:120]))
 
         w("\n" + "-" * 70 + "\n")
         for n in notes:

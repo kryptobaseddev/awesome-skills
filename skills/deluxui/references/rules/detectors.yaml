@@ -160,8 +160,19 @@ detectors:
                     not_run_when: "No model SDK in the project dependencies."}
 
   # Runtime tier -- scripts/ux_browser.sh
-  R-AXE:             {engine: computed, rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011,
-                                                NUM-001, NUM-002, NUM-003], confidence: high}
+  R-AXE:
+    engine: computed
+    rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011, A11Y-006, A11Y-014, COMP-002]
+    confidence: high
+    not_run_when: >-
+      axe-core could not be obtained -- not in the project's node_modules, not
+      cached, and the fetch failed. Install it (npm i -D axe-core) to run offline.
+    # Contrast and target-size are deliberately NOT claimed here even though axe
+    # has rules for them. scripts/ux_axe.py suppresses those violations and leaves
+    # them to R-CONTRAST, R-PIXEL-CONTRAST and R-TARGET, which measure against the
+    # project's own thresholds. Two implementations reporting the same rule
+    # disagree at the margins, and that reads as a contradiction rather than as
+    # two tools with different scopes.
   R-CONTRAST:        {engine: computed, rules: [NUM-001, NUM-002, NUM-003], confidence: high}
   # R-TARGET does the SC 2.5.8 work: the 24px floor AND the spacing exception.
   # NUM-006/007 are iOS pt and Android dp; a browser measurement cannot establish
@@ -179,7 +190,18 @@ detectors:
   R-VITALS:          {engine: computed, rules: [NUM-012, PERF-005], confidence: medium,
                       not_run_when: "Lab measurement only. A field pass needs real users.", laws: [LAW-06]}
   R-MOTION:          {engine: computed, rules: [LAY-010, A11Y-010], confidence: high}
-  R-FORCED-COLORS:   {engine: computed, rules: [VIS-008], confidence: high}
+  R-FORCED-COLORS:
+    engine: computed
+    rules: [VIS-008, VIS-004, NUM-011]
+    confidence: high
+    not_run_when: >-
+      forced-colors could not be emulated. It needs a page open in agent-browser
+      and reachable CDP -- scripts/ux_forcedcolors.py goes through
+      Emulation.setEmulatedMedia, because `set media` does not expose the feature.
+    # Two passes, diffed. A forced-colors defect is something that carried meaning
+    # before and does not after, so a single-pass inspection cannot see one. It
+    # also settles NUM-011: a focus ring built from box-shadow does not exist in
+    # this mode, which no static check can establish.
   R-PIXEL-CONTRAST:  {engine: visual,   rules: [NUM-001, NUM-003], confidence: high}
   R-BASELINE-DIFF:   {engine: visual,   rules: [GOV-004], confidence: medium,
                       not_run_when: "No baseline screenshot recorded before the change."}
@@ -192,8 +214,19 @@ detectors:
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
   R-STATE-EMPTY:     {engine: runtime_state, rules: [UX-001, COMP-017], confidence: high,
                       not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
-  R-STATE-SLOW:      {engine: runtime_state, rules: [NUM-013, NUM-014, STATE-006], confidence: high,
-                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml."}
+  R-STATE-SLOW:
+    engine: runtime_state
+    rules: [NUM-013, NUM-014, STATE-006]
+    confidence: high
+    not_run_when: >-
+      No route held a waiting state open long enough to sample. A route whose
+      content arrives before the first sample has no waiting state to judge, and
+      that is reported rather than scored -- inventing a verdict for it would be a
+      fabricated pass.
+    # Flight is defined by CONTENT, not by readyState. `complete` fires when the
+    # document and its subresources are done, and a fetch() a script started is not
+    # one of them -- so an app loading its data afterwards reads as complete for the
+    # whole time it is actually waiting, which is the case this detector is for.
 
   # --- Component and navigation contracts (scripts/checks/components.py) ---
   S-COMP-VAGUE-LABEL: {engine: element, rules: [COMP-003], confidence: medium}

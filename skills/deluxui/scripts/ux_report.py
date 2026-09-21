@@ -568,6 +568,102 @@ def _near_boundary(line: str) -> bool:
     return bool(m) and float(m.group(2)) - float(m.group(1)) <= 0.4
 
 
+def _slow(raws, out_dir):
+    """What the interface says while it is waiting (NUM-014, STATE-006)."""
+    seen, hits, ran, routes_skipped, reasons = 0, [], False, [], []
+    for name, d in raws.items():
+        if not name.endswith("__slow.json"):
+            continue
+        seen += 1
+        if not d.get("ran"):
+            (routes_skipped if "final content" in str(d.get("reason", ""))
+             else reasons).append(str(d.get("reason") or "no reason recorded"))
+            continue
+        ran = True
+        for f in (d.get("findings") or []):
+            hits.append(str(f))
+    if not seen:
+        return ("NOT_RUN", "The slow-response pass was not run.", [])
+    if not ran:
+        why = ("; ".join(routes_skipped)[:300] if routes_skipped
+               else "; ".join(reasons)[:300] or "no reason recorded")
+        return ("NOT_RUN", f"No route held a waiting state open long enough to judge: "
+                           f"{why}", [])
+    tail = (f" {len(routes_skipped)} route(s) settled too fast to judge and are not "
+            f"counted either way." if routes_skipped else "")
+    if not hits:
+        return ("PASS", "On a throttled link, every route that was caught loading said so "
+                        "while it worked and stopped saying so when it finished." + tail,
+                [])
+    return ("FAIL", f"{len(hits)} problem(s) in how the interface behaves while waiting."
+                    + tail, hits[:12])
+
+
+def _forced_colors(raws, out_dir):
+    """What the interface loses when the OS takes the palette away (VIS-008)."""
+    seen, hits, emulated, paired, reasons = 0, [], False, 0, []
+    for name, d in raws.items():
+        if not name.endswith("__forcedcolors.json"):
+            continue
+        seen += 1
+        if d.get("emulated"):
+            emulated = True
+            paired += int(d.get("paired") or 0)
+        elif d.get("reason"):
+            reasons.append(str(d["reason"]))
+        for f in (d.get("findings") or []):
+            hits.append(f"{f.get('kind')}: {f.get('label', '')[:44]} -- "
+                        f"{f.get('detail', '')[:200]}")
+    if not seen:
+        return ("NOT_RUN", "The forced-colors pass was not run. It needs a page open in "
+                           "agent-browser; ux_browser.sh runs it after the contrast probe.",
+                [])
+    if not emulated:
+        return ("NOT_RUN", "forced-colors could not be emulated: "
+                + ("; ".join(reasons)[:280] or "no reason recorded")
+                + " Nothing was measured, so this is unrun, not passing.", [])
+    if not hits:
+        return ("PASS", f"{paired} element(s) compared normally and with forced-colors "
+                        f"active; nothing lost a focus indicator, a boundary or a "
+                        f"colour-encoded distinction.", [])
+    return ("FAIL", f"{len(hits)} thing(s) lose meaning in forced-colors mode, measured "
+                    f"across {paired} paired element(s).", hits[:20])
+
+
+def _axe(raws, out_dir):
+    """axe-core over the live page. Coverage this probe set does not reproduce --
+    and still a minority of the WCAG criteria, which the note says out loud."""
+    seen, hits, ran, counts, reasons = 0, [], False, {}, []
+    for name, d in raws.items():
+        if not name.endswith("__axe.json"):
+            continue
+        seen += 1
+        if not d.get("ran"):
+            reasons.append(str(d.get("reason") or "no reason recorded"))
+            continue
+        ran = True
+        counts["passes"] = counts.get("passes", 0) + int(d.get("passes") or 0)
+        counts["incomplete"] = counts.get("incomplete", 0) + int(d.get("incomplete") or 0)
+        for v in (d.get("violations") or []):
+            hits.append(f"[{v.get('impact', '?')}] {v.get('id')}: {v.get('help', '')} "
+                        f"({v.get('nodes', 0)} node(s)) -- {v.get('target', '')[:70]}")
+    if not seen:
+        return ("NOT_RUN", "The axe pass was not run.", [])
+    if not ran:
+        return ("NOT_RUN", "axe-core could not be obtained: "
+                + ("; ".join(reasons)[:260] or "no reason recorded")
+                + " Install it in the project (npm i -D axe-core) or allow the fetch.",
+                [])
+    tail = (f" It also reported {counts.get('incomplete', 0)} incomplete check(s), which "
+            f"are items axe could not decide and a person has to." 
+            if counts.get("incomplete") else "")
+    if not hits:
+        return ("PASS", f"axe-core reported no violations across {counts.get('passes', 0)} "
+                        f"passing checks. Automated rules reach a minority of the WCAG "
+                        f"criteria, so this is a floor, not conformance." + tail, [])
+    return ("FAIL", f"axe-core reported {len(hits)} violation(s)." + tail, hits[:25])
+
+
 # ----------------------------------------------------------------- native tier
 # scripts/ux_native.sh writes raw/native-ios.json and raw/native-android.json.
 # A missing file, or one reporting the tool absent, is NOT_RUN -- never PASS.
@@ -637,24 +733,20 @@ RUNTIME = {
     "R-STATE-ERROR": _state("abort", "An aborted request", None),
     "R-STATE-EMPTY": _state("empty", "An empty result set", None),
     "R-STATE-OFFLINE": _state("offline", "Going offline", None),
-    "R-STATE-SLOW": None,
-    "R-AXE": None,
+    "R-STATE-SLOW": _slow,
+    "R-AXE": _axe,
     "R-ZOOM": _override("zoom", "200% text size", "NUM-008 / SC 1.4.4"),
     "R-TEXTSPACING": _override("spacing", "The text-spacing override",
                                "NUM-010 / SC 1.4.12"),
     "R-PIXEL-CONTRAST": _pixel_contrast,
     "R-BASELINE-DIFF": _baseline,
-    "R-FORCED-COLORS": None,
+    "R-FORCED-COLORS": _forced_colors,
     "R-IOS-CAPTURE": _native("ios", want_pairs=False),
     "R-IOS-APPEARANCE": _native("ios", want_pairs=True),
     "R-AND-CAPTURE": _native("android", want_pairs=False),
     "R-AND-THEME": _native("android", want_pairs=True),
 }
 UNIMPLEMENTED = {
-    "R-STATE-SLOW": "Response throttling is not wired into the driver yet.",
-    "R-AXE": "axe-core was not loaded. Install it in the project (npm i -D axe-core) "
-             "to add rule-level coverage this probe set does not reproduce.",
-    "R-FORCED-COLORS": "Forced-colors emulation is not available through the driver yet.",
     "R-CONSOLE": "",
 }
 

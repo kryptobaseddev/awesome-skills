@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "3.6.0"
-  last_updated: "2026-09-21 12:58:21"
+  version: "3.7.0"
+  last_updated: "2026-09-21 14:00:39"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -234,6 +234,10 @@ Each reference is self-contained. Read the one you need.
 | `scripts/typescale.py` | **Type, generated and measured.** A role ladder whose steps clear 1.25x by construction, leading tuned to the measure, tracking tuned to the size. `--contract`, `--css`, `--check`. |
 | `scripts/doctor.py` | **What can run here.** Names every tier that cannot, what it costs in rules, and how to fix it. Exit 2 when something is unavailable, so CI cannot go green on a fraction of the rules. |
 | `scripts/manual_sheet.py` | **The manual tier as questions.** Emits one specific question per manual detector and reports what is unanswered. `--write`, `--check`, `--detector`. |
+| `scripts/cdp.py` | **The Chrome DevTools Protocol, stdlib only.** A ~90-line WebSocket client, because two capabilities are CDP-only and agent-browser does not expose them: `forced-colors` emulation and network throttling. No new dependency. |
+| `scripts/ux_forcedcolors.py` | **R-FORCED-COLORS.** Two passes, normal and forced, diffed — a forced-colors defect is something that carried meaning before and does not after, which no single pass can see. |
+| `scripts/ux_axe.py` | **R-AXE.** axe-core from the project's node_modules, a cache, or a pinned CDN. Suppresses contrast and target-size, which deluxui measures directly against the project's own thresholds. |
+| `scripts/ux_slow.py` | **R-STATE-SLOW.** Makes the request slow rather than absent, and asks what the interface says while it waits. Flight is defined by content, not by readyState. |
 | `scripts/browsertest.py` | **Integration test for the runtime tier.** Serves a fixture with known defects and requires each probe's numbers to match the pixels the browser painted. |
 | `scripts/uxconfig.py` | The only reader of `.deluxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |

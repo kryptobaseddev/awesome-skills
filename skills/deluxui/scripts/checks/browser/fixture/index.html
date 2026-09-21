@@ -53,6 +53,18 @@
              background-image: linear-gradient(120deg, #0a2051, #123a7a); }
   #hero-text { position: relative; color: rgba(255,255,255,0.6); font-size: 18px; }
   #hero-bad { position: relative; color: rgba(255,255,255,0.18); font-size: 14px; }
+
+  /* forced-colors casualties, both of them real patterns.
+     A ring built from box-shadow is Tailwind's `ring-*`, and box-shadow does not
+     exist in forced-colors mode -- the control becomes unfocusable-looking.
+     A panel delimited only by its background loses its boundary, because every
+     background becomes the one system colour. */
+  #ring-only { outline: none; }
+  #ring-only:focus { outline: none; box-shadow: 0 0 0 3px #2563eb; }
+  #ring-ok:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+  #panel-bg { background: #eef2ff; padding: 10px; margin: 8px 0; border: 0; }
+  #panel-border { background: #eef2ff; padding: 10px; margin: 8px 0;
+                  border: 1px solid #6366f1; }
 </style>
 </head>
 <body>
@@ -76,6 +88,10 @@
   </section>
 
   <button id="no-ring">Focus me: my ring was removed</button>
+  <button id="ring-only">My focus ring is a box-shadow</button>
+  <button id="ring-ok">My focus ring is a real outline</button>
+  <div id="panel-bg">This panel is delimited by its background alone.</div>
+  <div id="panel-border">This panel has a real border as well.</div>
   <button id="tiny">x</button>
   <div id="wide">This element is 900px wide and will not reflow at 320.</div>
   <div id="mover">This moves on hover with no reduced-motion path.</div>

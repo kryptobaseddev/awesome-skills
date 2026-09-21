@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>slow, announced</title>
+<style>.skeleton{height:14px;background:#e5e7eb;margin:6px 0;border-radius:3px}</style>
+</head><body>
+<h1>Projects</h1>
+<!-- Says it is working, and keeps saying so until the data lands. -->
+<div id="out" role="status" aria-busy="true">
+  <p>Loading your projects…</p>
+  <div class="skeleton"></div><div class="skeleton"></div>
+  <p>This is taking longer than usual. <button type="button">Cancel</button></p>
+</div>
+<script>
+fetch('slow-data.json').then(r => r.json()).then(d => {
+  const o = document.getElementById('out');
+  // Clear the pending state, do not just fill it in. Leaving role=status on the
+  // element forever means the page always looks like it is working.
+  o.setAttribute('aria-busy','false');
+  o.removeAttribute('role');
+  o.innerHTML = '<ul>' + d.items.map(i => '<li>' + i.name + '</li>').join('') + '</ul>';
+});
+</script>
+</body></html>

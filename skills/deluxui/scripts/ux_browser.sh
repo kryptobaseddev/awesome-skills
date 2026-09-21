@@ -16,7 +16,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROBES="$HERE/checks/browser"
 BASE=""; ROUTES=""; API=""; OUT=".deluxui/reports/runtime"; VIEWPORTS=""; CONFIG=""
-BASELINE=""
+BASELINE=""; SLOW_ESCALATION=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -26,6 +26,7 @@ while [ $# -gt 0 ]; do
     --viewports) VIEWPORTS="$2"; shift 2;;
     --config) CONFIG="$2"; shift 2;;
     --baseline) BASELINE="$2"; shift 2;;
+    --slow-escalation) SLOW_ESCALATION=1; shift;;
     -h|--help) sed -n '2,16p' "$0"; exit 0;;
     *) BASE="$1"; shift;;
   esac
@@ -122,6 +123,22 @@ for route in "${ROUTE_LIST[@]}"; do
   probe focus    "$OUT/raw/${R}__focus.json"
   probe measure  "$OUT/raw/${R}__measure.json"
   probe obstruction "$OUT/raw/${R}__obstruction.json"
+
+  # R-FORCED-COLORS: two passes through the browser's own CDP endpoint, because
+  # `Emulation.setEmulatedMedia` with a forced-colors feature is the only honest
+  # way into the mode and agent-browser's `set media` does not expose it.
+  python3 "$HERE/ux_forcedcolors.py" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
+
+  # R-STATE-SLOW: make the request slow rather than absent. The other state probes
+  # abort, empty or disconnect; none of them could answer "what does it say while
+  # it waits", which is NUM-014's whole subject.
+  python3 "$HERE/ux_slow.py" --url "${BASE%/}${route}" --out "$OUT" --route "$route" \
+    ${SLOW_ESCALATION:+--escalation} 2>&1 | sed 's/^/  /'
+
+  # R-AXE: axe-core over the live page, if it can be obtained. It covers rule
+  # families this probe set does not reproduce, and it is NOT a substitute for the
+  # rest -- automated checks reach a minority of the WCAG criteria either way.
+  python3 "$HERE/ux_axe.py" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
 
   # --- GOV-004: prove the parts nobody asked you to change did not move.
   # The corpus was already being written and then thrown away: agent-browser has
