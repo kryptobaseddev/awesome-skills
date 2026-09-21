@@ -180,13 +180,42 @@ This is the **description-only** loop, separate from output quality. It:
 
 - Generates ~20 queries (10 should-trigger, 10 should-not-trigger, mixed near-misses) tailored to the skill if `trigger_queries.json` is absent.
 - Splits into train/validation (default 60/40), keeping the proportional should-trigger mix in both.
-- Runs each query through an isolated agent context multiple times to estimate trigger rate.
+- Asks a model to arbitrate, per query, whether the description *should* match. This is a judgement of relevance, **not** a behavioural trigger rate — no agent is run. Use it to iterate on wording quickly; use `trigger_behavior_eval.py` (below) before reporting a rate.
 - Reports per-query trigger rates plus train/validation pass rates.
 - Iterates the `description` field, **only ever optimizing against the train split**.
 - Selects the description with the best **validation** pass rate (often not the last one — later iterations overfit).
 - Enforces the 1024-character limit and warns if the description grew during optimization.
 
 See `references/iteration-loop.md` for the description-revision heuristics.
+
+### 10. Measure whether it actually triggers (behavioural)
+
+The arbiter loop above tells you whether a description *reads* as relevant. This tells
+you whether an agent in a real session reaches for it:
+
+```bash
+python3 scripts/trigger_behavior_eval.py \
+    --skill <skill-path> \
+    --queries <skill-path>/evals/trigger_queries.json \
+    --cwd <a REAL project containing what the queries refer to> \
+    --runs 3
+```
+
+It runs a real agent per query and scans the **whole tool sequence** for a `Skill`
+invocation. Two things it exists to prevent, both measured on a real skill:
+
+- **Judging the first tool call only reports ~0%.** Agents orient before consulting
+  anything, so the skill is invoked several calls in — median 6 in one run. A
+  first-call detector scored 0/11 on a skill that in fact triggered 10/11.
+- **An empty fixture reports ~0% too.** Realistic queries name files and routes; in a
+  bare directory the agent correctly says there is nothing to look at. Three queries
+  went from 0/3 to 2-3/3 purely by adding the files they mentioned.
+
+The output prints the median call depth before invocation — if it is above 1, any
+first-call-based number you have is wrong. Trigger rate is noisy (±2 of 20 between
+identical runs), so use `--runs 3` to report and 5+ to claim a delta.
+
+See `references/trigger-measurement.md` for the full methodology.
 
 ## Auto-improvement (full loop)
 
@@ -249,14 +278,16 @@ Full rubric: `references/eval-rubrics.md`.
 - `analyze_patterns.py` — extract actionable signal from graded results
 - `detect_regression.py` — per-assertion / per-case regression detector across iterations
 - `propose_improvements.py` — LLM-driven improvement proposer with regression guardrails
-- `description_eval.py` — trigger-rate eval with train/validation split and optimizer
+- `description_eval.py` — description-relevance arbiter with train/validation split and optimizer
+- `trigger_behavior_eval.py` — behavioural trigger measurement: runs a real agent in a real project and scans the whole tool sequence
 
 Run any script with `--help` to see its full interface.
 
 ### `references/`
 - `eval-rubrics.md` — assertion-quality bar, grading principles, scoring rubrics, blind-judge rubric
 - `testcase-patterns.md` — patterns for generating challenging skill-unique test cases (edge cases, near-misses, phrasing variety axes)
-- `assertion-quality.md` — strong/weak/brittle assertion taxonomy and refactoring patterns
+- `assertion-quality.md` — strong/weak/brittle taxonomy, the four ways an assertion reports the wrong answer, and knowledge-vs-verifiability assertions
+- `trigger-measurement.md` — the three ways to measure triggering, why two of them mislead, and how to build a fixture that makes the measurement real
 - `iteration-loop.md` — full playbook for the improvement loop, including description-revision heuristics
 - `anti-regression.md` — regression patterns, how to detect them, and how to prevent reintroducing fixed bugs
 

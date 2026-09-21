@@ -85,3 +85,67 @@ After every eval iteration:
 ```
 
 The `evidence` field is mandatory. The grader prompt rejects any reply that omits it.
+
+
+## Four ways an assertion reports the wrong answer
+
+All four were observed grading one real A/B run, and every one of them inverted
+or erased a genuine result. Grader bugs are worse than missing assertions,
+because they are reported with the same confidence as real findings.
+
+### Negation blindness
+
+A banned phrase matched inside a sentence that denied it:
+
+> "Nothing below should be read as *'the rest is accessible'* — the rest is
+> unmeasured."
+
+The assertion was *"does not claim the components are accessible"*. It failed the
+run for writing the exact sentence it existed to reward. Any `not has(...)`
+assertion over prose needs to look at what precedes the match — negation,
+quotation, or a hypothetical — before scoring it.
+
+### Abstraction blindness
+
+`autoFocus` matched Radix's `onOpenAutoFocus` handler, which is how you *prevent*
+autofocus. The assertion scored correct focus control as the defect. Anchor
+structural patterns (`(?<![\w])autoFocus(?![\w])`) rather than substring-matching
+an identifier that composes into other identifiers.
+
+### Location coupling
+
+Grading only `outputs/` scored a run 2/5 when it had filed its work in
+`project/`. That measures instruction compliance, not the property under test.
+Grade everything the run authored, wherever it put it — or make the location
+itself an explicit, separate assertion.
+
+### Literal-token expectation
+
+Requiring `>Delete<` in JSX missed `aria-label={\`Delete ${r.name}\`}` and a
+`confirmLabel` prop — both better than the literal the assertion demanded.
+Well-written code abstracts; assertions that demand a specific spelling punish it.
+
+**Before trusting a benchmark, read the losing outputs.** A result you cannot
+explain from the text is usually a grader bug, not a finding.
+
+## Knowledge assertions vs verifiability assertions
+
+A capable model scores at ceiling on assertions that test what it *knows*. If
+every assertion is a knowledge check, a with-skill / without-skill benchmark will
+return a delta near zero no matter how good the skill is — not because the skill
+is worthless, but because the benchmark cannot see what it does.
+
+Observed on one skill: **17/18 with, 17/18 without** on knowledge assertions;
+**13/18 with, 2/18 without** on verifiability assertions over the same six runs.
+
+So ask what kind of claim the skill exists to change:
+
+| The skill's value is... | Assert on... |
+|---|---|
+| Knowing a fact the model may lack | Output content — and expect a small delta on a strong model |
+| Producing evidence for a claim | Whether a report, matrix, measurement or artefact exists |
+| Following a process | Whether the process's intermediate outputs appear |
+| Not doing something | The absence, with a negation-aware check |
+
+If a skill ships scripts, "did the run actually execute them" is usually the
+most discriminating assertion available, and the cheapest to check.
