@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20 17:43:46",
+  "generated_at": "2026-09-20 17:48:23",
   "total_skills": 23,
   "total_categories": 14,
   "categories": [
@@ -102,7 +102,7 @@
         {
           "name": "deluxui",
           "path": "skills/deluxui",
-          "description": "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships an analyzer (52 checks bound to WCAG 2.2 rule IDs) and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'.",
+          "description": "Engineer and verify interfaces against a 190-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including small additions like a delete or submit control, which carry confirmation and undo duties. Also use when redesigning, polishing, simplifying or hardening existing UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships an analyzer (52 checks bound to cited rule IDs) and a browser tier that measures contrast, focus rings and 320px reflow and forces the offline, empty and failed states nobody tests, behind a gate where NOT_RUN is never a pass. Knows React, Next.js, Svelte, Vue, Tailwind v3/v4, shadcn, Radix, Base UI, Three.js, Remotion. Not for bundle size, build config or backend work. Use even if the user only says 'make this look better' or 'the design feels off'.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
             "version": "1.0.0",
