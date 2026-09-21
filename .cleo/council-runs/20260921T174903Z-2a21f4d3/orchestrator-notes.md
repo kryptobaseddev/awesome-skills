@@ -175,3 +175,32 @@ Also corrected: the status vocabulary has **five** fates, not four —
 `PASS, FAIL, NOT_RUN, NOT_APPLICABLE, APPROVED_EXCEPTION` (`registry.yaml` meta). The fifth matters
 here, because `APPROVED_EXCEPTION` is a landing zone for a declared deviation that neither
 laundering nor a permanent NOT_RUN tail would provide.
+
+## Post-run citation audit (orchestrator, after Phase 3)
+
+Peer review found misattributed line pointers in two advisor files — four in the Contrarian's
+finding 2 (`SKILL.md` text cited at 18 / 112 / 139-141 / 143-146 actually sits at 3 / 78 / 126 /
+129) and several in the Outsider's. In both cases the quoted strings were verbatim and in the right
+file; only the loci were wrong.
+
+Checked whether any of that propagated into the Chairman's verdict. It did not. The verdict cites
+five line numbers, and all five resolve exactly to the claimed text against the tree as it stood at
+`9725368^` — the state they describe:
+
+| citation | resolves to |
+|---|---|
+| `create.md:28` | "**Semantics, then states, then looks.**" |
+| `improve.md:28` | "inconsistent scale steps, groups spaced the same as their contents (LAW-…" |
+| `index.md:31` | "190 rules, 19 enforceable laws…" |
+| `registry.yaml:15` | `enforceable_laws: 19` |
+| `ux_report.py:531` | `for k, v in (manual.get("attestations") or {}).items():` |
+
+The advisor files are deliberately left uncorrected. They are the record of what each advisor
+actually said, and the peer reviews are where the corrections belong — editing an advisor's output
+after its review would falsify the audit trail the run exists to produce.
+
+**Audit caveat for future readers:** commit `9725368` acted on the verdict's step 1, so three of the
+five citations above no longer point at the same content in the current tree. `index.md:31` and
+`registry.yaml:15` were the false "19 enforceable laws" claim and are now corrected; `improve.md:28`
+was the false "the checks distinguish them" claim and is now a table naming which of the three
+diagnoses is actually measured. Read these line numbers against `9725368^`, not against HEAD.
