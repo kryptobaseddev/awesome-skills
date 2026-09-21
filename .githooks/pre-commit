@@ -61,7 +61,22 @@ if [[ $fail -ne 0 ]]; then
   exit 1
 fi
 
-# 2. Refresh registry + README
+# 2. Keep any plugin's bundled copy of a skill identical to the skill.
+#    A plugin has to CONTAIN its skills; a symlink does not survive installation
+#    and the installed plugin arrives with an empty skills/ directory, with every
+#    command referring to a skill that is not there and every hook pointing at a
+#    script that does not exist. Nothing errors -- it simply never runs.
+if [[ -f scripts/sync_plugin.py ]]; then
+  echo "  syncing plugin skill copies"
+  if ! python3 scripts/sync_plugin.py >/dev/null 2>&1; then
+    echo "[pre-commit] error: sync_plugin.py failed" >&2
+    exit 1
+  fi
+  git add -A deluxui-plugin/skills 2>/dev/null || true
+  git add deluxui-plugin/.claude-plugin/plugin.json 2>/dev/null || true
+fi
+
+# 3. Refresh registry + README
 echo "  refreshing registry + README"
 if ! python3 scripts/build_registry.py >/dev/null 2>&1; then
   echo "[pre-commit] error: build_registry.py failed" >&2

@@ -1,0 +1,11 @@
+.btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.field:user-invalid { border-color: var(--color-brand-500); }
+.note { color: var(--color-ink); background-color: var(--color-surface); }
+@media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none; transition: none; } }
+p { line-height: 1.55; font-size: 16px; max-width: 68ch; }
+h1 { font-size: clamp(26px, 3.4vw, 44px); line-height: 1.12; text-wrap: balance; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+/* The faces the contract declares are actually shipped, so the scale and leading
+   tuned for them are tuned for what renders. */
+@font-face { font-family: "Inter"; src: url(/fonts/inter.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url(/fonts/jbm.woff2) format("woff2"); font-display: swap; }

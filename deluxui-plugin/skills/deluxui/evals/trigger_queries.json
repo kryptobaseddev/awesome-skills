@@ -1,0 +1,82 @@
+[
+  {
+    "query": "our checkout page is done but before we ship can you check it properly for accessibility \u2014 keyboard, contrast, the lot? it's next.js + tailwind, running on localhost:3000",
+    "should_trigger": true
+  },
+  {
+    "query": "the settings page looks fine on my monitor but a customer sent a screenshot from their iphone and half the form is cut off. can you figure out what's going on",
+    "should_trigger": true
+  },
+  {
+    "query": "build me a settings page with profile, notifications and billing tabs. we use shadcn",
+    "should_trigger": true
+  },
+  {
+    "query": "honestly the whole app just feels kind of generic and AI-generated. can you make it feel like an actual product someone designed",
+    "should_trigger": true
+  },
+  {
+    "query": "we just upgraded to tailwind v4 and focus rings are behaving weirdly on our buttons, some of them have no visible focus at all now",
+    "should_trigger": true
+  },
+  {
+    "query": "can you review src/components/DataTable.tsx \u2014 i think the empty and loading states are missing but i'm not sure what else is wrong with it",
+    "should_trigger": true
+  },
+  {
+    "query": "add a delete button to each row in the projects list",
+    "should_trigger": true
+  },
+  {
+    "query": "my manager wants a wcag 2.2 AA report for the customer portal before the security review. what do we actually have to test and can you produce something i can hand over",
+    "should_trigger": true
+  },
+  {
+    "query": "the dashboard feels janky, stuff jumps around while it loads and clicking a filter takes ages to respond",
+    "should_trigger": true
+  },
+  {
+    "query": "i inherited this react codebase and every screen looks like it was built by a different person. where do i even start",
+    "should_trigger": true
+  },
+  {
+    "query": "we have a three.js product configurator on the marketing site. is there anything we're missing for people who can't use a mouse, and it also kills battery on phones",
+    "should_trigger": true
+  },
+  {
+    "query": "generate a hero image for our landing page, something abstract with blues and purples, 1920x1080",
+    "should_trigger": false
+  },
+  {
+    "query": "i need a stacked bar chart of revenue by region for the last 8 quarters \u2014 what colors should i use so the segments are distinguishable",
+    "should_trigger": false
+  },
+  {
+    "query": "how do runes work in svelte 5? specifically when should i use $derived vs $effect, i keep getting infinite loops",
+    "should_trigger": false
+  },
+  {
+    "query": "our bundle is 2.4mb and lighthouse is complaining. can you look at what's in it and tree-shake the dead stuff out",
+    "should_trigger": false
+  },
+  {
+    "query": "write a playwright script that logs into the admin panel, navigates to /reports, and downloads the csv every morning",
+    "should_trigger": false
+  },
+  {
+    "query": "set up better-auth with google oauth and an organization plugin for multi-tenancy, drizzle + postgres",
+    "should_trigger": false
+  },
+  {
+    "query": "our postgres queries on the orders table got really slow after we hit 2m rows. can you look at the indexes",
+    "should_trigger": false
+  },
+  {
+    "query": "design a database schema for a booking system with rooms, reservations and blackout dates",
+    "should_trigger": false
+  },
+  {
+    "query": "we need to add cursor-based pagination to the /api/orders endpoint \u2014 the frontend table is already built and working, i just need the backend to stop returning 50k rows",
+    "should_trigger": false
+  }
+]

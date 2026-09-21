@@ -1,0 +1,695 @@
+# What deluxui can actually test, and with which engine.
+#
+# This file is the honesty layer. A rule with no detector here, and no manual
+# attestation, is reported NOT_RUN -- never PASS. Engines that are unavailable
+# in a given session (no dev server, no browser) push their detectors to
+# NOT_RUN with a reason rather than letting them disappear from the report.
+
+engines:
+  source:
+    tier: static
+    description: Text and shape of the source. Regex-based scanning, not a parser.
+    available_when: Source files are readable.
+    confidence_ceiling: medium
+  element:
+    tier: static
+    description: Element and attribute relationships inferred from markup or JSX.
+    available_when: Source files are readable.
+    confidence_ceiling: medium
+  computed:
+    tier: runtime
+    description: Computed styles, layout boxes and the accessibility tree of a live page.
+    available_when: agent-browser is installed and a URL is reachable.
+    confidence_ceiling: high
+  runtime_state:
+    tier: runtime
+    description: Behaviour under forced conditions -- offline, aborted, empty, slow.
+    available_when: agent-browser is installed, a URL is reachable, and API routes are known.
+    confidence_ceiling: high
+  visual:
+    tier: runtime
+    description: Decoded pixels from a screenshot. Ground truth when CSS cannot resolve a colour.
+    available_when: agent-browser is installed and a URL is reachable.
+    confidence_ceiling: high
+  native_runtime:
+    tier: runtime
+    description: A built app running on a Simulator, an emulator or a physical device.
+    available_when: >-
+      xcrun simctl (iOS) or adb (Android) is on PATH, a target is booted or attached,
+      and the app under test is installed on it.
+    confidence_ceiling: high
+  process:
+    tier: report
+    description: >-
+      The order in which the work happened, read from the recorded phase state and
+      the repository rather than from the artifact. No scan of a screen can tell you
+      whether the contract it conforms to was written before it or after it, and a
+      contract written afterwards always shows conformance.
+    available_when: .deluxui/phase.yaml exists (scripts/ux_phase.py init).
+    confidence_ceiling: high
+  report:
+    tier: report
+    description: Checks the produced report rather than the product under test.
+    available_when: A merged report exists (scripts/ux_report.py --merge).
+    confidence_ceiling: high
+  manual:
+    tier: manual
+    description: A human did it and said so. Nothing else counts.
+    available_when: A person records the result in .deluxui/reports/.
+    confidence_ceiling: high
+
+# Static tier -- scripts/ux_check.py
+detectors:
+  S-A11Y-ALT:        {engine: element, rules: [A11Y-007], confidence: high}
+  S-A11Y-ICONBTN:    {engine: element, rules: [COMP-002, A11Y-001, VIS-007], confidence: medium}
+  S-A11Y-LABEL:      {engine: element, rules: [FORM-002, A11Y-001], confidence: medium}
+  S-A11Y-PLACEHOLDER: {engine: element, rules: [FORM-002], confidence: high}
+  S-A11Y-DIVCLICK:   {engine: element, rules: [NAV-002, A11Y-002, COMP-001], confidence: high}
+  S-A11Y-HREFHASH:   {engine: element, rules: [NAV-002], confidence: high}
+  S-A11Y-TABINDEX:   {engine: element, rules: [A11Y-003], confidence: high}
+  S-A11Y-ARIAHIDDEN: {engine: element, rules: [A11Y-001], confidence: medium}
+  S-A11Y-NESTED:     {engine: element, rules: [COMP-023], confidence: medium}
+  S-A11Y-HEADING:    {engine: element, rules: [A11Y-011], confidence: low}
+  S-A11Y-AUTOFOCUS:  {engine: element, rules: [COMP-009], confidence: medium}
+  S-FOCUS-OUTLINE:   {engine: source,  rules: [A11Y-003, NUM-011], confidence: high}
+  S-CONTRAST-PAIR:   {engine: source,  rules: [NUM-001, NUM-002], confidence: medium,
+                      not_run_when: "No resolvable foreground/background colour pair."}
+  S-TARGET-SIZE:     {engine: source,  rules: [NUM-004, NUM-005], confidence: low,
+                      not_run_when: "Control size is not expressible from source.", laws: [LAW-02]}
+  S-STATE-EMPTY:     {engine: source,  rules: [UX-001, COMP-017], confidence: medium}
+  S-STATE-ERROR:     {engine: source,  rules: [STATE-001, UX-009], confidence: medium}
+  S-STATE-LOADING:   {engine: source,  rules: [STATE-001, NUM-014], confidence: medium}
+  S-STATE-DUPE:      {engine: source,  rules: [STATE-003, NUM-020], confidence: medium}
+  S-STATE-OPTIMISTIC: {engine: source,  rules: [STATE-004, STATE-005], confidence: low, laws: [LAW-10]}
+  S-FORM-AUTOCOMPLETE: {engine: element, rules: [FORM-003], confidence: high}
+  S-FORM-INPUTTYPE:  {engine: element, rules: [FORM-003], confidence: high}
+  S-FORM-DISABLED:   {engine: source,  rules: [FORM-007], confidence: medium}
+  S-FORM-PASTE:      {engine: source,  rules: [FORM-010], confidence: high}
+  S-RESP-FIXEDPX:    {engine: source,  rules: [LAY-002, NUM-009], confidence: medium}
+  S-RESP-VH:         {engine: source,  rules: [LAY-005], confidence: high}
+  S-RESP-OVERFLOW:   {engine: source,  rules: [LAY-002], confidence: low}
+  S-RESP-TABLE:      {engine: element, rules: [LAY-006], confidence: low}
+  S-RESP-TRUNCATE:   {engine: source,  rules: [LAY-007], confidence: low}
+  S-MOTION-REDUCE:   {engine: source,  rules: [LAY-010, A11Y-010, NUM-018], confidence: high, laws: [LAW-07]}
+  S-HOVER-ONLY:      {engine: source,  rules: [VIS-005, COMP-011], confidence: medium}
+  S-TOKEN-HEX:       {engine: source,  rules: [VIS-001], confidence: high,
+                      not_run_when: "No token source found in the project."}
+  S-TOKEN-ARBITRARY: {engine: source,  rules: [VIS-001, NUM-017], confidence: high}
+  S-DS-REINVENT:     {engine: source,  rules: [COMP-001, CTX-001], confidence: medium,
+                      not_run_when: "No component inventory in .deluxui/DESIGN.md."}
+  S-DS-NEWDEP:       {engine: source,  rules: [CTX-001], confidence: high,
+                      not_run_when: "No package manifest found."}
+  S-SLOP-GRADIENT:   {engine: source,  rules: [VIS-006], confidence: medium}
+  S-SLOP-BLUR:       {engine: source,  rules: [VIS-006], confidence: medium}
+  S-SLOP-CARDNEST:   {engine: element, rules: [VIS-006, VIS-002], confidence: medium}
+  S-SLOP-EMOJI:      {engine: source,  rules: [CONTENT-001, VIS-007], confidence: high}
+  S-SLOP-COPY:       {engine: source,  rules: [CONTENT-003], confidence: high}
+  S-SLOP-UNIFORM:    {engine: source,  rules: [VIS-006, VIS-002], confidence: low}
+  S-SLOP-EYEBROW:    {engine: element, rules: [VIS-006, VIS-002], confidence: low}
+  S-TYPE-TRACKING:   {engine: source,  rules: [VIS-006], confidence: low}
+  S-SLOP-PALETTE:    {engine: source,  rules: [VIS-001, VIS-006], confidence: low}
+
+  # --- Reading quality (scripts/checks/typography.py) ---
+  S-TYPE-TINY: {engine: source, rules: [NUM-015], confidence: medium}
+  S-TYPE-MEASURE: {engine: source, rules: [NUM-016], confidence: low}
+  S-TYPE-LEADING: {engine: source, rules: [NUM-010], confidence: low}
+  S-TYPE-ALLCAPS: {engine: source, rules: [VIS-002, CONTENT-001], confidence: low}
+  S-TYPE-JUSTIFY: {engine: source, rules: [VIS-002], confidence: low}
+  S-TYPE-TRACKING-WIDE: {engine: source, rules: [VIS-002], confidence: low}
+  S-TYPE-CRAMPED: {engine: source, rules: [NUM-005, VIS-002], confidence: low}
+  S-TYPE-EDGE: {engine: source, rules: [LAY-002], confidence: low}
+
+  # --- Visual craft tells (scripts/checks/craft.py). Low confidence by design:
+  # a deliberate choice looks identical to a reflex from outside, and what
+  # separates them is whether anyone can say why.
+  S-CRAFT-DEPTH: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-TYPESYSTEM: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-DECOR: {engine: source, rules: [VIS-006, NUM-001], confidence: low}
+  S-CRAFT-PALETTE-WARM: {engine: source, rules: [VIS-001, VIS-006], confidence: low}
+  S-CRAFT-MOTION: {engine: source, rules: [NUM-018, VIS-006], confidence: low}
+  S-CRAFT-RHYTHM: {engine: source, rules: [VIS-002, VIS-006], confidence: low, laws: [LAW-04]}
+  S-CRAFT-VOICE: {engine: source, rules: [CONTENT-001, VIS-002], confidence: low}
+  S-CONTENT-I18N:    {engine: source,  rules: [CONTENT-004], confidence: medium,
+                      not_run_when: "No i18n setup detected in the project."}
+  S-CONTENT-FORMAT:  {engine: source,  rules: [CONTENT-005, CONTENT-006], confidence: medium}
+  S-CONTENT-ERRORTEXT: {engine: source, rules: [UX-009, CONTENT-002], confidence: high}
+  S-TRUST-DESTRUCT:  {engine: source,  rules: [UX-003, TRUST-006, TRUST-007], confidence: medium}
+  S-PERF-IMGDIM:     {engine: element, rules: [PERF-003, NUM-012], confidence: high}
+
+  S-FORM-VALIDATION: {engine: source, rules: [FORM-005], confidence: high, laws: [LAW-04, LAW-16]}
+  S-RESP-SAFEAREA: {engine: source, rules: [LAY-005], confidence: medium}
+  S-MODAL-NATIVE: {engine: element, rules: [COMP-007, COMP-008, COMP-010, A11Y-004], confidence: medium}
+  S-CANVAS-A11Y: {engine: element, rules: [A11Y-007, COMP-015], confidence: medium}
+  S-3D-PERF: {engine: source, rules: [PERF-001, NUM-012, LAY-010, A11Y-010], confidence: medium,
+              not_run_when: "No three.js or react-three-fiber dependency."}
+  S-MEDIA-CAPTIONS: {engine: element, rules: [A11Y-007], confidence: high}
+  S-VIDEO-LEGIBILITY: {engine: source, rules: [NUM-015, CONTENT-011], confidence: low,
+              not_run_when: "No Remotion composition detected."}
+
+  # --- P0 safety, privacy and credentials (scripts/checks/safety.py) ---
+  S-PRIVACY-URL: {engine: source, rules: [NAV-009], confidence: high}
+  S-SECRET-LOG: {engine: source, rules: [TRUST-005, FORM-012], confidence: high}
+  S-PASSWORD-HANDLING: {engine: element, rules: [FORM-012], confidence: high}
+  S-PERM-ONMOUNT: {engine: source, rules: [TRUST-003], confidence: medium}
+  S-DARK-PATTERN: {engine: element, rules: [TRUST-002], confidence: medium}
+  S-FAKE-STATS: {engine: source, rules: [CONTENT-010], confidence: medium}
+  S-STATE-PREMATURE: {engine: source, rules: [STATE-002], confidence: medium}
+  S-DRAFT-BOUNDARY: {engine: source, rules: [STATE-009], confidence: medium}
+  S-CONFLICT-OVERWRITE: {engine: source, rules: [STATE-010], confidence: low, laws: [LAW-11]}
+  S-RETRY-SAFETY: {engine: source, rules: [STATE-011, NUM-020], confidence: low}
+
+  # --- P0 commitment, authorization and generated output (checks/commitment.py) ---
+  S-COMMIT-DISCLOSURE: {engine: element, rules: [TRUST-001, FORM-014], confidence: medium, laws: [LAW-09]}
+  S-COMMIT-REVIEW: {engine: element, rules: [FORM-013], confidence: medium, laws: [LAW-09]}
+  S-SERVER-VALIDATION: {engine: source, rules: [FORM-009, TRUST-004], confidence: medium,
+                        not_run_when: "No server mutation handler found in scope."}
+  S-AUTHZ-UI-ONLY: {engine: source, rules: [TRUST-004], confidence: low}
+  S-ACCOUNT-CONTEXT: {engine: element, rules: [TRUST-008], confidence: low}
+  S-AI-PROVENANCE: {engine: source, rules: [AI-001, AI-003], confidence: medium,
+                    not_run_when: "No model SDK in the project dependencies."}
+
+  # Runtime tier -- scripts/ux_browser.sh
+  R-AXE:
+    engine: computed
+    rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011, A11Y-006, A11Y-014, COMP-002]
+    confidence: high
+    not_run_when: >-
+      axe-core could not be obtained -- not in the project's node_modules, not
+      cached, and the fetch failed. Install it (npm i -D axe-core) to run offline.
+    # Contrast and target-size are deliberately NOT claimed here even though axe
+    # has rules for them. scripts/ux_axe.py suppresses those violations and leaves
+    # them to R-CONTRAST, R-PIXEL-CONTRAST and R-TARGET, which measure against the
+    # project's own thresholds. Two implementations reporting the same rule
+    # disagree at the margins, and that reads as a contradiction rather than as
+    # two tools with different scopes.
+  R-CONTRAST:        {engine: computed, rules: [NUM-001, NUM-002, NUM-003], confidence: high}
+  # R-TARGET does the SC 2.5.8 work: the 24px floor AND the spacing exception.
+  # NUM-006/007 are iOS pt and Android dp; a browser measurement cannot establish
+  # those, so they belong to the manual tier (M-TOUCH-DEVICE).
+  R-TARGET:          {engine: computed, rules: [NUM-004], confidence: high, laws: [LAW-02]}
+  # The 44px coarse-pointer default is a PROJECT choice, not a standard. This was
+  # mapped to NUM-004 and so reported a WCAG STANDARD failure when all that was
+  # missed was a local default -- exactly the overclaiming this skill exists to stop.
+  R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high, laws: [LAW-02]}
+  R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high, laws: [LAW-12]}
+  R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
+  R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
+  R-FOCUS-WALK:      {engine: computed, rules: [A11Y-002, A11Y-003, A11Y-004, NUM-011,
+                                                LAY-003], confidence: high, laws: [LAW-08]}
+  R-VITALS:          {engine: computed, rules: [NUM-012, PERF-005], confidence: medium,
+                      not_run_when: "Lab measurement only. A field pass needs real users.", laws: [LAW-06]}
+  R-MOTION:          {engine: computed, rules: [LAY-010, A11Y-010], confidence: high}
+  R-FORCED-COLORS:
+    engine: computed
+    rules: [VIS-008, VIS-004, NUM-011]
+    confidence: high
+    not_run_when: >-
+      forced-colors could not be emulated. It needs a page open in agent-browser
+      and reachable CDP -- scripts/ux_forcedcolors.py goes through
+      Emulation.setEmulatedMedia, because `set media` does not expose the feature.
+    # Two passes, diffed. A forced-colors defect is something that carried meaning
+    # before and does not after, so a single-pass inspection cannot see one. It
+    # also settles NUM-011: a focus ring built from box-shadow does not exist in
+    # this mode, which no static check can establish.
+  R-PIXEL-CONTRAST:  {engine: visual,   rules: [NUM-001, NUM-003], confidence: high}
+  R-BASELINE-DIFF:   {engine: visual,   rules: [GOV-004], confidence: medium,
+                      not_run_when: "No baseline screenshot recorded before the change."}
+  R-MEASURE:         {engine: computed, rules: [NUM-016], confidence: high}
+  R-STICKY-OBSTRUCTION: {engine: computed, rules: [LAY-008, NUM-011], confidence: high}
+  R-ORIENTATION:     {engine: computed, rules: [LAY-004], confidence: high}
+  R-CONSOLE:         {engine: computed, rules: [STATE-001], confidence: high}
+  R-STATE-OFFLINE:   {engine: runtime_state, rules: [STATE-008, UX-001], confidence: high, laws: [LAW-06]}
+  R-STATE-ERROR:     {engine: runtime_state, rules: [STATE-001, STATE-006, UX-009], confidence: high,
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
+  R-STATE-EMPTY:     {engine: runtime_state, rules: [UX-001, COMP-017], confidence: high,
+                      not_run_when: "No API route patterns declared in .deluxui/ux.config.yaml.", laws: [LAW-06]}
+  R-STATE-SLOW:
+    engine: runtime_state
+    rules: [NUM-013, NUM-014, STATE-006]
+    confidence: high
+    not_run_when: >-
+      No route held a waiting state open long enough to sample. A route whose
+      content arrives before the first sample has no waiting state to judge, and
+      that is reported rather than scored -- inventing a verdict for it would be a
+      fabricated pass.
+    # Flight is defined by CONTENT, not by readyState. `complete` fires when the
+    # document and its subresources are done, and a fetch() a script started is not
+    # one of them -- so an app loading its data afterwards reads as complete for the
+    # whole time it is actually waiting, which is the case this detector is for.
+
+  # --- Component and navigation contracts (scripts/checks/components.py) ---
+  S-COMP-VAGUE-LABEL: {engine: element, rules: [COMP-003], confidence: medium}
+  S-COMP-DISABLED-MUTE: {engine: element, rules: [COMP-004, FORM-007], confidence: low, laws: [LAW-13]}
+  S-COMP-KEYBOARD-PATTERN: {engine: element, rules: [COMP-005, COMP-006], confidence: medium, laws: [LAW-03]}
+  S-COMP-ACCORDION: {engine: element, rules: [COMP-013], confidence: medium}
+  S-COMP-TABLE-SEMANTICS: {engine: element, rules: [COMP-014], confidence: medium}
+  S-COMP-UPLOAD: {engine: element, rules: [COMP-021], confidence: medium}
+  S-COMP-TOAST-ONLY: {engine: source, rules: [COMP-022], confidence: low}
+  S-COMP-BULK-SCOPE: {engine: source, rules: [COMP-024], confidence: low}
+  S-NAV-CURRENT: {engine: element, rules: [NAV-007], confidence: medium}
+  S-NAV-TITLE: {engine: source, rules: [NAV-001], confidence: medium,
+                not_run_when: "No route components found in scope."}
+  S-FORM-ERROR-LINK: {engine: element, rules: [FORM-006], confidence: medium}
+  S-FORM-LOST-INPUT: {engine: source, rules: [FORM-004], confidence: medium}
+  S-FORM-PASTE-BLOCK: {engine: source, rules: [FORM-015], confidence: medium}
+  S-UX-FAKE-INTERACTIVE: {engine: element, rules: [UX-011], confidence: low, laws: [LAW-13]}
+
+  # --- Behaviour, races and felt performance (scripts/checks/behavior.py) ---
+  S-NAV-DEEPLINK: {engine: source, rules: [NAV-003], confidence: low}
+  S-NAV-LIST-CONTEXT: {engine: source, rules: [NAV-004], confidence: low}
+  S-NAV-ERROR-ROUTE: {engine: source, rules: [NAV-008], confidence: low,
+                      not_run_when: "No component inventory to inspect."}
+  S-NAV-FOCUS-STEAL: {engine: source, rules: [NAV-010, A11Y-006], confidence: medium}
+  S-STATE-RACE: {engine: source, rules: [STATE-007, COMP-018], confidence: medium}
+  S-STATE-CANCEL: {engine: source, rules: [STATE-012], confidence: medium}
+  S-COMP-TOOLTIP-CRITICAL: {engine: element, rules: [COMP-012], confidence: medium}
+  S-COMP-ZERO-VS-MISSING: {engine: source, rules: [COMP-016], confidence: low}
+  S-COMP-PAGINATION: {engine: source, rules: [COMP-019], confidence: medium}
+  S-COMP-DRAG-ALT: {engine: source, rules: [COMP-020, A11Y-009], confidence: medium}
+  S-FORM-DERIVED-STALE: {engine: source, rules: [FORM-008], confidence: low, laws: [LAW-15]}
+  S-FORM-REDUNDANT: {engine: element, rules: [FORM-011], confidence: low}
+  S-FORM-EXCESSIVE: {engine: element, rules: [FORM-001], confidence: low, laws: [LAW-18]}
+  S-PERF-SKELETON-ARIA: {engine: element, rules: [PERF-008], confidence: medium}
+  S-PERF-LONG-LIST: {engine: source, rules: [PERF-006, PERF-007], confidence: low}
+  S-PERF-BLOCKING: {engine: source, rules: [PERF-004, NUM-013], confidence: low}
+  S-A11Y-TIMEOUT: {engine: source, rules: [A11Y-008], confidence: medium}
+
+  # --- Localisation, data honesty, generated output (checks/presentation.py) ---
+  S-CONTENT-RTL: {engine: source, rules: [CONTENT-007], confidence: low,
+                  not_run_when: "Project ships a single locale."}
+  S-CHART-TRUTH: {engine: source, rules: [CONTENT-009, COMP-015], confidence: medium,
+                  not_run_when: "No charting library in the project dependencies."}
+  S-AI-UNCERTAINTY: {engine: source, rules: [AI-002, AI-004, AI-006], confidence: medium,
+                     not_run_when: "No model SDK in the project dependencies."}
+  S-AI-STREAM-A11Y: {engine: source, rules: [AI-005], confidence: medium,
+                     not_run_when: "No model SDK in the project dependencies."}
+  S-VIS-STATE-COVERAGE: {engine: source, rules: [VIS-004], confidence: medium}
+  S-UX-PREFERENCE-CONTROL: {engine: source, rules: [UX-014], confidence: low}
+  S-UX-CONTROL-ALIGNMENT: {engine: element, rules: [UX-013], confidence: low}
+
+  # --- Report self-audit (scripts/ux_report.py). These check THIS DOCUMENT,
+  # not the product. GOV-005/006/008 are properties of the agent's honesty, and
+  # no scan of someone's app can establish them -- but whether every PASS here
+  # traces to a detector that ran, whether unknowns were declared, and whether
+  # project config was used to silence a standard all can be.
+  A-EVIDENCE-BACKED: {engine: report, rules: [GOV-006], confidence: high}
+  A-UNKNOWN-DECLARED: {engine: report, rules: [GOV-005], confidence: high}
+  A-CONFIG-AUTHORITY: {engine: report, rules: [GOV-008], confidence: high}
+  A-EVIDENCE-MAP: {engine: report, rules: [QA-001, QA-005, GOV-002], confidence: high}
+  A-SCOPE-STATED: {engine: report, rules: [QA-002, QA-003, GOV-009, A11Y-013], confidence: high}
+  A-NO-INVENTED-METRICS: {engine: report, rules: [MEASURE-002, MEASURE-005, MEASURE-007],
+                          confidence: high}
+  A-BASIS-CLASSED: {engine: report, rules: [GOV-003, GOV-001], confidence: high}
+  A-EXCEPTIONS-VALID: {engine: report, rules: [GOV-007, QA-006], confidence: high}
+  A-CONTEXT-DECLARED: {engine: report, rules: [CTX-002, CTX-003, CTX-004, MEASURE-006],
+                       confidence: high}
+  A-PHASE-ORDER: {engine: process, rules: [GOV-010], confidence: high,
+                  not_run_when: "No .deluxui/phase.yaml, so the order the work happened
+                    in was never recorded and nothing establishes it either way."}
+  A-COMP-APPROVED: {engine: process, rules: [GOV-011], confidence: high,
+                    not_run_when: "No decision records: nobody has been asked to approve
+                      a direction, so there is no approval to check."}
+  A-DECISION-VETTED: {engine: process, rules: [GOV-012], confidence: high,
+                      not_run_when: "No decision records to vet."}
+  A-PROTO-ACCEPTED: {engine: process, rules: [GOV-014], confidence: high,
+                     not_run_when: "No live review has been recorded, so nothing
+                       establishes whether anybody has used this rather than looked
+                       at a picture of it."}
+  A-COMP-CONFORM: {engine: process, rules: [VIS-001, GOV-013], confidence: high,
+                   not_run_when: "No approved comp raster to measure, or the contract
+                     declares no colour roles to measure it against."}
+  A-PERF-TIER: {engine: report, rules: [PERF-002, PERF-009, PERF-010, MEASURE-001,
+                                        MEASURE-003, MEASURE-004], confidence: high}
+
+  # Manual tier -- a human records these in .deluxui/reports/. Nothing auto-passes.
+  S-COLOR-ONLY:
+    engine: element
+    rules: [A11Y-005]
+    confidence: medium
+    not_run_when: No source files in scope.
+    laws: [LAW-07]
+
+  M-FORCED-COLORS:
+    engine: manual
+    rules: [VIS-008]
+    confidence: high
+    question: >-
+      Turn on Windows High Contrast, or the OS forced-colors mode, and open the
+      screens this change touched. Name anything that vanished, any icon that
+      lost meaning, any focus ring that disappeared, and any border the mode
+      removed because it was painted as a background.
+    not_run_when: >-
+      Nobody has viewed the interface in a forced-colors mode and recorded what
+      happened. The agent-browser driver cannot emulate forced-colors, so this
+      cannot be automated here -- Windows High Contrast or the Firefox
+      colors override, by a person, is the only evidence that counts.
+
+  M-PRESERVE-REGRESSION:
+    engine: manual
+    rules: [GOV-004]
+    confidence: high
+    question: >-
+      Run the flows this change touched, not the screens it changed. Name each
+      flow you completed end to end and its outcome. A screenshot diff is not an
+      answer to this question.
+    not_run_when: >-
+      No regression evidence recorded for the flows this change touched. A
+      screenshot diff shows that pixels moved; it cannot show that a flow still
+      works. Record which existing flows were exercised and how.
+
+  # --- Craft floor (scripts/checks/craftfloor.py). Numeric ceilings and habits
+  # derived from the impeccable skill's craft floor (Apache-2.0,
+  # github.com/pbakaus/impeccable), re-expressed as measurements with thresholds
+  # in thresholds.yaml. Mostly low confidence: a deliberate choice and a reflex
+  # look identical from outside, and the number is the only part that is a fact.
+  S-CRAFT-HERO-SCALE: {engine: source, rules: [VIS-002, VIS-006], confidence: medium}
+  S-CRAFT-TYPE-FLAT: {engine: source, rules: [VIS-002, NUM-015], confidence: low}
+  S-CRAFT-FAMILIES: {engine: source, rules: [VIS-002, VIS-006], confidence: low}
+  S-CRAFT-BALANCE: {engine: source, rules: [VIS-002], confidence: low}
+  S-CRAFT-HALO: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-HARD-SHADOW: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-CARD-RADIUS: {engine: source, rules: [VIS-006, VIS-001], confidence: low}
+  S-CRAFT-HIDDEN-AT-REST: {engine: source, rules: [LAY-010, A11Y-010, PERF-003], confidence: medium}
+  S-CRAFT-EASING: {engine: source, rules: [NUM-018, VIS-006], confidence: low}
+  S-CRAFT-SURFACES: {engine: source, rules: [VIS-001, VIS-006], confidence: low}
+  S-CRAFT-SECTION-NUMBERS: {engine: source, rules: [VIS-006, CONTENT-001], confidence: low}
+  S-CRAFT-ICON-TILE: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-STRIPES: {engine: source, rules: [VIS-006], confidence: low}
+  S-CRAFT-GRADIENT-TEXT: {engine: source, rules: [VIS-006, NUM-001], confidence: medium}
+  S-CRAFT-ZINDEX: {engine: source, rules: [VIS-001], confidence: low}
+  S-CRAFT-GRAY-ON-COLOR: {engine: element, rules: [VIS-001, NUM-001], confidence: low}
+
+  # --- Visual contract conformance (scripts/checks/contract.py). Each compares
+  # the artifact against .deluxui/design.contract.yaml, never against a taste --
+  # the source of truth is a declaration the project made, which is what makes a
+  # craft verdict admissible. High confidence where the comparison is exact: a
+  # value is on the declared list or it is not. NOT_RUN with no contract.
+  S-CONTRACT-TYPE-SCALE:
+    engine: source
+    rules: [VIS-002, VIS-001, NUM-015]
+    confidence: high
+    not_run_when: >-
+      No .deluxui/design.contract.yaml declares type.scale_px, so there is no
+      role ladder to compare against.
+  S-CONTRACT-FAMILY:
+    engine: source
+    rules: [VIS-002, VIS-001]
+    confidence: high
+    not_run_when: No declared type.families in the visual contract.
+  S-CONTRACT-COLOR:
+    engine: source
+    rules: [VIS-001]
+    confidence: high
+    not_run_when: No declared color.roles in the visual contract.
+  S-CONTRACT-DEPTH-METAPHOR:
+    engine: source
+    rules: [VIS-006, VIS-001]
+    confidence: medium
+    not_run_when: The visual contract declares no depth.metaphor.
+  S-CONTRACT-ELEVATION:
+    engine: source
+    rules: [VIS-001, VIS-006]
+    confidence: medium
+    not_run_when: The visual contract declares no depth.elevations set.
+  S-CONTRACT-RADIUS:
+    engine: source
+    rules: [VIS-001]
+    confidence: medium
+    not_run_when: The visual contract declares no radius values.
+  S-CONTRACT-FONT-AVAIL: {engine: source, rules: [VIS-010, VIS-002], confidence: high,
+                          not_run_when: "The visual contract declares no type.families,
+                            so there is no face whose availability could be checked."}
+  S-CONTRACT-MOTION:
+    engine: source
+    rules: [NUM-018]
+    confidence: low
+    not_run_when: The visual contract declares no motion.duration_ms band.
+
+
+  # ------------------------------------------------- native platform (static)
+  # iOS and Android conformance read from Swift, Kotlin, Dart and React Native
+  # source. Every one of these gates on a measured platform (an ios/ or android/
+  # directory, an Xcode or Gradle project, a pubspec, or a react-native
+  # dependency), so a web-only project reports the whole family NOT_APPLICABLE
+  # rather than carrying forty rows nobody can act on.
+  S-IOS-SAFEAREA:      {engine: source, rules: [IOS-001], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-NAVSTRUCTURE:  {engine: source, rules: [IOS-002], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-EDGESWIPE:     {engine: source, rules: [IOS-003], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-DYNAMICTYPE:   {engine: source, rules: [IOS-005], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-SYSTEMFONT:    {engine: source, rules: [IOS-006], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MINSIZE:       {engine: source, rules: [IOS-007], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TARGET44:      {engine: source, rules: [NUM-006], confidence: medium,
+                        not_run_when: "Project does not ship to iOS.", laws: [LAW-02]}
+  S-IOS-SEMANTICCOLOR: {engine: source, rules: [IOS-008], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-DARKMODE:      {engine: source, rules: [IOS-009], confidence: high,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TINT:          {engine: source, rules: [IOS-010], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MATERIALS:     {engine: source, rules: [IOS-011], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-NATIVECONTROLS: {engine: source, rules: [IOS-012], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-SFSYMBOLS:     {engine: source, rules: [IOS-013], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-MODALITY:      {engine: source, rules: [IOS-014], confidence: medium,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-GROUPEDLIST:   {engine: source, rules: [IOS-015], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-TRANSITION:    {engine: source, rules: [IOS-016], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+  S-IOS-REDUCEMOTION:  {engine: source, rules: [IOS-017], confidence: medium,
+                        not_run_when: "Project does not ship to iOS.", laws: [LAW-07]}
+  S-IOS-LARGETITLE:    {engine: source, rules: [IOS-004], confidence: low,
+                        not_run_when: "Project does not ship to iOS."}
+
+  S-AND-ADAPTIVENAV:   {engine: source, rules: [AND-001], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SYSTEMBACK:    {engine: source, rules: [AND-002], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-INSETS:        {engine: source, rules: [AND-003], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TOPBAR:        {engine: source, rules: [AND-004], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TYPESCALE:     {engine: source, rules: [AND-005], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SYSTEMFONT:    {engine: source, rules: [AND-006], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-SP:            {engine: source, rules: [AND-007], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-ROLETOKENS:    {engine: source, rules: [AND-008], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-DYNAMICCOLOR:  {engine: source, rules: [AND-009], confidence: low,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-DARKTHEME:     {engine: source, rules: [AND-010], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-ELEVATION:     {engine: source, rules: [AND-011], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-MATERIAL:      {engine: source, rules: [AND-012], confidence: high,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-FAB:           {engine: source, rules: [AND-013], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-TOAST:         {engine: source, rules: [AND-014], confidence: medium,
+                        not_run_when: "Project does not ship to Android."}
+  S-AND-REDUCEMOTION:  {engine: source, rules: [AND-015], confidence: medium,
+                        not_run_when: "Project does not ship to Android.", laws: [LAW-07]}
+  S-AND-TARGET48:      {engine: source, rules: [NUM-007], confidence: medium,
+                        not_run_when: "Project does not ship to Android.", laws: [LAW-02]}
+
+  # ------------------------------------------------ native platform (runtime)
+  # scripts/ux_native.sh drives a Simulator or an emulator. On a machine with
+  # neither -- which is most Linux machines for iOS -- these report NOT_RUN with
+  # the tool that was missing. That is the point: a screenshot from a browser is
+  # not evidence about an iPhone, so the honest answer is that nobody looked.
+  R-IOS-CAPTURE:
+    engine: native_runtime
+    rules: [IOS-018]
+    confidence: high
+    not_run_when: >-
+      No Simulator capture recorded. `xcrun simctl` was unavailable, no device was
+      booted, or scripts/ux_native.sh was not run. A browser screenshot of a React
+      Native web build is not evidence about iOS.
+  R-IOS-APPEARANCE:
+    engine: native_runtime
+    rules: [IOS-019, IOS-009, IOS-005]
+    confidence: high
+    not_run_when: >-
+      No paired light/dark and large-Dynamic-Type captures recorded for iOS.
+  R-AND-CAPTURE:
+    engine: native_runtime
+    rules: [AND-016]
+    confidence: high
+    not_run_when: >-
+      No emulator or device capture recorded. `adb` was unavailable, no device was
+      attached, or scripts/ux_native.sh was not run.
+  R-AND-THEME:
+    engine: native_runtime
+    rules: [AND-017, AND-010, AND-007]
+    confidence: high
+    not_run_when: >-
+      No paired light/dark and enlarged-font-scale captures recorded for Android.
+
+  # ---------------------------------------------------------------- manual tier
+  # A human did it and said so. Every manual detector carries the question the
+  # person has to answer, because "reviewed: PASS" is not a result -- it is a
+  # claim with no procedure behind it. scripts/manual_sheet.py emits these
+  # questions as a fill-in sheet, and ux_report prints the question next to any
+  # manual rule still NOT_RUN so the gap is actionable rather than mysterious.
+  M-SCREENREADER:
+    engine: manual
+    rules: [A11Y-001, A11Y-006, A11Y-011, A11Y-014]
+    question: >-
+      Complete one primary task using a screen reader only, screen off or eyes
+      closed. Name the reader and version, the task, and anything you could not
+      reach, identify or dismiss.
+  M-KEYBOARD-TASK:
+    engine: manual
+    rules: [A11Y-002, UX-003]
+    question: >-
+      Complete one primary task and one destructive task with the keyboard
+      alone, mouse unplugged. Name where focus went missing, where it was
+      trapped, and whether you could cancel or undo without the mouse.
+  M-TOUCH-DEVICE:
+    engine: manual
+    rules: [LAY-009]
+    question: >-
+      Use the product one-handed on a real phone, thumb only. Name the controls
+      you could not hit accurately, and anything the on-screen keyboard covered
+      that you needed.
+  M-CONTENT-REVIEW:
+    engine: manual
+    rules: [CONTENT-002, CONTENT-008, UX-002, NAV-005]
+    question: >-
+      Read every string on one flow aloud, including error and empty states. Name
+      any that says what went wrong without saying what to do, uses internal
+      vocabulary, or would not survive translation.
+
+  # Judgement rules. No checker can settle "is this the right amount of
+  # complexity to reveal" or "is the density right for this task". Listing them
+  # here is the honest alternative to a heuristic that would be wrong often
+  # enough to be ignored.
+  #
+  # These were ONE detector over eleven rules. That made a single signature
+  # certify eleven separate judgements, which is the same laundering GOV-006
+  # exists to stop -- one person writing "reviewed the design, looks right"
+  # turned eleven unexamined rules into PASS. Each judgement now carries its own
+  # question, and the reviewer answers the ones they actually performed. Eleven
+  # NOT_RUN entries are an accurate report; one PASS covering eleven was not.
+  M-JUDGE-CONSISTENCY:
+    engine: manual
+    rules: [UX-004]
+    question: >-
+      Open the same action in at least two places it appears (save, delete,
+      filter, add). Do the control, its label, its position and its confirmation
+      behave the same way in each? Name the places compared.
+  M-JUDGE-RECALL:
+    engine: manual
+    rules: [UX-006]
+    laws: [LAW-05]
+    question: >-
+      Walk one multi-step task end to end without notes. Was any identifier,
+      code or value from an earlier screen needed later and not shown? Name the
+      task and the step where recall was required, or state that none was.
+  M-JUDGE-EXPERT-PATH:
+    engine: manual
+    rules: [UX-007]
+    question: >-
+      Perform the most repeated task in this product ten times as an experienced
+      user would. Is there a shortcut, default or bulk path, and does it still
+      confirm destructive steps and stay keyboard-reachable? Name the task.
+  M-JUDGE-COMPETITION:
+    engine: manual
+    rules: [UX-008]
+    laws: [LAW-01]
+    question: >-
+      On the primary screen, list every element competing for first attention.
+      Does each support the current task or essential context? Name anything
+      prominent that does not, or state that the hierarchy is clean.
+  M-JUDGE-HELP:
+    engine: manual
+    rules: [UX-010]
+    question: >-
+      From inside a half-filled form, find help for the field you are on. Is it
+      in the same place it was on the previous screen, and did entered work
+      survive? Name where help lives.
+  M-JUDGE-PROGRESSIVE:
+    engine: manual
+    rules: [UX-012]
+    question: >-
+      Find the advanced or optional controls on one consequential screen. Are
+      they discoverable without documentation, and does every cost, risk or
+      prerequisite appear before the commit action rather than after it?
+  M-JUDGE-ALIGNMENT:
+    engine: manual
+    rules: [VIS-003]
+    laws: [LAW-14]
+    question: >-
+      Put the longest real label and the largest supported text size on one
+      dense screen at once. Does the alignment system hold, or do labels,
+      controls and repeated items drift? Name the screen.
+  M-JUDGE-DENSITY:
+    engine: manual
+    rules: [VIS-009]
+    question: >-
+      Load a representative number of real records -- not three. How many fit
+      without scrolling, and did fitting them cost target size, readability or
+      a column the task needs? Give the count and the viewport.
+  M-JUDGE-CONTENT-PRIORITY:
+    engine: manual
+    rules: [LAY-001]
+    question: >-
+      State the content priority for one screen in order, before looking at the
+      layout. Then check the narrowest supported width: are the primary task and
+      its essential context both still reachable? Name the priority order.
+  M-JUDGE-NAV-PATTERN:
+    engine: manual
+    rules: [NAV-006]
+    laws: [LAW-19]
+    question: >-
+      For each tab set, menu, accordion and nav list on the screen, name the
+      interaction purpose it serves and the keyboard contract it owes (arrow
+      keys vs Tab, roles, expanded state). Does the pattern chosen match?
+  M-JUDGE-BRAND-PRESERVED:
+    engine: manual
+    rules: [CTX-005]
+    question: >-
+      Diff the component and token changes in this work. Does every visual
+      change trace to a stated requirement rather than to preference? Name any
+      change that exists only to look different, or state that none does.
+  M-A11Y-PROCESS:
+    engine: manual
+    rules: [A11Y-012, QA-004]
+    question: >-
+      Name the accessibility check that runs without anyone remembering to run
+      it -- the CI job, the review step, the release gate -- and point at its
+      last result. An intention is not a process.
+  M-DESTRUCTIVE-WALK:
+    engine: manual
+    rules: [UX-003, UX-005, TRUST-006, FORM-013]
+    question: >-
+      Actually delete something, cancel something, and trigger one irreversible
+      or external action. For each: was the consequence stated before the act,
+      and could you recover afterwards? Name what you destroyed and how you got
+      it back, or that you could not.
+  M-FIELD-PERF:
+    engine: manual
+    rules: [NUM-012, PERF-005]
+    laws: [LAW-20]
+    question: >-
+      Load the heaviest real screen on a mid-range device over a throttled
+      connection, with a realistic data volume. Give the device, the network
+      profile, and what the user saw in the first two seconds.
+  M-NATIVE-HARDWARE:
+    engine: manual
+    rules: [IOS-020, AND-018]
+    question: >-
+      For every posture, gesture, refresh-rate or performance claim in this work,
+      name the physical device it was measured on. A Simulator and an emulator
+      give breadth; they do not give any of those. If no hardware was used, say
+      so and withdraw the claims that needed it.

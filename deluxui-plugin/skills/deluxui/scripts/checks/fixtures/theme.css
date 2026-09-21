@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@theme {
+  --color-brand-500: oklch(0.45 0.18 259);
+  --color-faint-400: oklch(0.80 0.02 259);
+  --color-surface: oklch(1 0 0);
+  --color-ink: oklch(0.25 0.01 259);
+}

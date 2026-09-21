@@ -1,0 +1,18 @@
+body { background: #fdf8f0; }
+.panel { border: 1px solid #e5e5e5; box-shadow: 0 20px 40px rgba(0,0,0,.18); }
+.tag { border-left: 4px solid #6366f1; border-radius: 24px; }
+.night { background: #0a0a0f; }
+.night .orb { box-shadow: 0 0 40px rgba(139,92,246,.6); }
+.kicker { text-transform: uppercase; font-size: 11px; letter-spacing: .22em; }
+.legal { font-size: 10px; }
+.lede { line-height: 1.15; font-size: 16px; }
+.shout { text-transform: uppercase; font-size: 18px; }
+.col { text-align: justify; }
+.body-wide { letter-spacing: .14em; font-size: 17px; }
+.chip { font-size: 16px; padding: 2px; }
+.stripe { background: repeating-linear-gradient(45deg, #eee 0 10px, #fff 10px 20px); }
+.edge-tab { position: fixed; writing-mode: vertical-rl; }
+.springy { transition: transform .4s cubic-bezier(.2,-0.6,.3,1.6); }
+h1 { font-family: Georgia, serif; font-style: italic; font-size: 96px; }
+.t { font-family: Inter; }
+.a { font-weight: 300 } .b { font-weight: 400 } .c { font-weight: 600 } .d { font-weight: 800 }

@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-09-21T23:56:35Z",
+  "staleAfterMs": 5000,
+  "contextWindow": {
+    "maxTokens": 1000000,
+    "currentTokens": 715738,
+    "percentage": 71
+  },
+  "status": "warning",
+  "sessionId": "",
+  "workspace": "/mnt/projects/awesome-skills"
+}

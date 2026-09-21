@@ -1,0 +1,99 @@
+# .deluxui/design.contract.yaml -- the visual commitments, stated before building.
+#
+# This file is what makes design craft checkable. "Is this beautiful?" has no
+# decision procedure; "does this match what was declared?" has one, and it never
+# requires anyone to adjudicate the declaration itself. That is the whole trick:
+# it removes taste from the verdict instead of pretending to resolve it.
+#
+# Two rules about WHEN, and they carry the entire epistemic content:
+#
+#   1. Declare before you build. A contract written afterwards is a description
+#      of whatever got emitted, it will always show conformance, and it is worth
+#      nothing. `deluxui design` writes this first, on purpose.
+#   2. In a brownfield project, derive it from the code that is already there.
+#      Then the source of truth is the existing product, not the agent's opinion,
+#      and a new component that departs from it is measurably a departure.
+#
+# Anything left `UNKNOWN` is not checked and is reported as NOT_RUN. That is the
+# honest state for a decision nobody has made -- do not fill these in to make the
+# report quieter.
+
+visitor_mode: UNKNOWN     # persuade | experience | operate | read | native
+                          # What the visitor came to do. It changes every
+                          # decision below; see references/design/visitor-modes.md.
+
+world: UNKNOWN            # One sentence, in observable values, not moods.
+                          # "Warm paper ground, one serif display voice, ink-black
+                          # text, single accent at oklch(0.55 0.18 25)."
+                          # "Modern and clean" is not a world -- it names nothing
+                          # a reader could check you against.
+
+# --- Type --------------------------------------------------------------------
+type:
+  families:               # At most three: display + body + optional mono.
+    display: UNKNOWN
+    body: UNKNOWN
+    mono: null
+  scale_px: []            # The role ladder, ascending. Adjacent steps should
+                          # differ by >= 1.25x or they cannot carry different
+                          # jobs. S-CRAFT-TYPE-FLAT measures this.
+  measure_ch: [45, 75]    # Reading measure. R-MEASURE measures the rendered result.
+  display_max_rem: 6.0    # S-CRAFT-HERO-SCALE ceiling.
+
+# --- Colour ------------------------------------------------------------------
+color:
+  space: UNKNOWN          # oklch | hsl | hex -- mixing a hex override into an
+                          # OKLCH ramp produces a step nobody can explain.
+  roles:                  # Roles, not swatches. A colour with no role is decoration.
+    canvas: UNKNOWN
+    surface: UNKNOWN
+    ink: UNKNOWN
+    muted: UNKNOWN
+    interactive: UNKNOWN
+    focus: UNKNOWN
+    success: UNKNOWN
+    warning: UNKNOWN
+    danger: UNKNOWN
+  ramp_steps: []          # The lightness steps the palette actually uses. A value
+                          # in the code that is not on this list is an escape, and
+                          # escapes are the one design signal that discriminates.
+  dark_mode: UNKNOWN      # composed | none -- never "inverted". A real dark theme
+                          # reduces contrast AND saturation; inversion causes glare.
+
+# --- Depth -------------------------------------------------------------------
+depth:
+  metaphor: UNKNOWN       # border | shadow -- exactly ONE. An element with a 1px
+                          # border under a wide soft shadow is two systems
+                          # arguing. S-CRAFT-DEPTH measures it.
+  elevations: []          # The shadow (or border) set, in order. Anything not on
+                          # this list is a one-off.
+
+# --- Spacing and shape -------------------------------------------------------
+spacing:
+  base_px: 4              # S-TOKEN-ARBITRARY measures departures from the scale.
+  scale: []
+radius:
+  control_px: UNKNOWN
+  card_px: UNKNOWN        # 12-16 unless the world chose otherwise.
+
+# --- Composition -------------------------------------------------------------
+grid:
+  columns: UNKNOWN
+  gutter_px: UNKNOWN
+  container_max_px: UNKNOWN
+
+# --- Motion ------------------------------------------------------------------
+motion:
+  duration_ms: [120, 240]
+  easing: UNKNOWN         # Exponential ease-out. No bounce, no elastic.
+  authored_moments: 1     # One moment that was designed, not one identical
+                          # entrance per section.
+
+# --- Deliberate departures ---------------------------------------------------
+# A value that breaks the contract on purpose. This is the honest alternative to
+# widening the contract until nothing is a departure. Each needs a reason a
+# reader can weigh -- "looked better" is not one.
+departures: []
+  # - value: "border-radius: 32px"
+  #   where: "src/components/Hero.tsx"
+  #   why: "The hero medallion is the one circular form in the brand mark."

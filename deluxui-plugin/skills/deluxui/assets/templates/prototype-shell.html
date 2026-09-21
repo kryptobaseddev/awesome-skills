@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  deluxui prototype shell -- the standard wrapper every generated prototype uses.
+
+  This is a template, not output. `scripts/ux_proto.py` fills the slots below from
+  `.deluxui/design.contract.yaml` and writes the result; editing this file changes
+  every prototype the project generates from now on, which is the point: the
+  wrapper should be the same everywhere so a reviewer learns it once.
+
+  Slots, each replaced verbatim:
+    {{title}}         the surface's name
+    {{tokens}}        the contract as custom properties, including a composed dark theme
+    {{css}}           the shell's own stylesheet
+    {{depth}}         border rules or shadow rules -- whichever the contract declared
+    {{banners}}       honesty banners: undeclared contract fields, a face that will not render
+    {{header}}        title, description, and the control bar
+    {{sections}}      the systems, in order
+    {{script}}        behaviour
+    {{density}}       comfortable | compact
+
+  Adding a section for a real product screen:
+
+    <section class="proto-section" id="jobs">
+      <h2>Job list</h2>
+      <p class="muted">One sentence on what a person is doing here.</p>
+      ...your markup, using only the tokens...
+    </section>
+
+  Two rules for anything added here, and both are checkable:
+    1. Only declared values. Every colour is a --role, every size a --t*, every gap
+       a --s*, every radius --r-ctl or --r-card. A literal is a departure and
+       `ux_check.py` will name it.
+    2. Every state, not the happy one. A section that renders one state teaches the
+       reviewer nothing about the four they will actually meet.
+-->
+<html lang="en" data-theme="light"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{title}}</title>
+<style>
+{{tokens}}
+{{css}}
+{{depth}}
+</style></head>
+<body data-density="{{density}}">
+{{banners}}
+<div class="wrap">
+{{header}}
+{{sections}}
+</div>
+{{script}}
+</body></html>

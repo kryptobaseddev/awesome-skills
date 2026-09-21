@@ -1,0 +1,104 @@
+# NUM-001..020 as machine-readable values. scripts/uxconfig.py merges a project's
+# overridable values over these; the static checks read them through Project.num
+# and the browser probes through window.__uxTh, so an override reaches the
+# measurement rather than stopping at the config file.
+#
+# `overridable` is the contract: false means the value comes from a standard,
+# a list names the only keys a project may move, true means the whole group.
+# STANDARD-class values are refused, loudly -- an approved exception (section 20)
+# records a deviation against a named rule, it does not move the bar for
+# everything silently.
+meta:
+  units: "CSS px unless stated. Apple pt and Android dp are distinct platform units."
+  measurement: "Rendered and interactive behaviour, not design-file dimensions."
+
+contrast:                       # NUM-001, NUM-002, NUM-003
+  normal_text_min: 4.5
+  large_text_min: 3.0
+  non_text_min: 3.0
+  large_text_px: 24.0           # 18pt regular
+  large_text_bold_px: 18.67     # 14pt bold
+  overridable: false
+
+target_size:
+  web_min_px: 24                # NUM-004  STANDARD (SC 2.5.8)
+  web_coarse_min_px: 44         # NUM-005  PROJECT
+  ios_min_pt: 44                # NUM-006  PLATFORM
+  android_min_dp: 48            # NUM-007  PLATFORM
+  undersized_spacing_circle_px: 24
+  overridable: [web_coarse_min_px]
+
+reflow:                         # NUM-008, NUM-009, NUM-019
+  text_resize_percent: 200
+  min_width_px: 320
+  min_height_px: 256
+  test_viewports_px: [320, 390, 768, 1024, 1440]
+  overridable: [test_viewports_px]
+
+text_spacing:                   # NUM-010 -- override tolerances, not authored values
+  line_height_multiple: 1.5
+  paragraph_spacing_multiple: 2.0
+  letter_spacing_em: 0.12
+  word_spacing_em: 0.16
+  overridable: false
+
+performance:                    # NUM-012, NUM-013, NUM-014
+  lcp_seconds_p75: 2.5
+  inp_ms_p75: 200
+  cls_p75: 0.1
+  feedback_ack_ms_p95: 100
+  pending_status_after_ms: 1000
+  stage_info_after_ms: 10000
+  overridable: [feedback_ack_ms_p95, pending_status_after_ms, stage_info_after_ms]
+
+typography:                     # NUM-015, NUM-016
+  body_rem: 1.0
+  measure_ch_min: 45
+  measure_ch_max: 75
+  overridable: true
+
+spacing:                        # NUM-017
+  base_unit_px: 4
+  overridable: true
+
+motion:                         # NUM-018
+  micro_ms_min: 120
+  micro_ms_max: 240
+  overridable: true
+
+# --- Craft floor -------------------------------------------------------------
+# Numeric ceilings and floors for visual craft. Derived from the impeccable
+# skill's craft floor (Apache-2.0, github.com/pbakaus/impeccable) and carried
+# here as machine-readable values so a detector reads them instead of hardcoding
+# a number in a regex. All PROJECT class: a world that genuinely chose a
+# different bar overrides it here and says why.
+type_craft:
+  display_max_rem: 6.0          # hero clamp() ceiling; above this the page shouts
+  tracking_floor_em: -0.04      # tighter and the letters touch
+  scale_step_ratio_min: 1.25    # adjacent roles must differ enough to carry different jobs
+  family_count_max: 3           # display + body + optional mono; more reads as indecision
+  ui_text_min_px: 12            # below this is not a size choice, it is a mistake
+  overridable: true
+
+depth:
+  card_radius_min_px: 12
+  card_radius_max_px: 16        # pills are for small controls, not cards
+  shadow_blur_min_px: 2         # a zero-blur offset shadow is a costume
+  halo_offset_max_px: 0         # zero-offset coloured glow is decoration, not depth
+  metaphors_allowed: 1          # border OR shadow, never both on one element
+  overridable: true
+
+motion_craft:
+  # Exponential ease-out. Bounce and elastic read as a template, not a decision.
+  banned_easings: [ease-in-out, linear, cubic-bezier(0.68, -0.55, 0.265, 1.55)]
+  section_entrance_max: 1       # one authored moment, not one identical fade per section
+  overridable: true
+
+zindex:
+  # A semantic scale, not 999. dropdown < sticky < modal-backdrop < modal < toast < tooltip
+  arbitrary_max: 100            # any literal above this is a magic number
+  overridable: true
+
+commit_safety:                  # NUM-020
+  repeated_activation_must_not_double_commit: true
+  overridable: false

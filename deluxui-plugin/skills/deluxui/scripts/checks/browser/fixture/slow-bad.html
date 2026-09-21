@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>slow, silent</title></head><body>
+<h1>Projects</h1>
+<!-- Shows nothing at all until the data lands. A slow request and a broken one
+     look identical from here. -->
+<div id="out"></div>
+<script>
+fetch('slow-data.json').then(r => r.json()).then(d => {
+  document.getElementById('out').innerHTML =
+    '<ul>' + d.items.map(i => '<li>' + i.name + '</li>').join('') + '</ul>';
+});
+</script>
+</body></html>

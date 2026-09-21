@@ -1,0 +1,44 @@
+{
+ "probe": "forcedcolors",
+ "emulated": true,
+ "paired": 24,
+ "selected": 24,
+ "focus_pairs": 10,
+ "findings": [
+  {
+   "kind": "focus-lost",
+   "label": "My focus ring is a box-shadow",
+   "detail": "focus is shown with a box-shadow normally and with nothing at all in forced-colors mode. box-shadow does not exist in this mode; use `outline` with a non-zero width, which is preserved, and keep `outline-offset` for the gap."
+  },
+  {
+   "kind": "distinction-lost",
+   "label": "Selected",
+   "detail": "<button> is distinguished from its siblings by background colour alone (rgb(29, 78, 216) against ['rgb(238, 238, 238)']), and in forced-colors every background becomes one system colour, so the distinction disappears. Whatever this colour meant -- selected, succeeded, current -- needs a second cue: a border, an icon, text, or a position (VIS-004, SC 1.4.1)."
+  },
+  {
+   "kind": "distinction-lost",
+   "label": "Other",
+   "detail": "<button> is distinguished from its siblings by background colour alone (rgb(238, 238, 238) against ['rgb(238, 238, 238)', 'rgb(29, 78, 216)']), and in forced-colors every background becomes one system colour, so the distinction disappears. Whatever this colour meant -- selected, succeeded, current -- needs a second cue: a border, an icon, text, or a position (VIS-004, SC 1.4.1)."
+  },
+  {
+   "kind": "distinction-lost",
+   "label": "Third",
+   "detail": "<button> is distinguished from its siblings by background colour alone (rgb(238, 238, 238) against ['rgb(238, 238, 238)', 'rgb(29, 78, 216)']), and in forced-colors every background becomes one system colour, so the distinction disappears. Whatever this colour meant -- selected, succeeded, current -- needs a second cue: a border, an icon, text, or a position (VIS-004, SC 1.4.1)."
+  },
+  {
+   "kind": "boundary-lost",
+   "label": "This panel is delimited by its backgroun",
+   "detail": "<div> is separated from its surroundings by background colour alone (rgb(238, 242, 255) on rgb(255, 255, 255)), and in forced-colors both become the same system colour, so the boundary disappears. Add a border -- 1px is enough, and border-color IS forced, so it survives."
+  },
+  {
+   "kind": "boundary-lost",
+   "label": "This element is 900px wide and will not ",
+   "detail": "<div> is separated from its surroundings by background colour alone (rgb(238, 238, 238) on rgb(255, 255, 255)), and in forced-colors both become the same system colour, so the boundary disappears. Add a border -- 1px is enough, and border-color IS forced, so it survives."
+  },
+  {
+   "kind": "boundary-lost",
+   "label": "A fixed bar 120px tall, tall enough to o",
+   "detail": "<div> is separated from its surroundings by background colour alone (rgb(34, 34, 34) on rgb(255, 255, 255)), and in forced-colors both become the same system colour, so the boundary disappears. Add a border -- 1px is enough, and border-color IS forced, so it survives."
+  }
+ ]
+}
