@@ -9,7 +9,7 @@ meta:
   generated_note: Rule text is derived from the rulebook. Severity, class and detector bindings are deluxui
     additions. The rulebook stays the citable source.
   counts:
-    rules: 233
+    rules: 234
     tests: 20
     laws: 20
     # 19 of the 20 laws are enforceable (LAW-17 is an alias of LAW-16). Each is
@@ -201,6 +201,19 @@ rules:
   requirement: SHOULD record a generated asset's origin inside the asset -- the prompt, the model and the
     contract it was generated from.
   acceptance: Generated images carry provenance metadata that names the generator and the contract hash.
+  applies_when: always
+- id: GOV-014
+  section: 00. Interpretation and authority
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P1
+  basis:
+  - S00
+  requirement: MUST have a person use a working prototype of a new surface and accept it before
+    writing production code for it, rather than approving a drawing of it.
+  acceptance: A decision record from a live review states an accepting outcome, and the prototype it
+    reviewed exists.
   applies_when: always
 - id: CTX-001
   section: 01. Required project inputs

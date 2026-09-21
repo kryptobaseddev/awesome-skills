@@ -58,7 +58,13 @@ DECISIONS = Path(".deluxui/decisions")
 COMPS = Path(".deluxui/comps")
 REPORT = Path(".deluxui/reports/agent_report.yaml")
 
-PHASES = ["discover", "declare", "comp", "approve", "build", "verify", "release"]
+# Two review stages, because they answer different questions and a person can
+# only answer one of them at a time. A wireframe settles structure -- what is on
+# the screen, in what order, at what proportion -- and cannot settle whether the
+# thing is usable, because a drawing cannot be used. A prototype settles that, and
+# it is the last point before the answer costs a sprint.
+PHASES = ["discover", "declare", "wireframe", "prototype", "build", "verify",
+          "release"]
 UI_EXT = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro", ".html", ".htm",
           ".css", ".scss", ".sass", ".less", ".swift", ".kt", ".kts", ".dart"}
 SKIP = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", "out",
@@ -74,15 +80,25 @@ WHAT_IT_PERMITS = {
                 "can be built.",
     "declare": "Writing PRODUCT.md and DESIGN.md. Still no UI code: what the product "
                "is for is not yet written down.",
-    "comp": "Writing the visual contract. Still no UI code -- this is the phase whose "
-            "whole purpose is that it comes first.",
-    "approve": "Rendering and generating comps, and serving the decision. No UI code: "
-               "nobody has chosen a direction yet.",
-    "build": "Writing UI code. This is the first phase where that is permitted, and "
-             "it is permitted because a named person approved a specific comp.",
+    "wireframe": "Writing the visual contract, rendering wireframes from it, and "
+                 "serving that choice. Still no UI code -- this is the stage whose "
+                 "whole purpose is that it comes first. A wireframe settles "
+                 "structure: what is on the screen, in what order, at what "
+                 "proportion.",
+    "prototype": "Building a working prototype and putting it in front of somebody. "
+                 "Still not production code. A drawing cannot be used, so a drawing "
+                 "cannot tell you whether the thing works; this is the stage where "
+                 "someone finds out by using it.",
+    "build": "Writing production UI code. The first phase where that is permitted, "
+             "and it is permitted because a named person used a working prototype "
+             "and accepted it.",
     "verify": "Running the tiers and fixing what they find.",
     "release": "Shipping. The gate said READY.",
 }
+
+# Where the prototype lives by default. A directory rather than a file, because a
+# prototype that grows past one page is the normal case.
+PROTO = Path(".deluxui/proto")
 
 
 # ------------------------------------------------------------------ the tree
@@ -159,6 +175,18 @@ def comps_on_disk() -> list:
     return sorted(COMPS.glob("*.comps.yaml"))
 
 
+def stage_of(d: dict) -> str:
+    """Which stage a decision record belongs to.
+
+    A review of a working prototype and a choice between drawings are different
+    approvals, and only the first one can authorise production code. The record
+    says which it is: `ux_review.py` writes `approves_a_build`, `ux_question.py`
+    does not."""
+    if "approves_a_build" in d or "ux_review" in str(d.get("source") or ""):
+        return "prototype"
+    return "wireframe"
+
+
 def vetted_decisions() -> tuple[list, list, list]:
     """(admissible, inadmissible, superseded). The same bar the report applies.
 
@@ -192,10 +220,24 @@ def vetted_decisions() -> tuple[list, list, list]:
             why.append(f"`who: {who}` names the party that produced the comps")
         if not str(d.get("date") or "").strip():
             why.append("no `date`")
-        if len(str(d.get("rationale") or "").strip()) < MIN_REASON:
+        # A record that is not an approval does not also need a long reason: the
+        # outcome already disqualifies it, and listing both makes the decisive
+        # fact harder to find.
+        approving = (d.get("approves_a_build", True)
+                     and str(d.get("chosen") or "").strip()
+                     not in ("", "reject", "changes"))
+        if approving and len(str(d.get("rationale") or "").strip()) < MIN_REASON:
             why.append("the reason is too thin to weigh")
-        if str(d.get("chosen") or "").strip() in ("", "reject"):
-            why.append(f"chosen is {d.get('chosen')!r}, which is not an approval")
+        chosen = str(d.get("chosen") or "").strip()
+        if "approves_a_build" in d:
+            # A live review states its own outcome. "Request changes" is a real,
+            # useful answer and it is not an approval; reading it as one would let
+            # a work list authorise the build it is a list of complaints about.
+            if not d.get("approves_a_build"):
+                why.append(f"the outcome was {d.get('outcome', chosen)!r}, which is "
+                           f"not an approval")
+        elif chosen in ("", "reject", "changes"):
+            why.append(f"chosen is {chosen!r}, which is not an approval")
         for s in d.get("shown") or []:
             if not s.get("image"):
                 continue
@@ -226,7 +268,7 @@ def requirements(target: str, st: dict) -> list:
     if target == "declare":
         for p in (Path(".deluxui/PRODUCT.md"), Path(".deluxui/DESIGN.md")):
             out.append(_text_ok(p))
-    elif target == "comp":
+    elif target == "wireframe":
         c = ux_image.load_contract(None)
         if not c.raw:
             out.append((False, "no .deluxui/design.contract.yaml -- there is nothing "
@@ -239,24 +281,41 @@ def requirements(target: str, st: dict) -> list:
                         f"{', '.join(und)}. Each one is a decision nobody has made, "
                         f"and a comp cannot settle a field it was drawn with a "
                         f"placeholder for"))
-    elif target == "approve":
+    elif target == "prototype":
         sets = comps_on_disk()
-        n = sum(len(( yaml.safe_load(s.read_text()) or {}).get("rendered") or [])
+        n = sum(len((yaml.safe_load(s.read_text()) or {}).get("rendered") or [])
                 for s in sets)
-        out.append((bool(sets), f"{len(sets)} comp set(s) rendered"
-                    if sets else "no comps rendered -- run "
+        out.append((bool(sets), f"{len(sets)} wireframe set(s) rendered"
+                    if sets else "no wireframes rendered -- run "
                     "`ux_image.py render <brief.yaml>`"))
-        out.append((n >= 2, f"{n} comps to choose between"
-                    if n >= 2 else f"{n} comp(s). One comp invites a rubber stamp; "
+        out.append((n >= 2, f"{n} wireframes to choose between"
+                    if n >= 2 else f"{n} wireframe(s). One invites a rubber stamp; "
                                    "two is the minimum that makes a decision possible"))
-    elif target == "build":
-        ok, bad, sup = vetted_decisions()
-        out.append((bool(ok), (f"{len(ok)} admissible decision record(s): "
-                               + ", ".join(f.stem for f, _d, _w in ok)) if ok else
-                    "no admissible decision record. Serve the choice: "
+        ok, bad, _sup = vetted_decisions()
+        wf = [(f, d, w) for f, d, w in ok if stage_of(d) == "wireframe"]
+        out.append((bool(wf), (f"a structure was chosen: "
+                               + ", ".join(f.stem for f, _d, _w in wf)) if wf else
+                    "nobody has chosen a structure. Serve the wireframes: "
                     "`ux_question.py ask .deluxui/comps/<set>.comps.yaml`"))
-        if not ok:
-            for f, _d, why in bad:
+        for f, _d, why in bad:
+            if stage_of(_d) == "wireframe":
+                out.append((False, f"{f.stem} is on record but not admissible ({why})"))
+    elif target == "build":
+        proto = sorted(PROTO.rglob("*.html")) if PROTO.exists() else []
+        out.append((bool(proto), f"{len(proto)} prototype page(s) in {PROTO}"
+                    if proto else
+                    f"no prototype in {PROTO}. A drawing cannot be used, so it "
+                    f"cannot tell you whether the thing works: "
+                    f"`ux_proto.py --write {PROTO}/index.html`"))
+        ok, bad, sup = vetted_decisions()
+        pr = [(f, d, w) for f, d, w in ok if stage_of(d) == "prototype"]
+        out.append((bool(pr), (f"somebody used it and accepted it: "
+                               + ", ".join(f.stem for f, _d, _w in pr)) if pr else
+                    "no accepted prototype review. Put it in front of a person: "
+                    "`ux_review.py serve --variant \"proposed=" + str(PROTO)
+                    + "/index.html\"`"))
+        for f, d, why in bad:
+            if stage_of(d) == "prototype":
                 out.append((False, f"{f.stem} is on record but not admissible ({why})"))
         if sup:
             out.append((True, f"{len(sup)} superseded record(s) ignored: "
@@ -266,7 +325,7 @@ def requirements(target: str, st: dict) -> list:
         snap = st.get("snapshot") or {}
         if not snap:
             out.append((False, "no snapshot was taken, so the order the work happened "
-                               "in cannot be established. Re-enter `comp`"))
+                               "in cannot be established. Re-enter `wireframe`"))
         elif st.get("mode") == "brownfield":
             out.append((bool(after),
                         f"{len(after)} file(s) changed since the contract was derived; "
@@ -313,7 +372,7 @@ def advance(target: str | None, st: dict) -> tuple[int, dict]:
                    "met": [w for m, w in reqs if m]}
     ev = {"to": target, "at": now(), "git_head": git("rev-parse", "HEAD"),
           "evidence": [w for _m, w in reqs]}
-    if target == "comp":
+    if target == "wireframe":
         c = ux_image.load_contract(None)
         st["snapshot"] = {"taken_at": now(), "contract_sha": c.sha(),
                           "git_head": git("rev-parse", "HEAD"),
@@ -321,8 +380,9 @@ def advance(target: str | None, st: dict) -> tuple[int, dict]:
         ev["snapshot_files"] = len(st["snapshot"]["ui_files"])
     if target == "build":
         ok, _bad, _sup = vetted_decisions()
-        ev["approved_by"] = [{"decision": f.stem, "who": d.get("who"),
-                              "chosen": d.get("chosen"), "date": d.get("date"),
+        ev["approved_by"] = [{"decision": f.stem, "stage": stage_of(d),
+                              "who": d.get("who"), "chosen": d.get("chosen"),
+                              "date": d.get("date"),
                               "options_sha": d.get("options_sha")}
                              for f, d, _w in ok]
     st["phase"] = target
@@ -344,14 +404,16 @@ def process_checks(st: dict) -> dict:
                "recorded, so nothing here can be established either way. Start it "
                "with `ux_phase.py init` -- this is NOT_RUN and not a pass.")
         return {k: ("NOT_RUN", why) for k in
-                ("A-PHASE-ORDER", "A-COMP-APPROVED", "A-DECISION-VETTED")}
+                ("A-PHASE-ORDER", "A-COMP-APPROVED", "A-DECISION-VETTED",
+                 "A-PROTO-ACCEPTED")}
 
     # --- declaration before code
     snap = st.get("snapshot") or {}
     if not snap:
         out["A-PHASE-ORDER"] = ("NOT_RUN",
-            "No snapshot: the project has not reached the `comp` phase, so there is "
-            "no recorded moment at which the contract existed and the code did not.")
+            "No snapshot: the project has not reached the `wireframe` phase, so "
+            "there is no recorded moment at which the contract existed and the code "
+            "did not.")
     else:
         after, same = changed_since_snapshot(st)
         mode = st.get("mode", "greenfield")
@@ -388,20 +450,50 @@ def process_checks(st: dict) -> dict:
     if not ok and not bad:
         out["A-COMP-APPROVED"] = ("NOT_RUN",
             "No decision records at all. Nobody has been asked to approve a "
-            "direction, so there is no approval to check. Serve the choice with "
-            "`ux_question.py ask`.")
+            "structure or to use a prototype, so there is no approval to check. "
+            "Serve the choice with `ux_question.py ask`, and the working thing "
+            "with `ux_review.py serve`.")
         out["A-DECISION-VETTED"] = ("NOT_RUN", "No decision records to vet.")
+        out["A-PROTO-ACCEPTED"] = ("NOT_RUN",
+            "No live review has been recorded. Nobody has used a working version of "
+            "this and said so, which is a different fact from nobody having liked a "
+            "drawing of it.")
         return out
     if ok:
         f, d, _ = ok[-1]
-        out["A-COMP-APPROVED"] = ("PASS",
-            f"{f.stem}: {d.get('who')} chose {d.get('chosen')} on {d.get('date')} "
-            f"against shown-hash {d.get('options_sha')}, and the comps on disk still "
-            f"match it.")
+        stages = sorted({stage_of(x[1]) for x in ok})
+        note = (f"{f.stem}: {d.get('who')} chose {d.get('chosen')} on {d.get('date')} "
+                f"against shown-hash {d.get('options_sha')}. Stages approved: "
+                f"{', '.join(stages)}.")
+        if "prototype" not in stages:
+            note += (" No prototype has been used and accepted, so the structure is "
+                     "agreed and the thing itself is not.")
+        out["A-COMP-APPROVED"] = ("PASS", note)
     else:
         out["A-COMP-APPROVED"] = ("FAIL",
             f"{len(bad)} decision record(s) exist and none is admissible: "
             + "; ".join(f"{f.stem} ({why})" for f, _d, why in bad)[:400])
+    # --- did anybody USE it, or only look at a picture of it
+    used = [(f, d) for f, d, _w in ok if stage_of(d) == "prototype"]
+    refused = [(f, d) for f, d, _w in bad if stage_of(d) == "prototype"]
+    if used:
+        f, d = used[-1]
+        out["A-PROTO-ACCEPTED"] = ("PASS",
+            f"{f.stem}: {d.get('who')} reviewed a running prototype on "
+            f"{d.get('date')} and accepted it ({d.get('outcome')}). "
+            f"{len(d.get('notes') or [])} element note(s) came out of that session.")
+    elif refused:
+        f, d = refused[-1]
+        out["A-PROTO-ACCEPTED"] = ("FAIL",
+            f"{f.stem}: a live review happened and the outcome was "
+            f"{d.get('outcome')!r}, which is not an acceptance. "
+            f"{len(d.get('notes') or [])} element note(s) are the work list.")
+    else:
+        out["A-PROTO-ACCEPTED"] = ("NOT_RUN",
+            "Decisions exist, but all of them are about drawings. Nobody has used a "
+            "working version of this -- and a wireframe cannot be used, so it cannot "
+            "establish that the thing works.")
+
     if bad:
         out["A-DECISION-VETTED"] = ("FAIL",
             f"{len(bad)} of {len(ok) + len(bad)} standing decision records do not "

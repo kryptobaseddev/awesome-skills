@@ -1,6 +1,6 @@
 ---
 name: deluxui
-description: "Engineer and verify interfaces against a 233-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including a small addition like a delete or submit control, which carries confirmation and undo duties. Also when redesigning, polishing, simplifying or hardening UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 183 static checks bound to cited rule IDs, a browser tier that measures contrast and 320px reflow and forces the states nobody tests, and 38 iOS and Android rules - behind a gate where NOT_RUN is never a pass. Renders comps from the contract, serves the choice as a page, and refuses UI edits until one is approved. Knows React, Next.js, Svelte, Vue, Tailwind, SwiftUI, Compose, React Native, Flutter. Use even if the user only says 'make this look better'."
+description: "Engineer and verify interfaces against a 234-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including a small addition like a delete or submit control, which carries confirmation and undo duties. Also when redesigning, polishing, simplifying or hardening UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 183 static checks bound to cited rule IDs, a browser tier that measures contrast and 320px reflow and forces the states nobody tests, and 38 iOS and Android rules - behind a gate where NOT_RUN is never a pass. Renders comps from the contract, serves the choice as a page, and refuses UI edits until one is approved. Knows React, Next.js, Svelte, Vue, Tailwind, SwiftUI, Compose, React Native, Flutter. Use even if the user only says 'make this look better'."
 license: MIT
 compatibility: >-
   Python 3.9+ with pyyaml for the static tier and the report. The runtime tier
@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "4.0.0"
-  last_updated: "2026-09-21 15:20:00"
+  version: "4.1.0"
+  last_updated: "2026-09-21 15:47:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -23,7 +23,7 @@ They fail in the states nobody opens: the empty list, the request that 500s, the
 320px phone, the keyboard-only pass, the moment the network drops. And then the
 agent reports success, because nothing told it otherwise.
 
-This skill fixes the reporting problem first. It carries a 233-rule contract
+This skill fixes the reporting problem first. It carries a 234-rule contract
 derived from WCAG 2.2, platform guidance and named UX research, and it ships
 scripts that actually test the testable parts. A rule that was checked says PASS.
 A rule that was not says **NOT_RUN** — and NOT_RUN is never a pass, never rounds
@@ -68,8 +68,9 @@ Read this table first — each row is a failure that reaches real users.
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
 | **Design craft is checked against a declaration, never against taste.** | `.deluxui/design.contract.yaml` states the type roles, colour roles, one depth metaphor, radii and motion band *before* the code is written. The `S-CONTRACT-*` checks then compare the artifact to it. With no contract they report NOT_RUN — an undeclared system cannot be conformed to, and "is this beautiful?" has no decision procedure while "does this match what was declared?" does. |
 | **The 20 UX laws now carry verdicts — 14 measured, 5 by attestation.** | Each enforceable law is indexed to the detectors that adjudicate one of its `verify:` clauses, and the report rolls them up. A law whose only evidence is a human attestation says `attested only` instead of passing as measured. The rule ID is still the finer-grained claim, so cite `NUM-004` when you mean the threshold and `LAW-02` when you mean the principle. |
-| **212 of the 233 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
+| **213 of the 234 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The contract is declared before the code, and that order is now measured.** | Entering the `comp` phase snapshots the contract's hash, the git head and every UI file's hash; entering `verify` compares against it. A contract declared with no file changed since is a contract written to describe code that already existed — it will always show conformance, so every `S-CONTRACT-*` PASS behind it would be circular. `A-PHASE-ORDER` FAILs on exactly that. |
+| **A drawing cannot be used, so it cannot tell you whether the thing works.** | There are two review stages. A wireframe settles structure; a working prototype settles usability, and `build` is gated on the second. `ux_proto.py` generates a real, clickable prototype from the contract — the five states as a switch, a form that validates, a dialog that traps focus, an undo that puts the row back — and `ux_review.py` hosts it beside the current product so a person can Alt-click any element and say what is wrong in their own words. |
 | **A direction is approved by a person, against what they were actually shown.** | `ux_question.py` serves the comps as a page and records who chose, when, why, and the hash of what was on screen. It refuses an unnamed chooser, an agent's name, a reason under 40 characters, and a timeout — nobody choosing means NOT_RUN, never a default. Editing an approved comp afterwards makes the record stale and the build gate says so. |
 | **The report audits itself.** | `GOV-005/006/008`, the `QA-*` and several `MEASURE-*` rules are about the report, not the product — no scan of an app can tell you whether the agent describing it invented a result. `ux_report.py` checks that every PASS names a detector that ran, that unknowns are declared, and that project config has not been used to weaken a standard. |
 
@@ -118,34 +119,53 @@ reports without touching anything. When it does not name a mode at all, read
 decides from measured signals rather than from the wording.
 
 A mode is the shape of the whole job. An **operation** is one move inside it —
-`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-two
+`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-three
 are indexed in `references/ops/index.md`, and each one ends by naming the
 detectors that judge its output, so it finishes in a status rather than an
 impression.
 
-## Decide before you build
+## Two review stages, then build
 
-On new work, the order is the thing. A contract written after the code is a
-description of whatever got emitted: it will always show conformance and it is
-worth nothing.
+On new work the order is the thing, and there are two questions a person has to
+answer — not one. A wireframe settles **structure**: what is on the screen, in
+what order, at what proportion. It cannot settle whether the thing *works*,
+because a drawing cannot be used.
+
+```
+discover -> declare -> wireframe -> prototype -> build -> verify -> release
+```
+
+**Stage one — wireframe.** Sheets drawn from the declared contract; no model, no
+key, no network needed, so they cannot be the thing that drifts, and each sheet
+names on its own face which contract fields were still blank.
 
 ```bash
-python3 scripts/ux_phase.py init                 # greenfield or brownfield, detected
+python3 scripts/ux_phase.py init            # greenfield or brownfield, detected
 python3 scripts/ux_image.py brief --write .deluxui/comps/detail.brief.yaml --surface "listing detail"
 python3 scripts/ux_image.py render .deluxui/comps/detail.brief.yaml
 python3 scripts/ux_question.py ask .deluxui/comps/listing-detail.comps.yaml
-python3 scripts/ux_phase.py advance              # to build, once somebody has chosen
 ```
 
-`render` needs no model and no network — it draws each option from the declared
-contract, so the comps cannot be the thing that drifts, and the sheet says on its
-face which contract fields were still blank. Where an image model is reachable,
-`generate` adds a raster whose prompt is built from the contract, and `verify`
-measures it back against that contract rather than trusting it.
+**Stage two — prototype.** A real, clickable thing, generated from the same
+contract, put in front of a person beside whatever exists today. They Alt-click
+any element and say what is wrong with it in their own words; each note lands in
+`.deluxui/requests/` with the element it is about and prints in your terminal as
+it is typed.
+
+```bash
+python3 scripts/ux_proto.py --write .deluxui/proto/index.html --title "Listings"
+python3 scripts/ux_review.py serve --variant "proposed=.deluxui/proto/index.html" \
+        --variant "current=http://localhost:5173/listings"
+python3 scripts/ux_phase.py advance          # to build, once somebody has USED it
+```
+
+`build` needs the second stage, not the first: "request changes" is a real answer
+and it is not an approval, so it leaves the gate locked while the notes are acted
+on. A work list cannot authorise the build it is a list of complaints about.
 
 The gate is opt-in: with no `.deluxui/phase.yaml` nothing is refused and the
-process detectors report NOT_RUN. Read `references/ops/phase.md` and
-`references/ops/decide.md`.
+process detectors report NOT_RUN. Read `references/ops/prototype.md`,
+`references/ops/phase.md` and `references/ops/decide.md`.
 
 ## The preserve ladder
 
@@ -210,7 +230,7 @@ results, the counts and one of four decisions:
   replace it).
 
 When a **STANDARD**-class rule fails, cite its basis alongside the rule ID —
-`NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 233 rules,
+`NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 234 rules,
 and a reader who can follow the claim to the criterion can check you; one who
 cannot has to take your word for it, which is the thing this skill exists to stop.
 
@@ -231,13 +251,13 @@ Each reference is self-contained. Read the one you need.
 | The visual contract a project declares | `assets/templates/design.contract.yaml` |
 | Identity lock, preserve vs depart, variants | `references/preserve.md` |
 | The AI-tell catalogue and why each one reads as generated | `references/anti-slop.md` |
-| **The 32 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
+| **The 33 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
 | Which operation, for what the user actually said | `references/ops/routing.md` |
 | iOS and Android rules, detector by detector | `references/ops/ios.md`, `references/ops/android.md` |
 | Everything in this skill, indexed | `references/index.md` |
 | Governance, priority order, exceptions | `references/rules/00-governance.md` |
 | Rule packs by domain (a11y, forms, state, layout, …) | `references/rules/` |
-| The machine registry: 233 rules, severities, sources | `references/rules/registry.yaml` |
+| The machine registry: 234 rules, severities, sources | `references/rules/registry.yaml` |
 | The 20 UX laws, with limits and `verify:` clauses. 19 are enforceable and `ux_report.py` rolls each one up to a status — 14 from live detectors, 5 from a human attestation, stated apart because a signature and a measurement are not the same evidence | `references/rules/registry.yaml` (`laws:`) |
 | What each detector tests and with which engine | `references/rules/detectors.yaml` |
 | Numeric thresholds, and which are overridable | `references/rules/thresholds.yaml` |
@@ -264,6 +284,8 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_forcedcolors.py` | **R-FORCED-COLORS.** Two passes, normal and forced, diffed — a forced-colors defect is something that carried meaning before and does not after, which no single pass can see. |
 | `scripts/ux_axe.py` | **R-AXE.** axe-core from the project's node_modules, a cache, or a pinned CDN. Suppresses contrast and target-size, which deluxui measures directly against the project's own thresholds. |
 | `scripts/ux_slow.py` | **R-STATE-SLOW.** Makes the request slow rather than absent, and asks what the interface says while it waits. Flight is defined by content, not by readyState. |
+| `scripts/ux_proto.py` | **A working prototype, generated.** Real states you can switch between, a form that validates, a dialog that traps focus, a destructive action with a working undo, tabs with arrow keys, a table with tabular figures. Everything from the contract, so `ux_check.py` over its output is a positive control on the generator. |
+| `scripts/ux_review.py` | **Two live variants, side by side, with the human's words on them.** Hosts a file or proxies a running app, injects the selection script, and drops the frame-blocking headers — same origin, so an Alt-click inside the frame is readable. Notes land in `.deluxui/requests/` as they are typed and print in your terminal. Five outcomes; only three are approvals. |
 | `scripts/ux_select.py` | **A person pointing, recorded.** Injects a selection overlay into the page the browser already has open, over CDP — no server, no framework adapter. A click captures the element, its computed type, colour, spacing, radius and shadow, its box and its viewport, and asks what is wrong with it in the operations' own vocabulary. Writes `.deluxui/requests/REQ-NNN.yaml`. |
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |
 | `scripts/ux_question.py` | **The decision, served.** A page on localhost showing the comps and the structural claim each one makes. Refuses an answer with no author, an agent as the author, a reason too thin to weigh, and a timeout. Writes `.deluxui/decisions/DEC-NNN.yaml` hashed against exactly what was shown. |

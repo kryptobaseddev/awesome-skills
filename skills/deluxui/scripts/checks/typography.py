@@ -112,14 +112,22 @@ _SIZE_PX = re.compile(r"(\d+(?:\.\d+)?)\s*(px|rem|em)")
 
 
 def _display_size(body: str) -> float:
-    """The largest px this rule can render at, 0 when it sets no size."""
+    """The largest px this rule can render at.
+
+    0 means the rule sets no size. -1 means it sets one this scanner cannot read
+    -- a custom property, a calc, a clamp of variables -- and an unreadable size
+    is not evidence that the text is body-sized, so the caller must not judge it.
+    Treating it as 0 reported correct display leading as a defect."""
     m = re.search(r"font-size\s*:([^;}]*)", body)
     if not m:
         return 0.0
+    raw = m.group(1)
     best = 0.0
-    for num, unit in _SIZE_PX.findall(m.group(1)):
+    for num, unit in _SIZE_PX.findall(raw):
         v = float(num) * (16.0 if unit in ("rem", "em") else 1.0)
         best = max(best, v)
+    if best == 0.0 and re.search(r"var\(|calc\(|[a-z-]+\s*\(", raw):
+        return -1.0
     return best
 
 
@@ -134,7 +142,8 @@ def tight_leading(f, p):
             if not m:
                 continue
             lh = float(m.group(1))
-            if lh >= 1.4 or _display_size(body) >= 24:
+            size = _display_size(body)
+            if lh >= 1.4 or size >= 24 or size < 0:
                 continue      # display type may legitimately be tighter
             out.append(finding("S-TYPE-LEADING", f, _line(f.css, pos),
                                f"{sel[:30]} {{ line-height: {m.group(1)} }}",

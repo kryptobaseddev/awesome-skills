@@ -11,7 +11,7 @@ impeccable's `build-phase` is the ancestor; what deluxui adds is that the order 
 measured from the repository rather than tracked — see NOTICE.md.
 
 ```
-discover -> declare -> comp -> approve -> build -> verify -> release
+discover -> declare -> wireframe -> prototype -> build -> verify -> release
 ```
 
 ## Use it
@@ -28,15 +28,15 @@ python3 scripts/ux_phase.py check          # the three process detectors as a ve
 | Phase | Machine-checked entry requirement |
 |---|---|
 | `declare` | `PRODUCT.md` and `DESIGN.md` exist, are written, and carry no more than two placeholders |
-| `comp` | The contract declares every required field — no `UNKNOWN` left |
-| `approve` | At least two comps rendered, so there is a decision to make |
-| `build` | An admissible decision record: a named non-agent chooser, a date, a real reason, and comps whose bytes still match what was approved |
+| `wireframe` | The contract declares every required field — no `UNKNOWN` left |
+| `prototype` | At least two wireframes rendered, and somebody chose a structure |
+| `build` | A working prototype exists **and** a named person used it and accepted it. A wireframe choice is not enough: a drawing cannot be used, so it cannot establish that the thing works |
 | `verify` | UI files changed after the contract snapshot |
 | `release` | The merged report says `READY` |
 
 ## The snapshot is what makes the order evidence
 
-Entering `comp` records the contract's hash, the git head, and the hash of every UI
+Entering `wireframe` records the contract's hash, the git head, and the hash of every UI
 file in the tree. Entering `verify` compares against it.
 
 - Files changed since the snapshot → the declaration preceded the code, and that

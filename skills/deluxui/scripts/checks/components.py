@@ -85,7 +85,11 @@ def handrolled_widget_keyboard(f, p):
         if role not in ROLES or role in seen:
             continue
         seen.add(role)
-        win = f.text[max(0, t.start - 1500):t.start + 2500]
+        # A component file keeps its handler beside its markup; a single HTML
+        # document keeps it at the bottom, which is correct and was being read as
+        # "no arrow keys in sight".
+        win = (f.text if f.ext in (".html", ".htm")
+               else f.text[max(0, t.start - 1500):t.start + 2500])
         if re.search(r"ArrowDown|ArrowUp|ArrowRight|ArrowLeft|onKeyDown|useRovingFocus",
                      win):
             continue

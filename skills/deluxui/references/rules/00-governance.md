@@ -1,6 +1,6 @@
 # Governance, context and exceptions
 
-18 rules. Generated from `registry.yaml` by `scripts/build_rule_packs.py` -- edit the registry, not this file.
+19 rules. Generated from `registry.yaml` by `scripts/build_rule_packs.py` -- edit the registry, not this file.
 
 These rules are about how you work, not how the interface looks. They are first because every other rule depends on them being followed: if you may invent a test result, no other rule in this document means anything.
 
@@ -21,6 +21,7 @@ These rules are about how you work, not how the interface looks. They are first 
 | **GOV-011** | P1 | PROJECT | MUST obtain approval of a direction from a named person against the artefacts actually shown, recorded with a hash of what was shown. | A decision record names the chooser and the option, and the artefacts on disk still match the hash recorded at approval. | S00 | `A-COMP-APPROVED` |
 | **GOV-012** | P1 | PROJECT | MUST NOT record the producing agent as the authority for a design decision, and MUST NOT record a decision without a reason another person could weigh. | Every standing decision record carries a non-agent `who`, a date, and a rationale of at least forty characters. | S00 | `A-DECISION-VETTED` |
 | **GOV-013** | P2 | PROJECT | SHOULD record a generated asset's origin inside the asset -- the prompt, the model and the contract it was generated from. | Generated images carry provenance metadata that names the generator and the contract hash. | S00 | `A-COMP-CONFORM` |
+| **GOV-014** | P1 | PROJECT | MUST have a person use a working prototype of a new surface and accept it before writing production code for it, rather than approving a drawing of it. | A decision record from a live review states an accepting outcome, and the prototype it reviewed exists. | S00 | `A-PROTO-ACCEPTED` |
 | **CTX-001** | P1 | PROJECT | MUST inspect existing components, tokens, navigation, forms, package versions, tests, and project instructions before proposing replacements. | Repository inspection lists reusable assets and affected dependencies. | S00 | `S-DS-REINVENT`, `S-DS-NEWDEP` |
 | **CTX-002** | P1 | PROJECT | MUST derive tasks from provided requirements or available product evidence. MUST label unverified task rankings as assumptions. | Each prioritized task records its evidence or assumption status. | S00 | `A-CONTEXT-DECLARED` |
 | **CTX-003** | P1 | PROJECT | MUST resolve platform, primary task, risk, and changed flow scope before implementing an irreversible interaction. | Required manifest fields are populated or affected implementation is blocked. | S00 | `A-CONTEXT-DECLARED` |

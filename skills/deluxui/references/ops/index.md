@@ -1,6 +1,6 @@
 # Operations
 
-Thirty-two operations, each one a named job with a mechanism behind it and a set
+Thirty-three operations, each one a named job with a mechanism behind it and a set
 of detectors that adjudicate its output. The ten broader
 [workflows](../workflows/) are the modes; these are the moves inside them.
 
@@ -18,8 +18,9 @@ what was taken and what was changed.
 | [routing](routing.md) | The request does not name an operation. Start here. |
 | [shape](shape.md) | Discovery. Returns a brief and no code. |
 | [new-work](new-work.md) | Originate a visual world and commit it to the contract. |
-| [visualize](visualize.md) | Three comps — rendered from the contract, generated where a model exists, then measured back against it. |
-| [decide](decide.md) | Serve the choice as a page and record who chose, when, why, and against exactly what. |
+| [visualize](visualize.md) | **Stage one.** Three wireframes — rendered from the contract, generated where a model exists, then measured back against it. |
+| [decide](decide.md) | Serve the wireframe choice as a page and record who chose, when, why, and against exactly what. |
+| [prototype](prototype.md) | **Stage two.** Generate a working prototype from the contract and let a person use it, clicking elements to say what is wrong in their own words. |
 | [phase](phase.md) | The gate: discover, declare, comp, approve, build, verify, release. Refuses UI edits before a direction is approved. |
 
 ## Making the system

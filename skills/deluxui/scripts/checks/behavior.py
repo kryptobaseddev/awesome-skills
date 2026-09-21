@@ -65,11 +65,37 @@ _ROUTE_SKIP_PATH = ("/node_modules/", "/dist/", "/build/", "/.next/", "/coverage
                     "/tmp/", "/.git/")
 
 
+_ROUTERS = ("react-router", "react-router-dom", "@tanstack/react-router", "next",
+            "nuxt", "@sveltejs/kit", "vue-router", "astro", "remix", "@remix-run/react",
+            "expo-router", "@angular/router", "wouter")
+
+
+def _is_routed(p) -> bool:
+    """Whether this project has routing at all.
+
+    A router dependency, or a directory the conventions use for one. Deliberately
+    generous: the cost of missing a routed project is one unreported rule, and the
+    cost of firing on every unrouted one is a finding on every prototype."""
+    if any(any(r in d for r in _ROUTERS) for d in (p.deps or ())):
+        return True
+    for name in ("routes", "pages", "app"):
+        q = p.root / name
+        if q.is_dir() and any(q.rglob("*")):
+            return True
+    return bool(list(p.root.glob("src/routes/*")) or list(p.root.glob("src/pages/*")))
+
+
 @check("S-NAV-ERROR-ROUTE", scope="project")
 def missing_error_routes(f, p):
     """An unhandled route or a forbidden record should land somewhere designed.
     The framework default is a stack trace or a blank page (NAV-008)."""
     out = []
+    # A project with no routing has no route tree to handle. A single-file
+    # prototype, a component library or a static page cannot define a 404 route,
+    # and reporting one as missing is a finding nobody can act on -- which is how
+    # a real signal gets trained out of a reader.
+    if not _is_routed(p):
+        return out
     # Read the route tree on disk, not the component inventory. The inventory is
     # built from component directories, so adding app/not-found.tsx or
     # +error.svelte -- the actual fix -- did not clear this rule, and NAV-008

@@ -785,7 +785,17 @@ def _comp_conform(st: dict):
     if not ok:
         return ("NOT_RUN", "No standing approval, so there is no approved comp to "
                            "measure against the contract.")
-    f, d, _w = ok[-1]
+    # A live review of a working prototype has no comp raster to read, and does
+    # not need one: the prototype is real code, so the S-CONTRACT-* checks measure
+    # its conformance directly. Only a picture has to be measured as a picture.
+    comps = [x for x in ok if "approves_a_build" not in x[1]]
+    if not comps:
+        return ("NOT_APPLICABLE",
+                "The standing approval is a live review of a working prototype, not "
+                "a comp. Its conformance to the contract is measured by the static "
+                "tier against the prototype's own source, where it is a stronger "
+                "claim than a pixel read.")
+    f, d, _w = comps[-1]
     chosen = str(d.get("chosen") or "")
     shown = {str(s.get("id")): s for s in (d.get("shown") or [])}
     entry = shown.get(chosen)
@@ -1192,7 +1202,7 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
                "A-EXCEPTIONS-VALID": ["GOV-007", "QA-006"],
                "A-CONTEXT-DECLARED": ["CTX-002", "CTX-003", "CTX-004", "MEASURE-006"],
                "A-PHASE-ORDER": ["GOV-010"], "A-COMP-APPROVED": ["GOV-011"],
-               "A-DECISION-VETTED": ["GOV-012"],
+               "A-DECISION-VETTED": ["GOV-012"], "A-PROTO-ACCEPTED": ["GOV-014"],
                "A-COMP-CONFORM": ["VIS-001", "GOV-013"],
                "A-PERF-TIER": ["PERF-002", "PERF-009", "PERF-010", "MEASURE-001",
                                "MEASURE-003", "MEASURE-004"]}

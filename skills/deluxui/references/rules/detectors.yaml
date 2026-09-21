@@ -311,6 +311,10 @@ detectors:
                       a direction, so there is no approval to check."}
   A-DECISION-VETTED: {engine: process, rules: [GOV-012], confidence: high,
                       not_run_when: "No decision records to vet."}
+  A-PROTO-ACCEPTED: {engine: process, rules: [GOV-014], confidence: high,
+                     not_run_when: "No live review has been recorded, so nothing
+                       establishes whether anybody has used this rather than looked
+                       at a picture of it."}
   A-COMP-CONFORM: {engine: process, rules: [VIS-001, GOV-013], confidence: high,
                    not_run_when: "No approved comp raster to measure, or the contract
                      declares no colour roles to measure it against."}

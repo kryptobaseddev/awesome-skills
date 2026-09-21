@@ -50,6 +50,24 @@ def _line(t, pos):
     return t[:pos].count("\n") + 1
 
 
+_RM = re.compile(r"@media[^{]*prefers-reduced-motion\s*:\s*reduce[^{]*\{", re.I)
+
+
+def _in_reduced_motion(css: str, pos: int) -> bool:
+    """Whether `pos` falls inside a prefers-reduced-motion: reduce block."""
+    for m in _RM.finditer(css):
+        depth, i = 1, m.end()
+        while i < len(css) and depth:
+            if css[i] == "{":
+                depth += 1
+            elif css[i] == "}":
+                depth -= 1
+            i += 1
+        if m.end() <= pos < i:
+            return True
+    return False
+
+
 # ------------------------------------------------------------------ type scale
 @check("S-CONTRACT-TYPE-SCALE")
 def type_scale(f, p):
@@ -91,8 +109,9 @@ def type_family(f, p):
         first = m.group(1).split(",")[0].strip().strip("'\"").lower()
         if not first or first in allowed:
             continue
-        if re.match(r"^(?:var\(|inherit|initial|unset|sans-serif|serif|monospace|"
-                    r"system-ui|ui-\w+)$", first):
+        if re.match(r"^var\(", first) or re.fullmatch(
+                r"(?:inherit|initial|unset|revert|sans-serif|serif|monospace|"
+                r"cursive|fantasy|system-ui|ui-[\w-]+)", first):
             continue
         out.append(finding("S-CONTRACT-FAMILY", f, _line(hay, m.start()), m.group(0)[:60],
                            f"`{first}` is not a declared family. The contract names "
@@ -234,6 +253,15 @@ def motion_budget(f, p):
         # A long duration on a deliberate, authored moment is legitimate.
         ctx = hay[max(0, m.start() - 200):m.start() + 120]
         if v > hi and re.search(r"hero|intro|onboard|celebrat|confetti|splash", ctx, re.I):
+            continue
+        # An indefinitely looping animation is not a transition: a spinner turning
+        # once every 900ms is a rate, and judging it against a band meant for
+        # entrances and state changes reports a defect that does not exist.
+        if re.search(r"\binfinite\b", ctx):
+            continue
+        # Nor is anything inside a reduced-motion block. Its whole job is to leave
+        # the band -- usually by making a duration negligible or a loop slow.
+        if _in_reduced_motion(hay, m.start()):
             continue
         out.append(finding("S-CONTRACT-MOTION", f, _line(hay, m.start()), m.group(0)[:50],
                            f"{v:g}ms is outside the declared {lo:g}-{hi:g}ms band. "
