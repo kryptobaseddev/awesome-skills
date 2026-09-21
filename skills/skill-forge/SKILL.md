@@ -29,7 +29,7 @@ two skills that their own SKILL.md tells an agent to execute, committed
 non-executable, because `core.fileMode=false` means a local `chmod +x` never
 reaches git.
 
-## Two commands
+## Three commands
 
 ```bash
 # create -- emits a skill that passes the gate cold, constraints already applied
@@ -40,6 +40,10 @@ python3 skills/skill-forge/scripts/forge_new.py <name> \
 
 # gate -- run before every commit that touches a skill
 python3 skills/skill-forge/scripts/forge_check.py skills/<name>
+
+# lifecycle -- gate, then measure triggering, then say what is next
+python3 skills/skill-forge/scripts/forge_loop.py skills/<name> \
+    --fixture <a real project containing what the queries name> [--runs 3]
 ```
 
 `forge_new.py` exists because nothing else creates a skill from nothing —
@@ -134,10 +138,12 @@ python3 skills/skill-evaluator/scripts/trigger_behavior_eval.py \
 # (skill-evaluator's A/B loop, or skill-creator's if you have it installed)
 ```
 
-Two traps, both measured rather than assumed: a detector that judges only the
-**first** tool call reports ~0% because agents orient before consulting anything;
-and realistic queries run in an **empty** directory trigger nothing, because the
-agent correctly says there is nothing to look at. `references/04-measure.md`.
+`forge_loop.py` runs this for you and reports it as **not measured** rather than
+guessing when you give it no fixture — because the two ways this goes wrong both
+produce a confident zero. A detector that judges only the **first** tool call
+reports ~0% (agents orient before consulting anything, median 6 calls in one
+measured run), and realistic queries in an **empty** directory trigger nothing
+(the agent correctly says there is nothing to look at). `references/04-measure.md`.
 
 ## Scripts
 
@@ -145,6 +151,7 @@ agent correctly says there is nothing to look at. `references/04-measure.md`.
 |---|---|
 | `scripts/forge_new.py` | **The scaffolder.** Creates a skill that passes the gate cold: validated name, real category slug, trigger-shaped description, three top-level references, an eval set, and the chmod line. `--list-categories` prints the real slugs. |
 | `scripts/forge_check.py` | **The gate.** Validator + depth + body audit, plus category resolution, git-recorded exec bits, generated-file freshness, description headroom and boundary, evals, selftest. |
+| `scripts/forge_loop.py` | **The lifecycle.** Runs the gate, then behavioural trigger measurement, then prints the next actions. Orchestrates — the measurement belongs to `skill-evaluator` and is not reimplemented here. |
 | `scripts/selftest.py` | Asserts the gate fires on a broken fixture, stays silent on a sound one, and that a freshly scaffolded skill passes. |
 
 ## Common mistakes

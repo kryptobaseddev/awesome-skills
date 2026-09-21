@@ -78,6 +78,17 @@ def main() -> int:
     print()
     scaffold_roundtrip(problems)
 
+    # the lifecycle driver must run clean on a sound skill with no fixture,
+    # reporting triggering as unmeasured rather than inventing a number
+    r = subprocess.run([sys.executable, str(HERE / "forge_loop.py"),
+                        str(FIX / "good-skill")], capture_output=True, text=True)
+    ok = r.returncode == 0 and "NOT MEASURED" in r.stdout
+    print(f"  {'ok  ' if ok else 'FAIL'} loop       gate-only run exits "
+          f"{r.returncode}, triggering reported unmeasured")
+    if not ok:
+        problems.append("forge_loop did not run clean / claimed a trigger rate "
+                        "without a fixture")
+
     print()
     for p in problems:
         print(f"  problem: {p}")
