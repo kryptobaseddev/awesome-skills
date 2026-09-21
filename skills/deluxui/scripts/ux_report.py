@@ -91,20 +91,34 @@ def _target_coarse(raws, out):
 
 
 def _contrast(raws, out):
-    hits, imaged = [], 0
+    hits, unjudged, unparsed, examined = [], 0, 0, 0
     for name, d in raws.items():
         if not name.endswith("__contrast.json") or "failures" not in d:
             continue
+        examined += int(d.get("examined") or 0)
+        unparsed += int(d.get("unparsed") or 0)
+        # The probe no longer computes a ratio it cannot establish. A backdrop
+        # painted by a gradient, an image, or an absolutely positioned sibling is
+        # counted here instead -- neither passing nor failing, which is what
+        # "nobody could measure it" actually means.
+        unjudged += int(d.get("unjudged_count") or 0)
         for fl in d["failures"]:
             if fl.get("backdrop_has_image"):
-                imaged += 1
+                unjudged += 1
                 continue
             hits.append(f"{fl['ratio']}:1 (needs {fl['need']}:1) {fl['color']} "
                         f"at {fl['fontPx']}px -- \"{fl['text']}\"")
-    note = (f" {imaged} further candidates sit on a background image and were not "
-            "judged -- only a pixel read can settle those." if imaged else "")
+    note = ""
+    if unjudged:
+        note += (f" {unjudged} of {examined} text runs sit on a backdrop CSS cannot "
+                 f"resolve -- an image, a gradient, or a sibling layer -- and were "
+                 f"not judged. Only a pixel read settles those, and R-PIXEL-CONTRAST "
+                 f"is not implemented, so they are unmeasured rather than passing.")
+    if unparsed:
+        note += f" {unparsed} colour value(s) were in a format this probe cannot convert."
     if not hits:
-        return ("PASS", "All resolvable rendered text meets its contrast floor." + note, [])
+        return ("PASS", "Every text run whose backdrop could be resolved meets its "
+                        "contrast floor." + note, [])
     return ("FAIL", f"{len(hits)} text runs below their contrast floor." + note, hits[:25])
 
 
@@ -351,6 +365,209 @@ def _baseline(raws, out):
     return ("NOT_RUN", "No baseline comparison was interpretable.", [])
 
 
+# ------------------------------------------------------- R-PIXEL-CONTRAST
+# Ground truth from the pixels the browser painted, for the text runs CSS cannot
+# resolve: over an image, over a gradient, or over a positioned sibling layer.
+# R-CONTRAST reports those as unmeasured rather than guessing, which is honest and
+# useless -- on one real marketing page it was 61 of 95 runs. This is the route
+# from "nobody could measure it" to a number.
+#
+# PNG decoding is stdlib only (zlib + struct). agent-browser writes 8-bit
+# non-interlaced RGB or RGBA, which is what this reads; anything else reports
+# NOT_RUN with the format it found rather than guessing at the bytes. The skill's
+# dependency floor is python3 + pyyaml and this does not raise it.
+def _png_rows(path: Path):
+    """(width, height, channels, bytearray of raw samples) or None."""
+    import zlib, struct
+    d = path.read_bytes()
+    if d[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    pos, w, h, depth, ctype, idat = 8, 0, 0, 0, 0, bytearray()
+    while pos + 8 <= len(d):
+        ln = struct.unpack(">I", d[pos:pos + 4])[0]
+        typ = d[pos + 4:pos + 8]
+        body = d[pos + 8:pos + 8 + ln]
+        if typ == b"IHDR":
+            w, h, depth, ctype, _comp, _filt, inter = struct.unpack(">IIBBBBB", body[:13])
+            if depth != 8 or ctype not in (2, 6) or inter != 0:
+                return None
+        elif typ == b"IDAT":
+            idat += body
+        elif typ == b"IEND":
+            break
+        pos += 12 + ln
+    if not w or not idat:
+        return None
+    ch = 3 if ctype == 2 else 4
+    raw = zlib.decompress(bytes(idat))
+    stride = w * ch
+    out = bytearray(h * stride)
+    prev = bytearray(stride)
+    i = 0
+    for y in range(h):
+        ft = raw[i]; i += 1
+        line = bytearray(raw[i:i + stride]); i += stride
+        if ft == 1:
+            for x in range(ch, stride):
+                line[x] = (line[x] + line[x - ch]) & 0xFF
+        elif ft == 2:
+            for x in range(stride):
+                line[x] = (line[x] + prev[x]) & 0xFF
+        elif ft == 3:
+            for x in range(stride):
+                a = line[x - ch] if x >= ch else 0
+                line[x] = (line[x] + ((a + prev[x]) >> 1)) & 0xFF
+        elif ft == 4:
+            for x in range(stride):
+                a = line[x - ch] if x >= ch else 0
+                b = prev[x]
+                c = prev[x - ch] if x >= ch else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                line[x] = (line[x] + pr) & 0xFF
+        out[y * stride:(y + 1) * stride] = line
+        prev = line
+    return (w, h, ch, out)
+
+
+def _lin(c):
+    c /= 255.0
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _lum(rgb):
+    r, g, b = (_lin(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _ratio(a, b):
+    la, lb = _lum(a), _lum(b)
+    hi, lo = max(la, lb), min(la, lb)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _pair_in_box(img, box, dpr=1.0):
+    """The text colour and the background colour actually painted in this box.
+
+    Separating glyph pixels from background pixels is the whole problem, and the
+    obvious method fails. Taking the modal colour as background and "the most
+    frequent colour furthest from it" as text picks a noise band: 12px text
+    anti-aliased over a gradient spreads its pixels across dozens of values, none
+    of which clears a frequency floor, while the background's own dithering
+    supplies several bands that do. On a real page that reported 1.12:1 for
+    white-at-60%-opacity on navy, which renders at about 5:1 -- a fabricated
+    failure, the same defect as reading lab() as rgb().
+
+    So separate on luminance instead of on frequency:
+
+      background = the MEDIAN luminance. The background dominates the box by area,
+      and a median is unmoved by however the glyphs are distributed.
+
+      text = the mean RGB of the furthest 2% tail. The core glyph pixels are the
+      extreme, and averaging the tail lands near the authored colour instead of on
+      one dithered sample.
+
+    This reads slightly conservative on thin text, because a partially covered
+    pixel is closer to the background than the authored colour is. It errs toward
+    reporting less contrast than was authored, which is the safe direction for a
+    check, and it is stated here rather than left for someone to discover.
+    """
+    w, h, ch, buf = img
+    x0 = max(0, int(box["x"] * dpr)); y0 = max(0, int(box["y"] * dpr))
+    x1 = min(w, x0 + max(1, int(box["w"] * dpr)))
+    y1 = min(h, y0 + max(1, int(box["h"] * dpr)))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    step = 1 if (x1 - x0) * (y1 - y0) < 90000 else 2
+    px = []
+    for y in range(y0, y1, step):
+        row = y * w * ch
+        for x in range(x0, x1, step):
+            o = row + x * ch
+            c = (buf[o], buf[o + 1], buf[o + 2])
+            px.append((_lum(c), c))
+    if len(px) < 40:
+        return None
+    px.sort(key=lambda t: t[0])
+    n = len(px)
+    med_l, med_c = px[n // 2]
+    # Which end is the text on? Whichever extreme sits further from the median.
+    lo_gap = med_l - px[0][0]
+    hi_gap = px[-1][0] - med_l
+    tail = max(8, int(n * 0.02))
+    chunk = px[:tail] if lo_gap >= hi_gap else px[-tail:]
+    fg = tuple(round(sum(c[i] for _l, c in chunk) / len(chunk)) for i in range(3))
+    # A box with no glyphs in it -- a padding-only rect, a decorative strip -- has
+    # no separation to find, and inventing one would produce exactly the fictional
+    # verdicts this rewrite exists to remove.
+    if abs(_lum(fg) - med_l) < 0.01:
+        return None
+    # Background: the median COLOUR, not a reconstruction from its luminance.
+    bg = med_c
+    return (fg, bg, round(_ratio(fg, bg), 2))
+
+
+def _pixel_contrast(raws, out_dir):
+    shots, runs = {}, []
+    for name, d in raws.items():
+        if name.endswith("__fullpage.json") and d.get("path"):
+            shots[name[:-len("__fullpage.json")]] = Path(d["path"])
+        elif name.endswith("__contrast.json"):
+            for u in (d.get("unjudged") or []):
+                if u.get("box"):
+                    runs.append((name[:-len("__contrast.json")], u))
+    if not runs:
+        return ("NOT_RUN", "R-CONTRAST resolved every text run from CSS, so there was "
+                           "nothing left for a pixel read to settle.", [])
+    if not shots:
+        return ("NOT_RUN", f"{len(runs)} text runs need a pixel read and no full-page "
+                           f"screenshot was captured. Re-run ux_browser.sh; it takes one "
+                           f"after the contrast probe.", [])
+    hits, judged, unreadable = [], 0, 0
+    cache = {}
+    for key, u in runs:
+        path = shots.get(key)
+        if not path or not path.exists():
+            unreadable += 1
+            continue
+        if key not in cache:
+            cache[key] = _png_rows(path)
+        img = cache[key]
+        if img is None:
+            unreadable += 1
+            continue
+        pair = _pair_in_box(img, u["box"], float(u.get("dpr") or 1.0))
+        if pair is None:
+            unreadable += 1
+            continue
+        fg, bg, r = pair
+        judged += 1
+        need = float(u.get("need") or 4.5)
+        if r + 0.005 < need:
+            hits.append(f"{r}:1 (needs {need}:1) painted fg rgb{fg} on rgb{bg} "
+                        f"at {u.get('fontPx')}px -- \"{u.get('text', '')[:44]}\"")
+    note = f"{judged} of {len(runs)} unresolvable runs read from the painted pixels"
+    if unreadable:
+        note += (f"; {unreadable} could not be read (region off the capture, too small, "
+                 f"or an unsupported PNG form) and stay unmeasured")
+    if not judged:
+        return ("NOT_RUN", note + ". Nothing was established.", [])
+    if not hits:
+        return ("PASS", note + ", all meeting their floor.", [])
+    near = [h for h in hits if _near_boundary(h)]
+    tail = (f" {len(near)} of these are within 0.4 of their floor; the pixel read is "
+            f"deliberately conservative on thin anti-aliased text, so confirm those "
+            f"against the authored colour before treating them as defects."
+            if near else "")
+    return ("FAIL", f"{len(hits)} text runs fail on the pixels the browser painted. "
+                    + note + "." + tail, hits[:25])
+
+
+def _near_boundary(line: str) -> bool:
+    m = re.match(r"([\d.]+):1 \(needs ([\d.]+):1\)", line)
+    return bool(m) and float(m.group(2)) - float(m.group(1)) <= 0.4
+
+
 # ----------------------------------------------------------------- native tier
 # scripts/ux_native.sh writes raw/native-ios.json and raw/native-android.json.
 # A missing file, or one reporting the tool absent, is NOT_RUN -- never PASS.
@@ -425,7 +642,7 @@ RUNTIME = {
     "R-ZOOM": _override("zoom", "200% text size", "NUM-008 / SC 1.4.4"),
     "R-TEXTSPACING": _override("spacing", "The text-spacing override",
                                "NUM-010 / SC 1.4.12"),
-    "R-PIXEL-CONTRAST": None,
+    "R-PIXEL-CONTRAST": _pixel_contrast,
     "R-BASELINE-DIFF": _baseline,
     "R-FORCED-COLORS": None,
     "R-IOS-CAPTURE": _native("ios", want_pairs=False),
@@ -437,8 +654,6 @@ UNIMPLEMENTED = {
     "R-STATE-SLOW": "Response throttling is not wired into the driver yet.",
     "R-AXE": "axe-core was not loaded. Install it in the project (npm i -D axe-core) "
              "to add rule-level coverage this probe set does not reproduce.",
-    "R-PIXEL-CONTRAST": "Pixel sampling is not implemented. Text over images is "
-                        "reported by R-CONTRAST as unjudged rather than guessed.",
     "R-FORCED-COLORS": "Forced-colors emulation is not available through the driver yet.",
     "R-CONSOLE": "",
 }

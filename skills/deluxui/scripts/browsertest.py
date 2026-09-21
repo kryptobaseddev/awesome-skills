@@ -96,6 +96,7 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8731)
     ap.add_argument("--keep", action="store_true", help="leave the server running")
+    ap.add_argument("--shot", help="reuse an existing full-page screenshot")
     a = ap.parse_args(argv)
 
     if not shutil.which("agent-browser"):
@@ -184,6 +185,67 @@ def main(argv=None) -> int:
         if unmeasured:
             notes.append(f"{unmeasured} colour(s) unparsed -- they are reported as "
                          f"unmeasured, not as passing")
+
+        # ------------------------------------------------- R-PIXEL-CONTRAST
+        # The two hero rows are painted over a gradient laid down by a positioned
+        # SIBLING. CSS cannot resolve that backdrop, so R-CONTRAST must decline to
+        # judge them -- reporting 1:1 for legible white text is the failure this
+        # fixture was extended to catch -- and the pixel read must then settle
+        # both, one passing and one failing.
+        w("\nR-PIXEL-CONTRAST -- the sibling-gradient case\n")
+        unj = {" ".join(str(u.get("text", "")).split()): u
+               for u in (probe.get("unjudged") or [])}
+        fail_texts = {" ".join(str(h.get("text", "")).split())
+                      for h in (probe.get("failures") or [])}
+        expect = json.loads(evaluate(
+            "JSON.stringify(Object.fromEntries("
+            "[...document.querySelectorAll('[data-pixel]')].map("
+            "e => [e.textContent.trim(), e.dataset.pixel])))"))
+        shot = Path(a.shot or "").resolve() if a.shot else None
+        if shot is None:
+            # A temp dir, not the skill tree. A plugin install copies the working
+            # tree verbatim, so a stray artifact here ships to the consumer -- the
+            # same reason bytecode is guarded against in selftest.py.
+            import tempfile
+            shot = Path(tempfile.gettempdir()) / "deluxui-fixture-fullpage.png"
+            ab("screenshot", "--full", str(shot))
+        import importlib
+        sys.path.insert(0, str(HERE))
+        ux_report = importlib.import_module("ux_report")
+        img = ux_report._png_rows(shot) if shot.exists() else None
+        if img is None:
+            fails.append(f"could not decode the full-page screenshot at {shot}; "
+                         f"R-PIXEL-CONTRAST cannot be tested")
+        for text, want in expect.items():
+            key = " ".join(text.split())
+            if key in fail_texts:
+                fails.append(f"{text!r} was reported as a CSS-resolved failure, but its "
+                             f"backdrop is a sibling gradient that CSS cannot resolve -- "
+                             f"that ratio is fabricated")
+                w(f"  {want:<5} {text[:44]:<46} FABRICATED FAILURE\n")
+                continue
+            u = unj.get(key)
+            if u is None:
+                fails.append(f"{text!r} over a sibling gradient was neither judged nor "
+                             f"recorded as unjudged; it vanished from the report")
+                w(f"  {want:<5} {text[:44]:<46} MISSING\n")
+                continue
+            if img is None:
+                continue
+            pair = ux_report._pair_in_box(img, u["box"], float(u.get("dpr") or 1))
+            if pair is None:
+                fails.append(f"the pixel read could not separate text from background "
+                             f"for {text!r}")
+                w(f"  {want:<5} {text[:44]:<46} UNREADABLE\n")
+                continue
+            fg, bg, r = pair
+            need = float(u.get("need") or 4.5)
+            got = "pass" if r >= need else "fail"
+            if got != want:
+                fails.append(f"{text!r}: the pixel read says {r}:1 against a floor of "
+                             f"{need}:1, which is a {got}; the fixture declares it a "
+                             f"{want}")
+            w(f"  {want:<5} {text[:44]:<46} {r}:1 vs {need}:1 -> {got}\n")
 
         # ------------------------------------------- the other probes ran at all
         w("\nother probes -- did each produce a real measurement\n")

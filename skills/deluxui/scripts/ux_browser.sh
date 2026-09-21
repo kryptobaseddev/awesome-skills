@@ -109,6 +109,16 @@ for route in "${ROUTE_LIST[@]}"; do
   ab wait 300 >/dev/null
   probe targets  "$OUT/raw/${R}__targets.json"
   probe contrast "$OUT/raw/${R}__contrast.json"
+  # R-PIXEL-CONTRAST: the runs whose backdrop CSS cannot resolve -- text over an
+  # image, a gradient, or a positioned sibling -- are settled from the pixels the
+  # browser actually painted. The contrast probe records their page-absolute
+  # boxes; this is the image they are read out of. It is captured unconditionally
+  # because the probe has already scrolled through the page by this point, so the
+  # scroll position the boxes were recorded at no longer matters.
+  ab set viewport "$LAST_VP" 900 >/dev/null
+  ab screenshot --full "$OUT/screens/${R}_fullpage.png" >/dev/null 2>&1 \
+    && echo "{\"route\":\"$route\",\"path\":\"$OUT/screens/${R}_fullpage.png\"}" \
+       > "$OUT/raw/${R}__fullpage.json"
   probe focus    "$OUT/raw/${R}__focus.json"
   probe measure  "$OUT/raw/${R}__measure.json"
   probe obstruction "$OUT/raw/${R}__obstruction.json"

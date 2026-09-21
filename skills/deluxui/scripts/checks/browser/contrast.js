@@ -88,17 +88,71 @@
   const parse = s => { const c = color(s); return c && c.a > 0 ? c.rgb : (c ? c.rgb : null); };
   const alpha = s => { const c = color(s); return c ? c.a : 1; };
   const over = (fg, bg, a) => fg.map((c, i) => c * a + bg[i] * (1 - a));
-  const backdrop = el => {
-    let n = el, acc = null;
+  // What is actually painted behind this text.
+  //
+  // An ancestor walk is the obvious implementation and it is wrong on real pages.
+  // A hero whose gradient is painted by an absolutely positioned SIBLING --
+  // `<div class="absolute inset-0 bg-gradient-to-br">` behind `<div
+  // class="relative">text</div>`, which is how every Tailwind hero is built --
+  // has an ancestor chain that ends at an opaque white section. The walk
+  // therefore resolved white, the text was white, and the probe reported 1:1 for
+  // fifteen headings anyone can read. Flagging them as unjudged was not enough
+  // either: `resolved` was true, because an opaque ancestor genuinely existed.
+  //
+  // So ask the browser. elementsFromPoint returns the whole stack at a point in
+  // paint order, siblings included, which is the only thing that actually knows
+  // what is behind this text. The ancestor walk survives as the fallback for
+  // elements the hit test cannot locate.
+  const ancestorBackdrop = el => {
+    let n = el;
     while (n && n !== document.documentElement) {
       const s = getComputedStyle(n), c = parse(s.backgroundColor), a = alpha(s.backgroundColor);
-      if (s.backgroundImage !== 'none') return { rgb: acc || [255, 255, 255], image: true };
-      if (c && a > 0) { acc = acc ? over(acc, c, 1) : c; if (a >= 0.99) return { rgb: c, image: false }; }
+      if (s.backgroundImage !== 'none') return { rgb: [255, 255, 255], image: true, resolved: false };
+      if (c && a >= 0.99) return { rgb: c, image: false, resolved: true };
       n = n.parentElement;
     }
-    return { rgb: acc || [255, 255, 255], image: false };
+    const root = getComputedStyle(document.documentElement);
+    if (root.backgroundImage !== 'none') return { rgb: [255, 255, 255], image: true, resolved: false };
+    const rc = parse(root.backgroundColor), ra = alpha(root.backgroundColor);
+    if (rc && ra >= 0.99) return { rgb: rc, image: false, resolved: true };
+    return { rgb: [255, 255, 255], image: false, resolved: false };
   };
-  const out = [];
+
+  const backdrop = el => {
+    const r = el.getBoundingClientRect();
+    const x = Math.round(Math.min(Math.max(r.left + Math.min(r.width / 2, 40), 1),
+                                  innerWidth - 2));
+    const y = Math.round(Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 2));
+    let stack;
+    try { stack = document.elementsFromPoint(x, y); } catch (e) { stack = null; }
+    if (!stack || !stack.length) return ancestorBackdrop(el);
+    let i = stack.indexOf(el);
+    if (i < 0) {
+      // The text's own box may not be the hit target (inline wrappers, pointer
+      // events). Start from its nearest ancestor that IS in the stack.
+      for (let n = el.parentElement; n; n = n.parentElement) {
+        const j = stack.indexOf(n);
+        if (j >= 0) { i = j; break; }
+      }
+    }
+    if (i < 0) return ancestorBackdrop(el);
+    let acc = null;
+    for (let k = i; k < stack.length; k++) {
+      const s = getComputedStyle(stack[k]);
+      if (s.visibility === 'hidden' || +s.opacity === 0) continue;
+      if (s.backgroundImage !== 'none') {
+        return { rgb: [255, 255, 255], image: true, resolved: false };
+      }
+      const c = parse(s.backgroundColor), a = alpha(s.backgroundColor);
+      if (!c || a <= 0) continue;
+      // A partially transparent layer tints whatever is under it; keep going and
+      // composite once something opaque turns up.
+      if (a >= 0.99) return { rgb: acc ? over(acc, c, 1) : c, image: false, resolved: true };
+      acc = acc ? over(acc, c, a) : c.map((v, idx) => v * a + 255 * (1 - a));
+    }
+    return ancestorBackdrop(el);
+  };
+  const out = [], unjudged = [];
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const seen = new Set();
   let node;
@@ -108,12 +162,42 @@
     const el = node.parentElement;
     if (!el || seen.has(el)) continue;
     seen.add(el);
-    const r = el.getBoundingClientRect();
+    let r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
+    // elementsFromPoint only sees the viewport, so bring the candidate into it.
+    // `center` also keeps it clear of sticky top and bottom bars, which would
+    // otherwise be measured as its backdrop.
+    if (r.bottom < 0 || r.top > innerHeight) {
+      try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+      r = el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+    }
     const s = getComputedStyle(el);
     if (s.visibility === 'hidden' || s.display === 'none' || +s.opacity === 0) continue;
-    const fg = parse(s.color); if (!fg) continue;
+    let fg = parse(s.color); if (!fg) continue;
     const bd = backdrop(el);
+    if (!bd.resolved) {
+      // Not a pass and not a failure. R-PIXEL-CONTRAST is what would settle it.
+      // Record the page-absolute box so R-PIXEL-CONTRAST can find these runs in
+      // a full-page screenshot. Without the coordinates the honest "unmeasured"
+      // verdict has no route to ever becoming a measurement.
+      const px0 = parseFloat(s.fontSize);
+      unjudged.push({ text: t.slice(0, 48), color: s.color,
+                      fontPx: +px0.toFixed(1),
+                      large: px0 >= 24 || (+s.fontWeight >= 700 && px0 >= 18.66),
+                      need: (px0 >= 24 || (+s.fontWeight >= 700 && px0 >= 18.66)) ? 3 : 4.5,
+                      box: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY),
+                             w: Math.round(r.width), h: Math.round(r.height) },
+                      dpr: devicePixelRatio,
+                      reason: bd.image ? 'backdrop is an image or gradient'
+                                       : 'no opaque background found in the paint stack' });
+      continue;
+    }
+    // Translucent text over a known opaque backdrop IS computable: composite it.
+    // Judging rgba(255,255,255,0.8) as if it were opaque white overstates the
+    // contrast, which is the error that matters in this direction.
+    const fa = alpha(s.color);
+    if (fa < 0.99) fg = over(fg, bd.rgb, fa);
     const L1 = lum(fg), L2 = lum(bd.rgb);
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
     const px = parseFloat(s.fontSize);
@@ -126,5 +210,6 @@
                  backdrop_has_image: bd.image });
     }
   }
-  return { probe: 'contrast', examined: seen.size, failures: out.slice(0, 60) };
+  return { probe: 'contrast', examined: seen.size, failures: out.slice(0, 60),
+           unparsed, unjudged: unjudged.slice(0, 40), unjudged_count: unjudged.length };
 })()
