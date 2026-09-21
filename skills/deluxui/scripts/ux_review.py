@@ -59,7 +59,19 @@ import ux_image                                                    # noqa: E402
 
 DECISIONS = Path(".deluxui/decisions")
 REQUESTS = Path(".deluxui/requests")
-MIN_REASON = 40
+# A floor, not a bar. Forty characters was a length test standing in for a
+# substance test, and it fails in both directions: forty characters of "aaaa"
+# passes, and "It loses the price on a phone" -- which is the whole truth -- does
+# not. Twelve is low enough that anything with a subject and a verb clears it,
+# and high enough to exclude "ok".
+#
+# What actually has to be refused is a NON-reason, and that is detectable by what
+# it says rather than how long it is.
+MIN_REASON = 12
+EMPTY_REASON = re.compile(
+    r"^(?:looks?\s*good|lgtm|good|fine|ok(?:ay)?|yes|yep|nice|better|best|great|"
+    r"perfect|love it|ship it|sure|\\+1|done|approved|agreed|this one|the first|"
+    r"the second|no comment|n/?a)[\s.!]*$", re.I)
 SELF = re.compile(r"\b(?:claude|chatgpt|gpt|copilot|cursor|codex|gemini|llm|ai|"
                   r"agent|assistant|model|bot|automated|self|me|myself|"
                   r"this session|the tool)\b", re.I)
@@ -190,6 +202,8 @@ INJECT = r"""
   if (window.__uxReview) return;
   const VARIANT = "__VARIANT__";
   const CHIPS = {chips};
+const REQS = {reqs_json};
+const META = {meta};
   // `armed` is sticky. It used to clear itself after one capture while the
   // parent's button stayed pressed, so note mode looked on, was off, and the
   // second note could not be left at all.
@@ -569,6 +583,10 @@ button.send{width:100%%;margin-top:13px;font:650 17px system-ui;min-height:48px;
   border:1px solid var(--danger);border-radius:%(r_ctl)spx;padding:10px 13px;margin:10px 0}
 .err ul{margin:4px 0 0;padding-left:18px}
 .fielderr{color:var(--danger);font-size:13px;margin:4px 0 0;display:block}
+.state{display:block;font-size:13px;margin:4px 0 0;color:var(--muted);
+  text-wrap:pretty;max-width:52ch}
+.state[data-ok=yes]{color:var(--success)}
+.state[data-ok=yes]::before{content:"✓ "}
 .loading{padding:22px 0;color:var(--muted);display:flex;gap:10px;align-items:center}
 .spin{width:18px;height:18px;border-radius:999px;border:3px solid var(--line);
   border-top-color:var(--accent);animation:spin 900ms linear infinite}
@@ -589,6 +607,15 @@ WIDTHS = [("320", 320), ("390", 390), ("768", 768), ("1024", 1024), ("full", 0)]
 def page(rv: Review, th: dict, errors=None, form=None) -> str:
     errors, form = errors or [], form or {}
     chips = json.dumps(CHIPS)
+    # The form and the validator read the SAME requirement, so the hint can never
+    # promise something the server then refuses -- which is how "one or two
+    # sentences" led to "a combination needs to say which parts of which variant".
+    reqs = {c: why_requirement(c, rv)
+            for c in ([f"accept:{v}" for v in rv.variants]
+                      + ["combine", "changes", "reject"])}
+    reqs_json = json.dumps({k: {"state": v[0], "hint": v[1]} for k, v in reqs.items()})
+    meta = json.dumps({"min": MIN_REASON, "variants": list(rv.variants),
+                       "notes": len(rv.notes)})
     frames = []
     for vid, v in rv.variants.items():
         label = v["target"] if v["kind"] == "url" else Path(v["target"]).name
@@ -667,15 +694,19 @@ def page(rv: Review, th: dict, errors=None, form=None) -> str:
              aria-describedby="whohint"
              value="{html.escape(form.get('who',''))}">
       <label class="f" for="why">Why<span class="opt-tag" id="whytag"></span></label>
-      <span class="hint" id="whyhint">Pick an outcome above and this will say what it
+      <span class="hint" id="whyhint">Choose an outcome above and this will say what it
         needs.</span>
-      <textarea id="why" name="why" aria-describedby="whyhint">{html.escape(form.get('why',''))}</textarea>
+      <textarea id="why" name="why"
+        aria-describedby="whyhint whystate">{html.escape(form.get('why',''))}</textarea>
+      <span class="state" id="whystate" role="status"></span>
       <button class="send" type="submit" id="send">Record this decision</button>
     </form>
   </aside>
 </main>
 <script>
 const CHIPS = {chips};
+const REQS = {reqs_json};
+const META = {meta};
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const frames = () => $$('iframe');
@@ -845,36 +876,60 @@ $('#expandall').onclick = () => {{
   refresh(true);
 }};
 
-/* ---- the decision form asks for what the outcome actually needs */
-const WHY = {{
-  'changes': ['optional when you have notes',
-    'Your notes are the work list. Add anything they do not cover, or leave this empty.'],
-  'reject':  ['needed',
-    'What is wrong with the direction \u2014 not the details. The next round is built from this.'],
-  '_accept': ['needed',
-    'One or two sentences for whoever reads this later, deciding whether to undo it. '
-    + '\u201cLooks good\u201d tells them nothing.'],
-  '_none':   ['', 'Pick an outcome above and this will say what it needs.'],
-}};
+/* ---- the decision form asks for what the outcome actually needs, and says so
+   while you type rather than after you submit. The requirement text comes from
+   the server, so the hint and the refusal cannot disagree. */
+const STOCK = /^(?:looks? *good|lgtm|good|fine|ok(?:ay)?|yes|yep|nice|better|best|great|perfect|love it|ship it|sure|\\+1|done|approved|agreed|this one|the first|the second|no comment|n\\/?a)[\\s.!]*$/i;
+function choiceNow() {{ const r = $('input[name=choice]:checked'); return r ? r.value : ''; }}
 function hintFor() {{
-  const v = ($('input[name=choice]:checked') || {{}}).value;
-  const notes = $$('#notes .note').length;
-  let key = '_none';
-  if (v === 'changes') key = 'changes';
-  else if (v === 'reject') key = 'reject';
-  else if (v) key = '_accept';
-  let [tag, hint] = WHY[key];
-  if (key === 'changes' && !notes) {{
-    tag = 'needed'; hint = 'You have left no notes, so this is the only thing the '
-      + 'next round has to go on.';
-  }}
-  $('#whytag').textContent = tag ? '  \u2014 ' + tag : '';
-  $('#whyhint').textContent = hint;
+  const v = choiceNow();
+  const req = REQS[v] || {{state: '', hint: 'Choose an outcome above and this will say what it needs.'}};
+  $('#whytag').textContent = req.state === 'optional' ? '  \u2014 optional here'
+    : (req.state ? '  \u2014 needed' : '');
+  $('#whyhint').textContent = req.hint;
   $('#send').textContent = v && v.startsWith('accept:')
     ? 'Accept ' + v.slice(7) : (v === 'changes' ? 'Send these changes back'
     : (v === 'reject' ? 'Record the rejection' : 'Record this decision'));
+  whyState();
+}}
+function whyState() {{
+  const v = choiceNow(), why = $('#why').value.trim(), el = $('#whystate');
+  const req = REQS[v];
+  if (!v || !req || !req.state) {{ el.textContent = ''; el.dataset.ok = ''; return; }}
+  let msg = '', ok = '';
+  if (!why) {{
+    msg = req.state === 'optional' ? 'Optional \u2014 you can leave this empty.'
+        : 'Needed before this can be recorded.';
+    ok = req.state === 'optional' ? 'yes' : '';
+  }} else if (STOCK.test(why)) {{
+    msg = '\u201c' + why + '\u201d does not say anything the next person can use.';
+  }} else if (why.length < META.min) {{
+    msg = 'A few more words.';
+  }} else if (req.state === 'named') {{
+    const low = why.toLowerCase();
+    // A word boundary, written without a backslash escape: this JS lives inside
+    // a Python f-string, and `\b` there arrives in the browser as a literal
+    // backspace character, which matches nothing and silently never names a
+    // variant. Index arithmetic cannot be mangled on the way through.
+    const named = META.variants.filter(n => {{
+      const t = n.toLowerCase(), i = low.indexOf(t);
+      if (i < 0) return false;
+      const before = i === 0 ? ' ' : low[i - 1];
+      const after = low[i + t.length] || ' ';
+      return !/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after);
+    }});
+    if (named.length || low.includes('both') || low.includes('each')) {{
+      msg = 'Good \u2014 it names what is being combined.'; ok = 'yes';
+    }} else {{
+      msg = 'Name which variant each part comes from: ' + META.variants.join(' or ') + '.';
+    }}
+  }} else {{
+    msg = 'That reads like a reason.'; ok = 'yes';
+  }}
+  el.textContent = msg; el.dataset.ok = ok;
 }}
 $$('input[name=choice]').forEach(r => r.onchange = hintFor);
+$('#why').addEventListener('input', whyState);
 hintFor();
 
 /* ---- loading: say something while the frames arrive (R-STATE-SLOW) */
@@ -944,14 +999,36 @@ def write_note(rec: dict, path: Path | None = None) -> Path:
     return p
 
 
-def validate(form: dict, rv: Review) -> list:
-    """What this outcome actually needs, and nothing else.
+def why_requirement(choice: str, rv: "Review") -> tuple[str, str]:
+    """(state, sentence) for the reason field, given the outcome.
 
-    The old version asked every outcome for forty characters of reason and told
-    the person how many they were short. That is a character count standing in
-    for a requirement: a reviewer requesting changes has already written the
-    reason, note by note, and being asked for it again teaches them the form is
-    not reading what they did."""
+    The same function answers the form before submission and the validator after
+    it, so what the field asks for and what the server refuses cannot drift --
+    which is how somebody picks Combine, reads a hint about "one or two
+    sentences", and is then told they needed to name the variants."""
+    names = " / ".join(rv.variants)
+    if choice == "combine":
+        return ("named", f"Name the parts and which variant each comes from \u2014 "
+                         f"\u201c{names.split(' / ')[0]}\u2019s card layout with "
+                         f"{list(rv.variants)[-1]}\u2019s action row\u201d. The build "
+                         f"is made from this sentence, so it has to say which is which.")
+    if choice == "reject":
+        return ("needed", "What is wrong with the direction \u2014 not the details. "
+                          "The next round is built from this.")
+    if choice.startswith("accept:"):
+        return ("needed", "A sentence for whoever reads this later, deciding whether "
+                          "to undo it. What does this one do that the other does not?")
+    if choice == "changes":
+        if rv.notes:
+            return ("optional", f"Your {len(rv.notes)} note(s) are the work list. Add "
+                                f"anything they do not cover, or leave this empty.")
+        return ("needed", "You have left no notes, so this is the only thing the next "
+                          "round has to go on.")
+    return ("", "Choose an outcome above and this will say what it needs.")
+
+
+def validate(form: dict, rv: Review) -> list:
+    """What this outcome actually needs, and nothing else."""
     errs = []
     choice = (form.get("choice") or "").strip()
     who = (form.get("who") or "").strip()
@@ -959,6 +1036,7 @@ def validate(form: dict, rv: Review) -> list:
     valid = {f"accept:{v}" for v in rv.variants} | {"combine", "changes", "reject"}
     if choice not in valid:
         errs.append("Choose an outcome. Nothing is recorded without one.")
+        return errs
     if not who:
         errs.append("Add your name. An approval with no author cannot be weighed "
                     "later, so it cannot gate anything.")
@@ -967,20 +1045,29 @@ def validate(form: dict, rv: Review) -> list:
                     f"deciding has to be someone other than the thing proposing \u2014 "
                     f"put your own name in.")
 
-    accepting = choice.startswith("accept:") or choice == "combine"
-    if accepting and len(why) < MIN_REASON:
-        errs.append("Say why, in a sentence. This is what somebody reads when they "
-                    "are about to undo it, and it is the only part of an approval "
-                    "that carries any reasoning.")
-    elif choice == "combine" and len(why) < MIN_REASON + 20:
-        errs.append("A combination needs to say which parts of which variant, "
-                    "specifically enough to build from.")
-    elif choice == "reject" and len(why) < MIN_REASON:
-        errs.append("Say what is wrong with the direction. A rejection with no "
-                    "reason sends the next round out blind.")
-    elif choice == "changes" and not rv.notes and len(why) < MIN_REASON:
-        errs.append("You have left no notes, so this field is the only thing the "
-                    "next round has to go on. Say what to change.")
+    state, sentence = why_requirement(choice, rv)
+    if state == "optional" and not why:
+        return errs
+    if state in ("needed", "named", "optional") and why:
+        # A stock phrase is the thing the old length test was reaching for, and it
+        # catches it directly: "looks good" is not short, it is empty.
+        if EMPTY_REASON.match(why):
+            errs.append(f"\u201c{why}\u201d does not say anything the next person can "
+                        f"use. {sentence}")
+            return errs
+    if state in ("needed", "named") and len(why) < MIN_REASON:
+        errs.append((("Nothing in the Why field. " if not why else "Say a little more. ")
+                     + sentence))
+    elif state == "named":
+        # Combine is the one outcome with a checkable requirement: it has to name
+        # what is being combined. Counting characters never tested that.
+        low = why.lower()
+        named = sum(1 for v in rv.variants
+                    if re.search(rf"\b{re.escape(v.lower())}\b", low))
+        if named < 1 and "both" not in low and "each" not in low:
+            errs.append(f"Say which variant each part comes from. The options are "
+                        f"{', '.join(rv.variants)}, and the build is made from this "
+                        f"sentence.")
     return errs
 
 

@@ -51,7 +51,14 @@ import yaml                                                        # noqa: E402
 import ux_image                                                    # noqa: E402
 
 DECISIONS = Path(".deluxui/decisions")
-MIN_REASON = 40
+# See scripts/ux_review.py: a length test is a stand-in for a substance test and
+# fails in both directions. Twelve excludes "ok"; the stock-phrase list excludes
+# the thing the long minimum was actually reaching for.
+MIN_REASON = 12
+EMPTY_REASON = re.compile(
+    r"^(?:looks?\s*good|lgtm|good|fine|ok(?:ay)?|yes|yep|nice|better|best|great|"
+    r"perfect|love it|ship it|sure|\+1|done|approved|agreed|this one|the first|"
+    r"the second|no comment|n/?a)[\s.!]*$", re.I)
 # The same list ux_report uses to refuse a self-attestation. A decision the agent
 # made and then recorded as the user's is the single most damaging thing this file
 # could allow, because everything downstream treats an approval as human judgement.
@@ -301,9 +308,9 @@ def page(q: dict, th: dict, errors=None, form=None) -> str:
   <input type="text" id="who" name="who" autocomplete="name"
          value="{html.escape(form.get('who', ''))}">
   <label class="f" for="why">Why this one
-    <span class="hint">At least {MIN_REASON} characters. Not to be pedantic: the
-    reason is what the next person reads when they are about to undo this, and
-    "looks better" tells them nothing.</span></label>
+    <span class="hint">A sentence. The reason is what the next person reads when
+    they are about to undo this, so "looks better" tells them nothing — say
+    what this option does that the others do not.</span></label>
   <textarea id="why" name="why">{html.escape(form.get('why', ''))}</textarea>
   <button type="submit">Record this decision</button>
 </fieldset>
@@ -352,12 +359,20 @@ def validate_answer(form: dict, q: dict) -> list:
         errs.append(f"“{who}” names the party that produced these comps. "
                     f"The agent proposing a direction cannot also be the authority "
                     f"approving it — that is the whole reason this page exists.")
-    if len(why) < MIN_REASON:
-        errs.append(f"The reason is {len(why)} characters; {MIN_REASON} is the "
-                    f"minimum. Say what this option does that the others do not.")
-    if choice == "combine" and len(why) < MIN_REASON + 20:
-        errs.append("A combination needs to say which parts of which options, "
-                    "specifically enough to build from.")
+    if EMPTY_REASON.match(why):
+        errs.append(f"\u201c{why}\u201d does not say anything the next person can "
+                    f"use. Say what this option does that the others do not.")
+    elif len(why) < MIN_REASON:
+        errs.append("Say a little more \u2014 what does this option do that the "
+                    "others do not?")
+    if choice == "combine":
+        low = why.lower()
+        named = [o["id"] for o in q["options"]
+                 if re.search(rf"\b{re.escape(o['id'].lower())}\b", low)]
+        if not named and "both" not in low and "each" not in low:
+            errs.append("Say which parts come from which option. The options are "
+                        + ", ".join(o["id"] for o in q["options"])
+                        + ", and the next round is built from this sentence.")
     return errs
 
 
