@@ -214,12 +214,42 @@ def _orientation(raws, out):
     return ("NOT_RUN", "Landscape orientation was not captured.", [])
 
 
+# agent-browser prints a bare status glyph per checked surface, so `errors` emits
+# lines like "\u2717 " with nothing after them even with no page open. Treating any
+# non-blank output as "the page threw" made R-CONSOLE unable to pass on a clean
+# page -- a check that cannot return PASS is not a check, it is a permanent alarm.
+_ERR_NOISE = re.compile(r"^[\s\u2713\u2717\u2718\u00d7x\u2022\-\u2500\u2014|]*$")
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _console_lines(text: str) -> list[str]:
+    """Real error lines only: marker glyphs and framing stripped, empties dropped."""
+    out = []
+    for raw in _ANSI.sub("", text).splitlines():
+        line = raw.strip()
+        if not line or _ERR_NOISE.match(line):
+            continue
+        # drop a leading marker so the message is what gets compared and reported
+        line = re.sub(r"^[\u2713\u2717\u2718\u00d7x\u2022]\s*", "", line).strip()
+        if len(line) < 4:
+            continue
+        out.append(line)
+    return out
+
+
 def _console(raws, texts, out):
-    hits = [f"{k}: {v.strip()[:160]}" for k, v in texts.items()
-            if k.endswith("__errors.txt") and v.strip()]
+    files = {k: v for k, v in texts.items() if k.endswith("__errors.txt")}
+    if not files:
+        return ("NOT_RUN", "The driver captured no console output, so nothing was "
+                           "examined for uncaught errors.", [])
+    hits = []
+    for k, v in sorted(files.items()):
+        for line in _console_lines(v)[:6]:
+            hits.append(f"{k.replace('__errors.txt', '')}: {line[:160]}")
     if not hits:
-        return ("PASS", "No uncaught page errors during the run.", [])
-    return ("FAIL", "The page threw during a normal visit.", hits[:10])
+        return ("PASS", f"No uncaught page errors across {len(files)} route(s).", [])
+    return ("FAIL", f"The page threw during a normal visit ({len(hits)} error line(s)).",
+            hits[:10])
 
 
 def _state(mode, label, rules_hint):

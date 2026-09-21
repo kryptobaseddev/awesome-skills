@@ -159,7 +159,12 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
             status[did] = ("NOT_APPLICABLE", "No files of this kind in scope.")
             continue
         hits = []
-        for f in pool:
+        # `scope="project"` means the check states one fact about the whole
+        # project. It was declared and never read, so such a check ran once per
+        # file and reported the same finding 172 times on a mid-sized codebase --
+        # the report drowning its own signal.
+        targets = pool[:1] if chk.scope == "project" else pool
+        for f in targets:
             try:
                 hits.extend(chk.fn(f, project) or [])
             except Exception as e:                      # a broken check must not fake a pass
@@ -168,7 +173,8 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
         else:
             hits, extra = _cap(hits)
             status[did] = ("FAIL" if hits else "PASS",
-                           f"{len(pool)} files examined"
+                           (f"project-level check over {len(pool)} files"
+                            if chk.scope == "project" else f"{len(pool)} files examined")
                            + (f"; {extra} further findings of this kind not listed"
                               if extra else ""))
             findings.extend(hits)

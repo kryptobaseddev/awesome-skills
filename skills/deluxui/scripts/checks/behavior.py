@@ -58,20 +58,51 @@ def list_context_lost(f, p):
     return out
 
 
+_ROUTE_SKIP = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit",
+               ".nuxt", "out", "coverage", "vendor", "__pycache__", ".venv", "venv",
+               ".turbo", ".output", "tmp", "temp", "storybook-static", ".cache"}
+_ROUTE_SKIP_PATH = ("/node_modules/", "/dist/", "/build/", "/.next/", "/coverage/",
+                    "/tmp/", "/.git/")
+
+
 @check("S-NAV-ERROR-ROUTE", scope="project")
 def missing_error_routes(f, p):
     """An unhandled route or a forbidden record should land somewhere designed.
     The framework default is a stack trace or a blank page (NAV-008)."""
     out = []
-    names = " ".join(p.inventory.keys()).lower() + " " + " ".join(p.inventory.values()).lower()
-    has_404 = re.search(r"not.?found|404|\[\.\.\.|catch.?all|\*\.tsx", names)
-    has_err = re.search(r"error|\+error|error-boundary|errorboundary", names)
+    # Read the route tree on disk, not the component inventory. The inventory is
+    # built from component directories, so adding app/not-found.tsx or
+    # +error.svelte -- the actual fix -- did not clear this rule, and NAV-008
+    # could not be satisfied by doing the right thing.
+    found_404, found_err, looked = False, False, 0
+    for q in p.root.rglob("*"):
+        if looked > 24000:
+            break
+        if q.is_dir():
+            if q.name in _ROUTE_SKIP or q.name.startswith("."):
+                continue
+            continue
+        looked += 1
+        n = q.name.lower()
+        rel = q.as_posix().lower()
+        if any(x in rel for x in _ROUTE_SKIP_PATH):
+            continue
+        if re.match(r"^(?:not-found|404|\+error|error|global-error)\.(?:[jt]sx?|svelte|vue|astro|html)$", n) \
+                or "[...slug]" in rel or "[[...]]" in rel or "catch-all" in rel:
+            if n.startswith(("not-found", "404")) or "[...slug]" in rel or "catch-all" in rel:
+                found_404 = True
+            if n.startswith(("error", "+error", "global-error")):
+                found_err = True
+        if not found_err and re.search(r"errorboundary|error-boundary", n):
+            found_err = True
+    if not looked:
+        return out                       # nothing on disk to judge
     missing = []
-    if not has_404:
+    if not found_404:
         missing.append("a not-found route")
-    if not has_err:
+    if not found_err:
         missing.append("an error boundary or error route")
-    if not missing or not p.inventory:
+    if not missing:
         return out
     out.append(finding("S-NAV-ERROR-ROUTE", f, 1, ", ".join(missing),
                        "The project defines " + " and ".join(missing).join(("no ", ""))

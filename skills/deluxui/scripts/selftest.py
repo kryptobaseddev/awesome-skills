@@ -57,6 +57,24 @@ def run(tmp: Path, which: str) -> set[str]:
     # checks exercise the same discovery path they use in the field.
     (tmp / ".deluxui").mkdir(exist_ok=True)
     shutil.copy(FIX / "design.contract.yaml", tmp / ".deluxui" / "design.contract.yaml")
+    # S-NAV-ERROR-ROUTE reads the route tree on disk, so the good fixture has to
+    # be a project that actually handles a bad URL and a failed load. The bad one
+    # deliberately does not.
+    if which == "good":
+        app = tmp / "app"
+        app.mkdir(exist_ok=True)
+        (app / "not-found.tsx").write_text(
+            "export default function NotFound() {\n"
+            "  return <main><h1>Not found</h1><a href=\"/\">Go home</a></main>;\n}\n")
+        # The copy has to survive S-CONTENT-ERRORTEXT too: name what failed and
+        # what the reader can do, rather than gesturing at it.
+        (app / "error.tsx").write_text(
+            "'use client';\nexport default function Error({ reset }) {\n"
+            "  return (\n    <main>\n"
+            "      <h1>We could not load your projects</h1>\n"
+            "      <p>The server did not answer. Your work is saved.</p>\n"
+            "      <button onClick={reset}>Retry loading projects</button>\n"
+            "    </main>\n  );\n}\n")
     for suf in (".tsx", ".css"):
         shutil.copy(FIX / f"{which}{suf}", tmp / f"sample{suf}")
     for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
