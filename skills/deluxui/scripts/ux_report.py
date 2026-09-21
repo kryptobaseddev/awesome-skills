@@ -29,7 +29,8 @@ RULES = HERE.parent / "references" / "rules"
 # Defaults. merge() and collect() rebind this to the project-merged thresholds so
 # an overridable value set in .deluxui/ux.config.yaml actually reaches the probes
 # that read it -- previously the file was validated and then never consulted.
-TH = yaml.safe_load((RULES / "thresholds.yaml").read_text())
+import rulepack
+TH = rulepack.load()[2]
 
 
 def load(p: Path, default=None):
@@ -400,12 +401,25 @@ def collect(out_dir: Path, meta: dict):
 # standard. That is the only honest way to automate them, so it is what happens.
 
 def self_audit(results, dstat, static, runtime, config, release, manual=None,
-               features=None):
+               features=None, manual_detectors=frozenset()):
     """Returns {detector_id: (status, note)} for the A-* family."""
     out = {}
 
     # --- GOV-006: no PASS without a detector that reported PASS
     passes = [r for r in results if r["status"] == "PASS"]
+
+    # A PASS whose every contributing detector is a human attestation is a
+    # signature, not a measurement. It may be entirely legitimate -- somebody did
+    # do the screen-reader pass -- but it must be counted apart, or the matrix
+    # reads as though a machine checked it. This is the split that stops an
+    # attestation being laundered into evidence by GOV-006's own sign-off.
+    # `reason` on a PASS row is the joined list of detector IDs that passed, which
+    # is the only per-rule provenance the row carries. A row whose every named
+    # detector is a manual one is a signature, not a measurement.
+    def _named(row):
+        return [d.strip() for d in row["reason"].split(";") if d.strip()]
+    signed = [r["rule_id"] for r in passes
+              if _named(r) and all(d in manual_detectors for d in _named(r))]
     unbacked = [r["rule_id"] for r in passes if not r["reason"].strip()]
     tiers_ran = bool(static.get("detectors")) or bool(runtime.get("detectors"))
     if not tiers_ran:
@@ -416,9 +430,16 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None,
         out["A-EVIDENCE-BACKED"] = ("FAIL",
             f"{len(unbacked)} rules are marked PASS with no detector named: "
             + ", ".join(unbacked[:8]))
+    elif signed:
+        out["A-EVIDENCE-BACKED"] = ("PASS",
+            f"All {len(passes)} PASS rules name a detector. {len(signed)} of them rest "
+            f"only on a human attestation and nothing measured them: "
+            f"{', '.join(signed[:8])}. That is admissible evidence and it is not a "
+            f"measurement -- read those rows as somebody's signature.")
     else:
         out["A-EVIDENCE-BACKED"] = ("PASS",
-            f"All {len(passes)} PASS rules name the detector that produced them.")
+            f"All {len(passes)} PASS rules name the detector that produced them, and "
+            f"none rests only on an attestation.")
 
     # --- GOV-005: unknowns declared, not walked past
     unchecked_p0 = [r["rule_id"] for r in results
@@ -555,6 +576,57 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None,
 
 
 # ------------------------------------------------------------ merge + gate
+# --- The attestation gate ----------------------------------------------------
+# A manual attestation is the one place where a human sentence becomes a detector
+# status. Left unguarded it is a laundry: an agent writes `status: PASS` for a
+# rule nothing can check, merge ingests it, and the self-audit then certifies
+# "All N PASS rules name the detector that produced them" -- because a manual
+# attestation IS a named detector that reported PASS. That is the same shape as
+# the single-file-116-PASS bug, and it is the reason a craft rule must never be
+# allowed to enter through this door.
+#
+# So an attestation earns PASS only by carrying the marks of someone actually
+# having done it. Anything less is NOT_RUN with the reason said out loud.
+
+# Words that mean the claimant and the checker are the same party.
+_SELF = re.compile(r"\b(?:claude|chatgpt|gpt|copilot|cursor|codex|gemini|llm|ai|"
+                   r"agent|assistant|model|bot|automated|self|me|myself|"
+                   r"this session|the tool)\b", re.I)
+
+
+def vet_attestation(did: str, rec: dict) -> tuple[str, str, bool]:
+    """(status, reason, attested) for one recorded manual result.
+
+    Returns `attested=True` only when a human-performed result is on the record.
+    A FAIL is always honoured -- nobody launders a failure, and a reported defect
+    is useful however thin its paperwork."""
+    status = str(rec.get("status", "NOT_RUN")).upper()
+    ev = str(rec.get("evidence", "") or "").strip()
+    who = str(rec.get("who", "") or "").strip()
+    date = str(rec.get("date", "") or "").strip()
+
+    if status == "FAIL":
+        return ("FAIL", ev or "Recorded as failing, with no detail given.", True)
+    if status != "PASS":
+        return ("NOT_RUN", ev or "Not attempted.", False)
+
+    missing = []
+    if not who:
+        missing.append("no `who`")
+    elif _SELF.search(who):
+        missing.append(f"`who: {who}` names the party making the claim")
+    if not date:
+        missing.append("no `date`")
+    if len(ev) < 40:
+        missing.append("evidence too thin to check" if ev else "no evidence")
+    if missing:
+        return ("NOT_RUN",
+                f"Recorded PASS is not admissible ({'; '.join(missing)}). A manual "
+                f"check earns PASS by someone having done it and said who, when and "
+                f"how -- otherwise it stays unrun, which is what it is.", False)
+    return ("PASS", f"Attested by {who} on {date}: {ev[:200]}", True)
+
+
 def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
           features: list, release: bool, config_path: Path | None = None):
     global TH
@@ -567,8 +639,8 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
     features = uxconfig.features(config, features)
     off = uxconfig.disabled(config)
 
-    reg = yaml.safe_load((RULES / "registry.yaml").read_text())
-    det = yaml.safe_load((RULES / "detectors.yaml").read_text())["detectors"]
+    reg, det_doc, _th = rulepack.load()
+    det = det_doc["detectors"]
     static = load(static_json, {}) or {}
     runtime = load(runtime_json, {}) or {}
     manual = {}
@@ -580,8 +652,12 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         dstat[k] = (v["status"], v.get("note", ""))
     for k, v in (runtime.get("detectors") or {}).items():
         dstat[k] = (v["status"], v.get("note", ""))
+    attested = set()
     for k, v in (manual.get("attestations") or {}).items():
-        dstat[k] = (v.get("status", "NOT_RUN"), v.get("evidence", ""))
+        st, why, ok = vet_attestation(k, v if isinstance(v, dict) else {})
+        dstat[k] = (st, why)
+        if ok and st == "PASS":
+            attested.add(k)
     # A disabled check cannot contribute a PASS, including from a report file
     # produced before it was disabled. Config narrows what was examined; it never
     # converts an unexamined rule into a passing one.
@@ -625,8 +701,9 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         results.append({"rule_id": rid, "severity": r["severity"], "class": r["class"],
                         "basis": r["basis"], "status": status, "reason": reason})
 
+    manual_dets = {k for k, v in det.items() if v.get("engine") == "manual"}
     audit = self_audit(results, dstat, static, runtime, config, release, manual,
-                       features=features)
+                       features=features, manual_detectors=manual_dets)
     # fold the A-* results back in as rule statuses for the GOV rules they cover
     A_RULES = {"A-EVIDENCE-BACKED": ["GOV-006"], "A-UNKNOWN-DECLARED": ["GOV-005"],
                "A-CONFIG-AUTHORITY": ["GOV-008"],
@@ -673,6 +750,7 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         "tiers_present": {"static": bool(static), "runtime": bool(runtime),
                           "manual": bool(manual)},
         "declared_features": features,
+        "attested_not_measured": sorted(attested),
         "counts": {"not_run": counts["NOT_RUN"], "fail": counts["FAIL"],
                    "pass": counts["PASS"], "not_applicable": counts["NOT_APPLICABLE"],
                    "approved_exception": counts["APPROVED_EXCEPTION"],

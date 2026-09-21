@@ -66,7 +66,8 @@ def thresholds(cfg: dict) -> tuple[dict, list[str]]:
     whole safeguard: if a project could lower the contrast minimum in config,
     every downstream PASS would be meaningless. A deviation is an exception
     record against a named rule, which is auditable -- not a number in a file."""
-    th = yaml.safe_load(THRESHOLDS.read_text())
+    import rulepack
+    th = rulepack.load()[2]
     refused = []
     for group, vals in (cfg.get("thresholds") or {}).items():
         block = th.get(group)

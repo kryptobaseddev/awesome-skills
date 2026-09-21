@@ -39,6 +39,7 @@ if "--stdin" in sys.argv:
 
 sys.path.insert(0, str(Path(__file__).parent))
 import yaml
+import rulepack
 import uxconfig
 from checks import ALL, FileCtx, Project
 from checks._util import (SOURCE_EXT, STYLE_EXT, collect_css_vars, css_of,
@@ -48,8 +49,7 @@ RULES_DIR = Path(__file__).resolve().parent.parent / "references" / "rules"
 
 
 def load_rules():
-    reg = yaml.safe_load((RULES_DIR / "registry.yaml").read_text())
-    det = yaml.safe_load((RULES_DIR / "detectors.yaml").read_text())
+    reg, det, _th = rulepack.load()
     return reg, det
 
 
