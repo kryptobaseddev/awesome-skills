@@ -19,8 +19,8 @@ those find more real defects than everything else here combined.
 | Detector | What it actually does | Rules |
 |---|---|---|
 | `R-REFLOW` | Sets each viewport, compares `scrollWidth` to the client width, names the elements extending past the edge | NUM-009, NUM-019, LAY-002 |
-| `R-TARGET` | Measures every interactive element's real box; for anything under 24px, tests whether a 24px circle on it clashes with a neighbour (the SC 2.5.8 spacing exception) | NUM-004 |
-| `R-TARGET-SPACING` | Same measurement against the 44px coarse-pointer default | NUM-005, NUM-006, NUM-007 |
+| `R-TARGET` | Measures every interactive element's real box; for anything under 24px, tests whether a 24px circle on it clashes with a neighbour (the SC 2.5.8 spacing exception). NUM-006/007 are iOS pt and Android dp and cannot be established from a browser — they stay manual | NUM-004 |
+| `R-TARGET-COARSE` | The 44px coarse-pointer default — a PROJECT choice, not a standard | NUM-005 |
 | `R-CONTRAST` | Walks every visible text node, composites through transparent ancestors to the real painted backdrop, applies the large-text rule by rendered size and weight | NUM-001, NUM-002, NUM-003 |
 | `R-FOCUS-WALK` | Focuses each control and diffs its computed style before and after; counts backward jumps in reading order; finds positive tabindex | A11Y-002/003/004, NUM-011, LAY-003 |
 | `R-ZOOM` | Applies 200% root font size, looks for clipped or displaced content | NUM-008 |

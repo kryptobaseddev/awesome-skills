@@ -61,13 +61,14 @@ def _targets(raws, out):
     return ("FAIL", f"{len(hits)} targets under 24px with no spacing exception.", hits[:20])
 
 
-def _target_spacing(raws, out):
+def _target_coarse(raws, out):
     for name, d in raws.items():
         if name.endswith("__targets.json") and "under_44" in d:
             n = len(d["under_44"])
             if n:
                 return ("FAIL", f"{n} targets between 24px and the 44px coarse-pointer "
-                                "default. Acceptable on a dense desktop view; check a phone.",
+                                "default (NUM-005, a PROJECT default -- not a WCAG "
+                                "failure). Fine on a dense desktop view; check a phone.",
                         [f"{t['tag']} \"{t['label']}\" {t['w']}x{t['h']}px"
                          for t in d["under_44"][:15]])
             return ("PASS", "All measured targets reach 44px.", [])
@@ -205,7 +206,7 @@ def _override(mode, label, criterion):
 RUNTIME = {
     "R-REFLOW": _reflow,
     "R-TARGET": _targets,
-    "R-TARGET-SPACING": _target_spacing,
+    "R-TARGET-COARSE": _target_coarse,
     "R-CONTRAST": _contrast,
     "R-FOCUS-WALK": _focus,
     "R-MOTION": _motion,

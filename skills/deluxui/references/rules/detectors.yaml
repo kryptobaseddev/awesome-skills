@@ -105,8 +105,14 @@ detectors:
   R-AXE:             {engine: computed, rules: [A11Y-001, A11Y-005, A11Y-007, A11Y-011,
                                                 NUM-001, NUM-002, NUM-003], confidence: high}
   R-CONTRAST:        {engine: computed, rules: [NUM-001, NUM-002, NUM-003], confidence: high}
-  R-TARGET:          {engine: computed, rules: [NUM-004, NUM-005, NUM-006, NUM-007], confidence: high}
-  R-TARGET-SPACING:  {engine: computed, rules: [NUM-004], confidence: high}
+  # R-TARGET does the SC 2.5.8 work: the 24px floor AND the spacing exception.
+  # NUM-006/007 are iOS pt and Android dp; a browser measurement cannot establish
+  # those, so they belong to the manual tier (M-TOUCH-DEVICE).
+  R-TARGET:          {engine: computed, rules: [NUM-004], confidence: high}
+  # The 44px coarse-pointer default is a PROJECT choice, not a standard. This was
+  # mapped to NUM-004 and so reported a WCAG STANDARD failure when all that was
+  # missed was a local default -- exactly the overclaiming this skill exists to stop.
+  R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high}
   R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high}
   R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
   R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
