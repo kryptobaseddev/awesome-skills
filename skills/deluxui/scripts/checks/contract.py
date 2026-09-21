@@ -50,6 +50,11 @@ def _line(t, pos):
     return t[:pos].count("\n") + 1
 
 
+def _css_rules(text):
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", text):
+        yield m.start(), m.group(1).strip(), m.group(2)
+
+
 _RM = re.compile(r"@media[^{]*prefers-reduced-motion\s*:\s*reduce[^{]*\{", re.I)
 
 
@@ -146,6 +151,20 @@ def color_roles(f, p):
 
 
 # ----------------------------------------------------------------------- depth
+# A surface is a thing that is RAISED -- a card, a dialog, a popover. A form
+# control's border, a table rule and a tab underline are structural hairlines:
+# they draw a boundary, they claim no elevation, and an input without one fails
+# SC 1.4.11. Reading them as depth was a proximity error -- the old check took a
+# 400-character window around the declaration, so any border within a few rules of
+# a `.card` selector was attributed to it.
+_SURFACE_SEL = re.compile(r"card|panel|surface|dialog|modal|sheet|popover|tile|"
+                          r"dropdown|menu|toast|drawer", re.I)
+_STRUCTURAL_SEL = re.compile(r"\binput\b|\bselect\b|\btextarea\b|\bbutton\b|"
+                             r"\bth\b|\btd\b|\btable\b|\bhr\b|\bfieldset\b|"
+                             r"tab|field|::|:focus|:hover|:active|\bimg\b|\biframe\b",
+                             re.I)
+
+
 @check("S-CONTRACT-DEPTH-METAPHOR")
 def depth_metaphor(f, p):
     """The contract commits to one way of saying 'surface'. Using the other one
@@ -157,14 +176,16 @@ def depth_metaphor(f, p):
     metaphor = str(metaphor).lower()
     other = "box-shadow" if metaphor == "border" else "border"
     hay = strip_comments(f.css) if f.css else strip_comments(f.text)
-    pat = (r"box-shadow\s*:\s*(?!none)[^;}\n]+" if metaphor == "border"
-           else r"border(?:-(?:top|right|bottom|left))?\s*:\s*[1-9]\d*px\s+solid")
-    for m in re.finditer(pat, hay):
-        ctx = hay[max(0, m.start() - 240):m.start() + 160]
-        if not re.search(r"\bcard\b|\bpanel\b|\bsurface\b|\bdialog\b|\btile\b", ctx, re.I):
+    pat = (re.compile(r"box-shadow\s*:\s*(?!none)[^;}\n]+") if metaphor == "border"
+           else re.compile(r"border(?:-(?:top|right|bottom|left))?\s*:\s*[1-9]\d*px\s+solid"))
+    for pos, sel, body in _css_rules(hay):
+        if not _SURFACE_SEL.search(sel) or _STRUCTURAL_SEL.search(sel):
             continue
-        out.append(finding("S-CONTRACT-DEPTH-METAPHOR", f, _line(hay, m.start()),
-                           m.group(0)[:56],
+        m = pat.search(body)
+        if not m:
+            continue
+        out.append(finding("S-CONTRACT-DEPTH-METAPHOR", f, _line(hay, pos),
+                           f"{sel[:30]} {{ {m.group(0)[:40]} }}",
                            f"The contract declares depth by `{metaphor}`, and this surface "
                            f"uses {other}. Two metaphors on one system means neither is "
                            f"carrying the elevation (VIS-006, VIS-001).", "medium"))
