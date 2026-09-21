@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Forced-colors distinction</title>
+<style>body{font:16px/1.5 system-ui;margin:0;padding:24px;background:#fff;color:#111}
+h1{font-size:20px}button{font:inherit;border:0;padding:10px 14px;cursor:pointer}</style>
+</head><body>
+<h1>Selected state, two ways</h1>
+<p>The left group carries its selected state in the background alone, so the mode
+takes it. The right group underlines the selected one, which survives.</p>
+<div class="tabs-bad" style="display:flex;margin:12px 0">
+  <button style="background:#1d4ed8;color:#fff">Selected bad</button>
+  <button style="background:#eee;color:#111">Other bad</button>
+  <button style="background:#eee;color:#111">Third bad</button>
+</div>
+<div class="tabs-good" style="display:flex;margin:12px 0">
+  <button style="background:#1d4ed8;color:#fff;text-decoration:underline;
+    text-underline-offset:4px;text-decoration-thickness:3px">Selected good</button>
+  <button style="background:#eee;color:#111">Other good</button>
+  <button style="background:#eee;color:#111">Third good</button>
+</div>
+</body></html>

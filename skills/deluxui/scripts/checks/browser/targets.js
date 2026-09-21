@@ -24,10 +24,14 @@
                .trim().slice(0, 50),
       tag: el.tagName.toLowerCase() };
   });
+  // Sub-pixel layout means a control authored at exactly the floor can measure
+  // 43.98. Reporting that as undersized is a finding whose only fix is to make
+  // the button bigger than the rule asks for.
+  const EPS = 0.5;
   const under = [], crowded = [];
   for (const b of boxes) {
     const min = Math.min(b.r.width, b.r.height);
-    if (min < MIN) {
+    if (min < MIN - EPS) {
       // SC 2.5.8 spacing exception: a 24px circle on each undersized target
       // must not touch another target's circle.
       const clash = boxes.some(o => {
@@ -38,7 +42,7 @@
       });
       under.push({ tag: b.tag, label: b.label, w: Math.round(b.r.width),
                    h: Math.round(b.r.height), spacing_exception_met: !clash });
-    } else if (min < COARSE) {
+    } else if (min < COARSE - EPS) {
       crowded.push({ tag: b.tag, label: b.label, w: Math.round(b.r.width),
                      h: Math.round(b.r.height) });
     }

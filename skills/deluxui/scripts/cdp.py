@@ -165,8 +165,15 @@ def browser_url() -> str | None:
     return u if u.startswith("ws://") else None
 
 
-def page_target(port: int) -> dict | None:
-    """The page under test: the first `page` target that is not a chrome:// tab."""
+def page_target(port: int, want: str | None = None) -> dict | None:
+    """The page under test.
+
+    `want` is the URL the caller was told to measure. Without it this returns the
+    first non-chrome page, which is fine with one tab open and quietly wrong with
+    several -- a probe reporting on whichever tab happened to be first is the
+    exact dishonesty the rest of this tool exists to prevent. With `want`, only a
+    matching target is returned, and no match returns None so the caller can say
+    NOT_RUN instead of measuring something else."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=10) as f:
             targets = json.loads(f.read())
@@ -175,11 +182,24 @@ def page_target(port: int) -> dict | None:
     pages = [t for t in targets if t.get("type") == "page"
              and not str(t.get("url", "")).startswith(("chrome://", "chrome-untrusted://",
                                                        "devtools://", "about:"))]
-    return pages[0] if pages else None
+    if not want:
+        return pages[0] if pages else None
+    norm = want.rstrip("/")
+    exact = [t for t in pages if str(t.get("url", "")).rstrip("/") == norm]
+    if exact:
+        return exact[0]
+    # Same origin is close enough: a driver may have followed a redirect or added
+    # a trailing path, and that is still the page under test.
+    try:
+        origin = "://".join(norm.split("://")[:1] + [norm.split("://", 1)[1].split("/")[0]])
+    except IndexError:
+        origin = norm
+    same = [t for t in pages if str(t.get("url", "")).startswith(origin)]
+    return same[0] if same else None
 
 
-def connect_page():
-    """(WS, target) for the page agent-browser has open, or (None, reason)."""
+def connect_page(want: str | None = None):
+    """(WS, target) for the page under test, or (None, reason)."""
     bu = browser_url()
     if not bu:
         return None, ("agent-browser is not running or did not report a CDP URL, so "
@@ -188,8 +208,21 @@ def connect_page():
         port = int(bu.split("//")[1].split(":")[1].split("/")[0])
     except Exception:
         return None, f"could not read a port out of {bu!r}"
-    t = page_target(port)
+    t = page_target(port, want)
     if not t or not t.get("webSocketDebuggerUrl"):
+        if want:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list",
+                                            timeout=10) as f:
+                    open_urls = [str(x.get("url", ""))[:70] for x in json.loads(f.read())
+                                 if x.get("type") == "page"]
+            except Exception:
+                open_urls = []
+            return None, (f"{want} is not open in the browser. Open tabs: "
+                          + (", ".join(open_urls[:4]) or "none")
+                          + ". Nothing was measured -- reporting on whichever tab "
+                            "happened to be first would be a result about the wrong "
+                            "page.")
         return None, ("no page target is open on the browser's CDP endpoint -- only "
                       "chrome:// tabs. Open the page under test first.")
     try:

@@ -10,10 +10,14 @@
     if (r.width < 40 || r.height < 8) continue;
     sticky.push({ el, r, cls: (el.className || '').toString().slice(0, 40) });
   }
-  const vh = window.innerHeight;
+  const vh = window.innerHeight, vw = window.innerWidth;
+  // A hog is a BAR: wide enough to span the reading column and tall enough to eat
+  // the screen. A sticky sidebar is tall and narrow, obscures nothing, and being
+  // reported as a cookie banner is how this check gets switched off.
   const heavy = sticky
-    .filter(s => s.r.height / vh > 0.25)
-    .map(s => ({ cls: s.cls, pct: Math.round((s.r.height / vh) * 100) }));
+    .filter(s => s.r.height / vh > 0.25 && s.r.width / vw > 0.6)
+    .map(s => ({ cls: s.cls, pct: Math.round((s.r.height / vh) * 100),
+                 widthPct: Math.round((s.r.width / vw) * 100) }));
 
   // Tab through and see whether any stop lands underneath a sticky layer.
   const SEL = 'a[href],button:not([disabled]),input:not([type=hidden]):not([disabled]),' +

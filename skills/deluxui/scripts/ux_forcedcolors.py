@@ -77,7 +77,20 @@ def analyse(normal: dict, forced: dict) -> dict:
         sibs = [s for s in (a.get("sibBg") or []) if s]
         differed = bool(sibs) and any(s != a.get("bg") for s in sibs)
         now_same = all(s == b.get("bg") for s in (b.get("sibBg") or []) if s)
-        if differed and now_same and float(a.get("bWidth") or 0) == 0:
+        # A border, an underline or a heavier weight all survive the mode and all
+        # carry the same distinction the background was carrying. Only a
+        # distinction with none of them is actually lost.
+        deco = str(b.get("deco") or "")
+        mine = deco + "|" + str(b.get("bWidth") or "")
+        group_marks = {str(x) for x in (b.get("sibDeco") or [])}
+        kept = (float(a.get("bWidth") or 0) > 0
+                or any(m in deco for m in ("underline", "overline", "line-through"))
+                # or somebody in the group carries a mark this one does not, which
+                # is the same distinction expressed a way the mode preserves
+                or any(g and g.split("|")[0] not in ("none", "") for g in group_marks)
+                or (group_marks and any(g != mine for g in group_marks)
+                    and any("underline" in g or "overline" in g for g in group_marks)))
+        if differed and now_same and not kept:
             findings.append({
                 "kind": "distinction-lost", "label": a.get("label", k),
                 "detail": f"<{a.get('tag')}> is distinguished from its siblings by "
@@ -153,9 +166,9 @@ def analyse(normal: dict, forced: dict) -> dict:
     }
 
 
-def run(out_dir: Path, route: str) -> int:
+def run(out_dir: Path, route: str, url: str | None = None) -> int:
     js = PROBE.read_text()
-    ws, info = cdp.connect_page()
+    ws, info = cdp.connect_page(url)
     if ws is None:
         payload = {"probe": "forcedcolors", "emulated": False, "reason": str(info),
                    "findings": []}
@@ -206,9 +219,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=".deluxui/reports/runtime")
+    ap.add_argument("--url", help="the page under test; without it the probe attaches to whichever tab is first, which is wrong the moment two are open")
     ap.add_argument("--route", default="/")
     a = ap.parse_args(argv)
-    return run(Path(a.out), a.route)
+    return run(Path(a.out), a.route, a.url)
 
 
 if __name__ == "__main__":

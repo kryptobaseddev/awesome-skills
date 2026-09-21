@@ -30,15 +30,29 @@
     // Sibling backgrounds, because the sharpest forced-colors loss is a
     // DISTINCTION rather than a boundary: a selected row among unselected ones, a
     // success chip among neutral ones. Both collapse to one system colour.
-    const sibs = pe ? [...pe.children].filter(c => c !== el)
-                        .slice(0, 12).map(c => getComputedStyle(c).backgroundColor) : [];
+    const sibEls = pe ? [...pe.children].filter(c => c !== el).slice(0, 12) : [];
+    const sibs = sibEls.map(c => getComputedStyle(c).backgroundColor);
+    // Sibling decoration and border, so the check can tell whether the GROUP
+    // still encodes its difference. A selected tab that keeps an underline makes
+    // its unselected siblings readable too; judging each one alone reported the
+    // unselected ones as lost while the distinction was plainly on screen.
+    const sibDeco = sibEls.map(c => {
+      const cs = getComputedStyle(c);
+      return (cs.textDecorationLine || '') + '|' + (cs.borderBottomWidth || '');
+    });
     return {
       pBg: ps ? ps.backgroundColor : '',
       sibBg: sibs,
+      sibDeco: sibDeco,
       kids: el.children.length,
       bg: s.backgroundColor, color: s.color,
       bImg: s.backgroundImage === 'none' ? '' : 'yes',
       bStyle: s.borderTopStyle + ' ' + s.borderBottomStyle,
+      // Text decoration and weight survive forced colors, so they are legitimate
+      // ways to carry a distinction that a background cannot. Not recording them
+      // meant the check could not see a correct fix and kept reporting it.
+      deco: (s.textDecorationLine || '') + ' ' + (s.textDecorationStyle || ''),
+      weight: s.fontWeight || '',
       bWidth: parseFloat(s.borderTopWidth) + parseFloat(s.borderBottomWidth),
       bColor: s.borderTopColor,
       shadow: s.boxShadow === 'none' ? '' : 'yes',

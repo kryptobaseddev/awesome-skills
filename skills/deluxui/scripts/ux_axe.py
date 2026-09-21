@@ -117,14 +117,14 @@ RUN = """
 """
 
 
-def run(out_dir: Path, route: str, no_fetch=False) -> int:
+def run(out_dir: Path, route: str, url: str | None = None, no_fetch=False) -> int:
     js, where = source(no_fetch=no_fetch)
     if not js:
         _write(out_dir, route, {"probe": "axe", "ran": False, "reason": where,
                                 "violations": []})
         sys.stderr.write(f"axe: {where}\n")
         return 0
-    ws, info = cdp.connect_page()
+    ws, info = cdp.connect_page(url)
     if ws is None:
         _write(out_dir, route, {"probe": "axe", "ran": False, "reason": str(info),
                                 "violations": []})
@@ -179,11 +179,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=".deluxui/reports/runtime")
+    ap.add_argument("--url", help="the page under test; without it the probe attaches to whichever tab is first, which is wrong the moment two are open")
     ap.add_argument("--route", default="/")
     ap.add_argument("--no-fetch", action="store_true",
                     help="never reach the network; use a local or cached copy only")
     a = ap.parse_args(argv)
-    return run(Path(a.out), a.route, no_fetch=a.no_fetch)
+    return run(Path(a.out), a.route, a.url, no_fetch=a.no_fetch)
 
 
 if __name__ == "__main__":

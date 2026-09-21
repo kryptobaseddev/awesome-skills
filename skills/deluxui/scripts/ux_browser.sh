@@ -127,7 +127,7 @@ for route in "${ROUTE_LIST[@]}"; do
   # R-FORCED-COLORS: two passes through the browser's own CDP endpoint, because
   # `Emulation.setEmulatedMedia` with a forced-colors feature is the only honest
   # way into the mode and agent-browser's `set media` does not expose it.
-  python3 "$HERE/ux_forcedcolors.py" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
+  python3 "$HERE/ux_forcedcolors.py" --url "${BASE%/}${route}" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
 
   # R-STATE-SLOW: make the request slow rather than absent. The other state probes
   # abort, empty or disconnect; none of them could answer "what does it say while
@@ -138,7 +138,7 @@ for route in "${ROUTE_LIST[@]}"; do
   # R-AXE: axe-core over the live page, if it can be obtained. It covers rule
   # families this probe set does not reproduce, and it is NOT a substitute for the
   # rest -- automated checks reach a minority of the WCAG criteria either way.
-  python3 "$HERE/ux_axe.py" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
+  python3 "$HERE/ux_axe.py" --url "${BASE%/}${route}" --out "$OUT" --route "$route" 2>&1 | sed 's/^/  /'
 
   # --- GOV-004: prove the parts nobody asked you to change did not move.
   # The corpus was already being written and then thrown away: agent-browser has

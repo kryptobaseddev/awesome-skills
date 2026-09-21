@@ -198,7 +198,8 @@ def _obstruction(raws, out):
             continue
         seen = True
         for h in d.get("viewport_hogs", []):
-            hits.append(f"a sticky layer takes {h['pct']}% of the viewport height "
+            hits.append(f"a sticky bar takes {h['pct']}% of the viewport height "
+                        f"and {h.get('widthPct', 100)}% of its width "
                         f"(class \"{h['cls']}\")")
         for o in d.get("focus_obscured", []):
             hits.append(f"focused {o['tag']} \"{o['label']}\" is painted over by "

@@ -99,7 +99,7 @@ def probe_at(url: str, latency_ms: int, window_s: float, throughput_kbps=50) -> 
     route that settles in under 200ms has no waiting state to judge, and inventing
     a verdict for it would be a fabricated pass.
     """
-    ws, info = cdp.connect_page()
+    ws, info = cdp.connect_page(url)
     if ws is None:
         return {"error": str(info)}
     try:

@@ -144,7 +144,7 @@ class Review:
             if chip:
                 rec["chip"] = chip
             rec["edited_at"] = now()
-            rec["edits"] = int(rec.get("edits") or 0) + 1
+            rec["revision"] = int(rec.get("revision") or 0) + 1
             return rec
 
     def remove_note(self, n: int) -> dict | None:
@@ -443,85 +443,144 @@ def theme() -> dict:
 CSS = """
 :root{--canvas:%(canvas)s;--surface:%(surface)s;--ink:%(ink)s;--muted:%(muted)s;
   --accent:%(accent)s;--danger:%(danger)s;
-  --line:color-mix(in oklab,var(--ink) 16%%,var(--canvas))}
+  --line:color-mix(in oklab,var(--ink) 16%%,var(--canvas));
+  --hdr:64px;
+  caret-color:var(--accent);accent-color:var(--accent);
+  scrollbar-color:color-mix(in oklab,var(--ink) 30%%,var(--canvas)) transparent}
+::selection{background:color-mix(in oklab,var(--accent) 26%%,var(--canvas));color:var(--ink)}
+a{color:var(--accent);text-underline-offset:0.18em}
 *,*::before,*::after{box-sizing:border-box}
-html{color-scheme:light dark}
+html{color-scheme:light dark;scroll-padding-top:calc(var(--hdr) + 8px)}
 body{margin:0;background:var(--canvas);color:var(--ink);font-family:%(body)s;
-  font-size:17px;line-height:1.5}
-header{padding:18px 20px 12px;border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:var(--canvas);z-index:5}
-h1{font-family:%(display)s;font-size:clamp(22px,2.4vw,29px);margin:0 0 4px;
-  font-weight:650;text-wrap:balance;max-width:40ch}
-.sub{margin:0;color:var(--muted);max-width:74ch;text-wrap:pretty}
-.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+  font-size:17px;line-height:1.5;padding-inline:16px}
+
+/* The header was a sticky bar taking a quarter of a phone screen -- measured, not
+   guessed (R-STICKY-OBSTRUCTION). It sticks only where there is room for it. */
+header{padding:14px 0 0;background:var(--canvas)}
+/* Only the toolbar sticks. A tall sticky header covers whatever is focused near
+   the top of the page, and no amount of scroll-padding moves something that was
+   never scrolled (SC 2.4.11, measured by R-STICKY-OBSTRUCTION). */
+.bar{position:sticky;top:0;z-index:5;background:var(--canvas);
+  border-bottom:1px solid var(--line);padding:8px 0 10px}
+h1{font-family:%(display)s;font-size:clamp(22px,2.4vw,27px);line-height:1.2;
+  margin:0 0 2px;font-weight:650;text-wrap:balance;max-width:34ch}
+.sub{margin:0;color:var(--muted);max-width:62ch;text-wrap:pretty;font-size:17px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
 .bar label{font:13px %(mono)s;color:var(--muted)}
 .seg{display:flex;border:1px solid var(--line);border-radius:%(r_ctl)spx;overflow:hidden}
-.seg button{font:13px %(mono)s;padding:8px 11px;min-height:40px;border:0;
+.seg button{font:13px %(mono)s;padding:8px 12px;min-height:44px;min-width:44px;border:0;
   background:var(--surface);color:var(--ink);cursor:pointer}
-.seg button[aria-pressed=true]{background:var(--accent);color:#fff}
-.tog{font:600 14px system-ui;padding:9px 14px;min-height:44px;border-radius:%(r_ctl)spx;
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;
+  font-weight:700;text-decoration:underline;text-underline-offset:4px;
+  text-decoration-thickness:3px}
+.tog{font:600 17px system-ui;padding:8px 14px;min-height:44px;border-radius:%(r_ctl)spx;
   border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
-.tog[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent)}
-main{display:grid;grid-template-columns:1fr 340px;gap:0;align-items:start}
-.frames{display:flex;gap:16px;padding:16px 20px;overflow-x:auto;align-items:flex-start}
-.vwrap{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
-.vwrap h2{font-family:%(display)s;font-size:20px;margin:0;font-weight:650}
-.vwrap .t{font:12px %(mono)s;color:var(--muted);margin:0 0 2px;word-break:break-all;
-  max-width:100%%}
+.tog[aria-pressed=true]{background:var(--accent);color:#fff;border-color:var(--accent);
+  text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:3px}
+.tally{font:13px %(mono)s;color:var(--muted)}
+
+main{display:grid;grid-template-columns:1fr;gap:0}
+/* Two variants stacked, not in a horizontal scroller. Side-scrolling to compare
+   two things defeats the comparison. */
+.frames{display:flex;flex-direction:column;gap:14px;padding:14px 0}
+.vwrap{display:flex;flex-direction:column;gap:5px;min-width:0;max-width:100%%}
+/* Asking to see 390px on a 320px screen is a legitimate thing to want. The frame
+   keeps its width and scrolls inside its own box; the page never scrolls
+   sideways, which is the thing that makes a comparison unusable. */
+.vport{max-width:100%%;overflow-x:auto;overscroll-behavior-x:contain}
+.vwrap h2{font-family:%(display)s;font-size:22px;margin:0;font-weight:650}
+.vwrap .t{font:13px %(mono)s;color:var(--muted);margin:0;word-break:break-all}
 iframe{border:1px solid var(--line);border-radius:%(r_card)spx;background:#fff;
-  height:78vh;width:768px;max-width:100%%;display:block}
-aside{border-left:1px solid var(--line);padding:16px;position:sticky;top:120px;
-  height:calc(100vh - 140px);overflow:auto}
-aside h2{font-family:%(display)s;font-size:20px;margin:0 0 4px;font-weight:650}
-.note{border:1px solid var(--line);border-radius:%(r_ctl)spx;padding:10px 12px;
-  margin:10px 0;background:var(--surface)}
-.note .m{font:12px %(mono)s;color:var(--muted);display:flex;gap:8px;
-  justify-content:space-between}
-.note .s{font:12px %(mono)s;color:var(--muted);word-break:break-all;margin:3px 0 6px}
-.note p{margin:0;text-wrap:pretty}
-.note .acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.note .acts button{font:13px system-ui;min-height:36px;padding:6px 10px;
+  height:min(72dvh,780px);width:100%%;max-width:100%%;display:block}
+@media (min-width:1100px){
+  main{grid-template-columns:minmax(0,1fr) 370px}
+  .frames{flex-direction:row;align-items:flex-start;overflow-x:auto;padding:14px 16px 14px 0}
+  .vwrap{flex:0 0 auto}
+  .vwrap[data-fill=true]{flex:1 1 0;min-width:0}
+}
+
+aside{padding:14px 0 72px;border-top:1px solid var(--line)}
+@media (min-width:1100px){
+  aside{border-top:0;border-left:1px solid var(--line);padding:14px 0 24px 16px;
+    position:sticky;top:var(--hdr);max-height:calc(100dvh - var(--hdr));
+    overflow:auto}}
+aside h2{font-family:%(display)s;font-size:22px;margin:0;font-weight:650}
+.panelhead{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:0 0 8px}
+.linkish{font:13px system-ui;background:none;border:0;color:var(--accent);
+  cursor:pointer;padding:10px 6px;min-height:44px;text-decoration:underline}
+
+.note{border:1px solid var(--line);border-radius:%(r_ctl)spx;margin:0 0 8px;
+  background:var(--surface);overflow:hidden}
+.note > .head{display:flex;width:100%%;gap:8px;align-items:flex-start;text-align:left;
+  background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:10px 13px;
+  min-height:48px}
+.note .num{font:700 13px/20px %(mono)s;background:var(--accent);color:#fff;
+  border-radius:999px;min-width:20px;height:20px;text-align:center;flex:0 0 auto;
+  margin-top:2px;padding:0 5px}
+.note .gist{flex:1 1 auto;min-width:0}
+.note .gist .who{font:13px %(mono)s;color:var(--muted);display:block}
+.note .gist .txt{display:block;text-wrap:pretty}
+.note .chev{flex:0 0 auto;color:var(--muted);font:13px %(mono)s;margin-top:3px}
+.note .body{padding:0 13px 13px;border-top:1px solid var(--line);margin-top:2px}
+.note .s{font:13px %(mono)s;color:var(--muted);word-break:break-all;padding:8px 0 6px}
+.note .acts{display:flex;gap:6px;flex-wrap:wrap}
+.note .acts button{font:13px system-ui;min-height:44px;padding:10px 12px;
   border-radius:%(r_ctl)spx;border:1px solid var(--line);background:var(--canvas);
   color:var(--ink);cursor:pointer}
 .note .acts button.danger{color:var(--danger);border-color:var(--danger)}
-.note textarea{width:100%%;min-height:80px;font:inherit;padding:8px;margin:6px 0;
+.note textarea,.note select{width:100%%;font:inherit;padding:9px;margin:6px 0;
   border:1px solid color-mix(in oklab,var(--ink) 30%%,var(--canvas));
   border-radius:%(r_ctl)spx;background:var(--canvas);color:var(--ink)}
-.note select{width:100%%;font:inherit;padding:8px;min-height:40px;
-  border:1px solid color-mix(in oklab,var(--ink) 30%%,var(--canvas));
-  border-radius:%(r_ctl)spx;background:var(--canvas);color:var(--ink)}
+.note textarea{min-height:88px;resize:vertical}
+.note select{min-height:44px}
 .note[data-editing=true]{border-color:var(--accent);
-  box-shadow:0 0 0 2px color-mix(in oklab,var(--accent) 30%%,transparent)}
-.empty{color:var(--muted);text-wrap:pretty}
-form{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}
-fieldset{border:0;padding:0;margin:0 0 10px}
-legend{font-family:%(display)s;font-size:20px;font-weight:650;padding:0;margin:0 0 6px}
-.opt{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;min-height:44px;
+  box-shadow:0 0 0 2px color-mix(in oklab,var(--accent) 28%%,transparent)}
+.empty{color:var(--muted);text-wrap:pretty;font-size:17px}
+
+form{border-top:1px solid var(--line);margin-top:14px;padding-top:13px}
+fieldset{border:0;padding:0;margin:0 0 8px}
+legend{font-family:%(display)s;font-size:22px;font-weight:650;padding:0;margin:0 0 6px}
+.opt{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;min-height:48px;
   border:1px solid var(--line);border-radius:%(r_ctl)spx;margin:0 0 6px;cursor:pointer;
   background:var(--surface)}
-.opt input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--accent)}
-.opt:has(input:checked){background:color-mix(in oklab,var(--accent) 14%%,var(--surface))}
+.opt input{width:20px;height:20px;margin:3px 0 0;flex:0 0 auto}
+.opt:has(input:checked){background:color-mix(in oklab,var(--accent) 14%%,var(--surface));
+  border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-2px}
 .opt span.h{font-weight:600;display:block}
-.opt span.d{font-size:14px;color:var(--muted);display:block;text-wrap:pretty}
-label.f{display:block;font-weight:600;margin:12px 0 4px}
-input[type=text],textarea{width:100%%;font:inherit;padding:10px 12px;min-height:46px;
+.opt span.d{font-size:13px;color:var(--muted);display:block;text-wrap:pretty}
+.opt.primary span.h::before{content:"✓ ";color:var(--accent);
+  font-weight:700}
+.divider{font:13px %(mono)s;color:var(--muted);margin:10px 0 6px;
+  display:flex;align-items:center;gap:8px}
+.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+label.f{display:block;font-weight:600;margin:13px 0 4px}
+label.f .opt-tag{font-weight:400;color:var(--muted);font-size:13px}
+.hint{display:block;font-weight:400;font-size:13px;color:var(--muted);margin:2px 0 6px;
+  text-wrap:pretty;max-width:52ch}
+input[type=text],textarea{width:100%%;font:inherit;padding:10px 13px;min-height:46px;
   border:1px solid color-mix(in oklab,var(--ink) 32%%,var(--canvas));
   border-radius:%(r_ctl)spx;background:var(--surface);color:var(--ink)}
-textarea{min-height:92px;resize:vertical}
-button.send{width:100%%;margin-top:12px;font:650 15px system-ui;min-height:48px;
+textarea{min-height:88px;resize:vertical}
+button.send{width:100%%;margin-top:13px;font:650 17px system-ui;min-height:48px;
   border:0;border-radius:%(r_ctl)spx;background:var(--accent);color:#fff;cursor:pointer}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .err{background:color-mix(in oklab,var(--danger) 12%%,var(--canvas));
-  border:1px solid var(--danger);border-radius:%(r_ctl)spx;padding:10px 12px;margin:10px 0}
+  border:1px solid var(--danger);border-radius:%(r_ctl)spx;padding:10px 13px;margin:10px 0}
 .err ul{margin:4px 0 0;padding-left:18px}
-@media (max-width:1100px){main{grid-template-columns:1fr}
-  aside{border-left:0;border-top:1px solid var(--line);position:static;height:auto}}
+.fielderr{color:var(--danger);font-size:13px;margin:4px 0 0;display:block}
+.loading{padding:22px 0;color:var(--muted);display:flex;gap:10px;align-items:center}
+.spin{width:18px;height:18px;border-radius:999px;border:3px solid var(--line);
+  border-top-color:var(--accent);animation:spin 900ms linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 @media (prefers-color-scheme:dark){
   :root{--canvas:#14120e;--surface:#1e1b16;--ink:#f4f0e7;
     --muted:color-mix(in oklab,#f4f0e7 72%%,#14120e);
     --accent:color-mix(in oklab,%(accent)s 78%%,#ffffff);
     --line:color-mix(in oklab,#f4f0e7 22%%,#14120e)}
-  button.send,.seg button[aria-pressed=true],.tog[aria-pressed=true]{color:#14120e}}
+  button.send,.seg button[aria-pressed=true],.tog[aria-pressed=true],
+  .note .num{color:#14120e}}
 """
 
 WIDTHS = [("320", 320), ("390", 390), ("768", 768), ("1024", 1024), ("full", 0)]
@@ -537,91 +596,126 @@ def page(rv: Review, th: dict, errors=None, form=None) -> str:
             f'<div class="vwrap" data-v="{html.escape(vid)}">'
             f'<h2>{html.escape(vid)}</h2>'
             f'<p class="t">{html.escape(str(label))}</p>'
-            f'<iframe title="Variant {html.escape(vid)}" src="/v/{html.escape(vid)}/"'
-            f'></iframe></div>')
-    opts = [("accept:" + vid, f"Accept {vid}", "This is the one to build on.")
+            f'<div class="vport"><iframe title="Variant {html.escape(vid)}" '
+            f'src="/v/{html.escape(vid)}/" loading="eager"></iframe></div></div>')
+
+    # The two acceptances lead and are marked as the outcomes that let work
+    # continue. Listing five neutral radios made "reject" as prominent as
+    # "accept", which is not the shape of the decision.
+    opts = [("accept:" + vid, f"Accept {vid}", "Build on this one.", True)
             for vid in rv.variants]
-    opts += [("combine", "Combine", "Take parts of more than one — say which, below."),
+    opts += [("combine", "Combine", "Parts of more than one \u2014 say which below.", True),
+             (None, "Not yet", None, False),
              ("changes", "Request changes",
-              "Not yet. The notes are the work list; nothing is approved."),
-             ("reject", "Reject", "None of these. Say what is wrong with the direction.")]
-    radios = "".join(
-        f'<label class="opt"><input type="radio" name="choice" value="{html.escape(v)}"'
-        f'{" checked" if form.get("choice") == v else ""}>'
-        f'<span><span class="h">{html.escape(h_)}</span>'
-        f'<span class="d">{html.escape(d)}</span></span></label>' for v, h_, d in opts)
+              "Your notes are the work list. Nothing is approved.", False),
+             ("reject", "Reject", "Wrong direction, not wrong details.", False)]
+    radios = []
+    for value, head, desc, primary in opts:
+        if value is None:
+            radios.append(f'<p class="divider">{html.escape(head)}</p>')
+            continue
+        radios.append(
+            f'<label class="opt{" primary" if primary else ""}">'
+            f'<input type="radio" name="choice" value="{html.escape(value)}"'
+            f'{" checked" if form.get("choice") == value else ""}>'
+            f'<span><span class="h">{html.escape(head)}</span>'
+            f'<span class="d">{html.escape(desc)}</span></span></label>')
+
     errblock = ""
     if errors:
         errblock = ('<div class="err" role="alert" tabindex="-1" id="errors">'
-                    '<strong>Not recorded</strong><ul>'
-                    + "".join(f"<li>{html.escape(e)}</li>" for e in errors) + "</ul></div>")
+                    '<strong>Not recorded yet</strong><ul>'
+                    + "".join(f"<li>{html.escape(e)}</li>" for e in errors)
+                    + "</ul></div>")
     segs = "".join(
-        f'<button type="button" data-w="{w}" aria-pressed="{str(w == 1024).lower()}">'
+        f'<button type="button" data-w="{w}" aria-pressed="false">'
         f'{html.escape(lbl)}</button>' for lbl, w in WIDTHS)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(rv.question)}</title><style>{CSS % th}</style></head><body>
 <header>
   <h1>{html.escape(rv.question)}</h1>
-  <p class="sub">{html.escape(rv.surface or '')} — this is the running interface, not a
-  picture of it. <strong>Alt-click</strong> anything inside a frame to leave a note about
-  it, or press <em>Note mode</em> and click.</p>
+  <p class="sub">{html.escape(rv.surface or '')} &mdash; the running interface, not a
+    picture of it. <strong>Alt-click</strong> anything in a frame to note it.</p>
   <div class="bar">
     <label for="segw">Width</label>
     <div class="seg" id="segw">{segs}</div>
     <button class="tog" id="armbtn" type="button" aria-pressed="false">Note mode</button>
     <button class="tog" id="darkbtn" type="button" aria-pressed="false">Try dark</button>
-    <span class="sub" id="count" style="font:13px {th['mono']}"></span>
+    <span class="tally" id="count"></span>
   </div>
 </header>
 <main>
-  <div class="frames">{''.join(frames)}</div>
+  <div class="frames" id="frames" aria-busy="true">
+    <p class="loading" role="status" id="loading"><span class="spin"></span>
+      Loading the variants&hellip;</p>
+    {''.join(frames)}
+  </div>
   <aside>
-    <h2>Notes</h2>
-    <div id="notes"><p class="empty">Nothing yet. Alt-click an element in either
-      frame and say what is wrong with it, in your own words.</p></div>
-    <form method="post" action="/api/decide" id="decide">
+    <div class="panelhead">
+      <h2 id="noteshead">Notes</h2>
+      <button type="button" class="linkish" id="expandall" hidden>Expand all</button>
+    </div>
+    <div id="notes" aria-labelledby="noteshead"></div>
+
+    <form method="post" action="/api/decide" id="decide" novalidate>
       {errblock}
-      <fieldset><legend>Decide</legend>{radios}</fieldset>
-      <label class="f" for="who">Who is deciding
-        <span class="d">A person's name. An agent's name is refused.</span></label>
+      <fieldset><legend>Decide</legend>{''.join(radios)}</fieldset>
+      <label class="f" for="who">Your name</label>
+      <span class="hint" id="whohint">Recorded as the person who decided this.</span>
       <input type="text" id="who" name="who" autocomplete="name"
+             aria-describedby="whohint"
              value="{html.escape(form.get('who',''))}">
-      <label class="f" for="why">Why</label>
-      <textarea id="why" name="why">{html.escape(form.get('why',''))}</textarea>
-      <button class="send" type="submit">Record this decision</button>
+      <label class="f" for="why">Why<span class="opt-tag" id="whytag"></span></label>
+      <span class="hint" id="whyhint">Pick an outcome above and this will say what it
+        needs.</span>
+      <textarea id="why" name="why" aria-describedby="whyhint">{html.escape(form.get('why',''))}</textarea>
+      <button class="send" type="submit" id="send">Record this decision</button>
     </form>
   </aside>
 </main>
 <script>
-const frames = () => [...document.querySelectorAll('iframe')];
-// Two variants side by side is the whole point, so the opening width is the
-// widest one that actually fits both. Defaulting to 1024 pushed B off-screen and
-// turned an A/B comparison into a horizontal scroll.
-function fit() {{
-  const n = frames().length || 1;
-  const room = (document.querySelector('.frames').clientWidth - 16 * (n - 1)) / n;
-  const pick = [1024, 768, 390, 320].find(w => w <= room) || 320;
-  const b = document.querySelector(`#segw button[data-w="${{pick}}"]`)
-        || document.querySelector('#segw button[data-w="320"]');
-  if (b) b.click();
+const CHIPS = {chips};
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const frames = () => $$('iframe');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
+function post(kind, payload) {{
+  frames().forEach(f => {{
+    try {{ f.contentWindow.postMessage(Object.assign({{uxreview:1, kind}}, payload), '*'); }}
+    catch (e) {{}}
+  }});
 }}
-document.querySelectorAll('#segw button').forEach(b => b.onclick = () => {{
-  document.querySelectorAll('#segw button').forEach(o =>
-    o.setAttribute('aria-pressed', String(o === b)));
-  const w = +b.dataset.w;
-  frames().forEach(f => f.style.width = w ? w + 'px' : '100%');
-}});
-const arm = document.getElementById('armbtn');
+
+/* ---- width. "full" means fill the column, which needs the wrapper to grow --
+   it used to set the iframe to 100% of a wrapper that was sized to its content,
+   so "full" rendered narrower than 320. */
+function setWidth(w) {{
+  $$('#segw button').forEach(o => o.setAttribute('aria-pressed',
+    String(+o.dataset.w === w)));
+  frames().forEach(f => {{
+    f.style.width = w ? w + 'px' : '100%';
+    f.closest('.vwrap').dataset.fill = w ? 'false' : 'true';
+  }});
+}}
+$$('#segw button').forEach(b => b.onclick = () => setWidth(+b.dataset.w));
+function fit() {{
+  const wide = matchMedia('(min-width:1100px)').matches;
+  if (!wide) return setWidth(0);            // stacked: each frame fills the column
+  const n = frames().length || 1;
+  const room = ($('#frames').clientWidth - 16 * (n - 1)) / n;
+  setWidth([1024, 768, 390, 320].find(w => w <= room) || 0);
+}}
+
+const arm = $('#armbtn');
 arm.onclick = () => {{
   const on = arm.getAttribute('aria-pressed') !== 'true';
   arm.setAttribute('aria-pressed', String(on));
   arm.textContent = on ? 'Note mode: on' : 'Note mode';
   post('arm', {{on}});
 }};
-// Adds the two conventions an app is most likely to honour. It is a probe, not a
-// guarantee: if neither moves, this product does not implement dark that way.
-const dk = document.getElementById('darkbtn');
+const dk = $('#darkbtn');
 dk.onclick = () => {{
   const on = dk.getAttribute('aria-pressed') !== 'true';
   dk.setAttribute('aria-pressed', String(on));
@@ -634,101 +728,171 @@ dk.onclick = () => {{
     }} catch (e) {{}}
   }});
 }};
-const CHIPS = {chips};
-let editing = null;             // the note number whose editor is open
+
+/* ---- notes: collapsed to one line, opened to read or change */
+let editing = null, open = new Set(), LAST = '';
 addEventListener('message', e => {{
   const d = e.data || {{}};
   if (!d.uxreview && d.uxreview !== 1) return;
-  if (d.kind === 'note') refresh();
-  else if (d.kind === 'pin') edit(d.n);
-  else if (d.kind === 'armed') arm.setAttribute('aria-pressed', String(!!d.on));
+  if (d.kind === 'note') refresh(true);
+  else if (d.kind === 'pin') {{ open.add(d.n); editing = d.n; refresh(true); focusNote(d.n); }}
+  else if (d.kind === 'armed') {{
+    arm.setAttribute('aria-pressed', String(!!d.on));
+    arm.textContent = d.on ? 'Note mode: on' : 'Note mode';
+  }}
 }});
-function post(kind, payload) {{
-  frames().forEach(f => {{
-    try {{ f.contentWindow.postMessage(Object.assign({{uxreview:1, kind}}, payload), '*'); }}
-    catch (e) {{}}
-  }});
+function focusNote(n) {{
+  const el = document.getElementById('note' + n);
+  if (!el) return;
+  el.scrollIntoView({{block: 'center'}});
+  const ta = el.querySelector('textarea');
+  if (ta) {{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }}
 }}
-function edit(n) {{ editing = n; refresh(); const el = document.getElementById('note' + n);
-  if (el) {{ el.scrollIntoView({{block:'center'}}); const ta = el.querySelector('textarea');
-             if (ta) {{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }} }} }}
-
-let LAST = '';
 async function refresh(force) {{
   const r = await fetch('/api/state'); const s = await r.json();
-  // Sync the pins on every tick, not only when the notes changed. A frame that
-  // finished loading after the last change never received one, so a note left on
-  // the second variant lost its pin the moment the page was reloaded.
   post('sync', {{notes: s.notes}});
-  const sig = JSON.stringify(s.notes) + '|' + editing;
+  const sig = JSON.stringify(s.notes) + '|' + editing + '|' + [...open].join(',');
   if (!force && sig === LAST) return;
   LAST = sig;
-  const box = document.getElementById('notes');
-  document.getElementById('count').textContent =
-    s.notes.length ? s.notes.length + ' note' + (s.notes.length === 1 ? '' : 's') : '';
+  const box = $('#notes');
+  $('#count').textContent = s.notes.length
+    ? s.notes.length + ' note' + (s.notes.length === 1 ? '' : 's') : '';
+  $('#expandall').hidden = s.notes.length < 2;
   if (!s.notes.length) {{
     box.innerHTML = '<p class="empty">Nothing yet. Turn on <em>Note mode</em> (or hold '
-      + 'Alt) and click an element in either frame, then say what is wrong with it in '
+      + 'Alt) and click anything in either frame, then say what is wrong with it in '
       + 'your own words. Notes stay editable.</p>';
     return;
   }}
-  box.innerHTML = s.notes.map(n => n.n === editing ? editor(n) : view(n)).join('');
-  s.notes.forEach(n => wire(n));
+  box.innerHTML = s.notes.map(render).join('');
+  s.notes.forEach(wire);
+  hintFor();
 }}
-const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g,
-  c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
-function view(n) {{
-  return `<div class="note" id="note${{n.n}}">
-    <div class="m"><span>${{n.n}} · ${{esc(n.variant)}} · ${{esc(n.req || '')}}</span>
-      <span>${{esc(n.chip)}}</span></div>
-    <div class="s">${{esc(n.selector)}}</div><p></p>
-    <div class="acts">
-      <button type="button" data-a="show" data-n="${{n.n}}">Show me</button>
-      <button type="button" data-a="edit" data-n="${{n.n}}">Edit</button>
-      <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
-    </div></div>`;
-}}
-function editor(n) {{
-  return `<div class="note" data-editing="true" id="note${{n.n}}">
-    <div class="m"><span>${{n.n}} · ${{esc(n.variant)}}</span><span>editing</span></div>
-    <div class="s">${{esc(n.selector)}}</div>
-    <textarea data-f="text"></textarea>
-    <select data-f="chip" aria-label="What kind of note">
-      ${{CHIPS.map(([id, l]) => `<option value="${{id}}"${{id === n.chip ? ' selected' : ''}}>${{l}}</option>`).join('')}}
-    </select>
-    <div class="acts">
-      <button type="button" data-a="save" data-n="${{n.n}}">Save</button>
-      <button type="button" data-a="cancel" data-n="${{n.n}}">Cancel</button>
-      <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
-    </div></div>`;
+function render(n) {{
+  const isOpen = open.has(n.n), isEdit = editing === n.n;
+  const body = isEdit ? `
+      <div class="s">${{esc(n.selector)}}</div>
+      <label class="hint" for="t${{n.n}}">Your note</label>
+      <textarea id="t${{n.n}}" data-f="text"></textarea>
+      <label class="hint" for="c${{n.n}}">What kind</label>
+      <select id="c${{n.n}}" data-f="chip">
+        ${{CHIPS.map(([id, l]) => `<option value="${{id}}"${{id === n.chip ? ' selected' : ''}}>${{esc(l)}}</option>`).join('')}}
+      </select>
+      <div class="acts">
+        <button type="button" data-a="save" data-n="${{n.n}}">Save</button>
+        <button type="button" data-a="cancel" data-n="${{n.n}}">Cancel</button>
+        <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
+      </div>` : `
+      <div class="s">${{esc(n.selector)}}</div>
+      <div class="acts">
+        <button type="button" data-a="show" data-n="${{n.n}}">Show me</button>
+        <button type="button" data-a="edit" data-n="${{n.n}}">Edit</button>
+        <button type="button" class="danger" data-a="del" data-n="${{n.n}}">Delete</button>
+      </div>`;
+  return `<div class="note" id="note${{n.n}}" data-open="${{isOpen || isEdit}}"
+      data-editing="${{isEdit}}">
+    <button type="button" class="head" data-a="toggle" data-n="${{n.n}}"
+        aria-expanded="${{isOpen || isEdit}}" aria-controls="body${{n.n}}">
+      <span class="num">${{n.n}}</span>
+      <span class="gist"><span class="who">${{esc(n.variant)}} \u00b7 ${{esc(n.chip)}}${{n.revision ? ' \u00b7 edited' : ''}}</span>
+        <span class="txt"></span></span>
+      <span class="chev">${{isOpen || isEdit ? '\u2212' : '+'}}</span>
+    </button>
+    <div class="body" id="body${{n.n}}"${{isOpen || isEdit ? '' : ' hidden'}}>${{body}}</div>
+  </div>`;
 }}
 function wire(n) {{
   const el = document.getElementById('note' + n.n);
   if (!el) return;
-  const p = el.querySelector('p'); if (p) p.textContent = n.text;
-  const ta = el.querySelector('textarea'); if (ta) ta.value = n.text || '';
-  el.querySelectorAll('.acts button').forEach(b => b.onclick = async () => {{
-    const num = +b.dataset.n;
-    if (b.dataset.a === 'show') return post('show', {{note: n}});
-    if (b.dataset.a === 'edit') return edit(num);
-    if (b.dataset.a === 'cancel') {{ editing = null; return refresh(true); }}
-    if (b.dataset.a === 'del') {{
-      await fetch('/api/note/' + num, {{method: 'DELETE'}});
-      editing = null; return refresh(true);
+  el.querySelector('.txt').textContent = n.text;
+  const ta = el.querySelector('textarea');
+  if (ta) ta.value = n.text || '';
+  el.querySelectorAll('button[data-a]').forEach(b => b.onclick = async (ev) => {{
+    ev.preventDefault();
+    const num = +b.dataset.n, a = b.dataset.a;
+    if (a === 'toggle') {{
+      if (open.has(num)) {{ open.delete(num); if (editing === num) editing = null; }}
+      else open.add(num);
+      return refresh(true);
     }}
-    if (b.dataset.a === 'save') {{
+    if (a === 'show') return post('show', {{note: n}});
+    if (a === 'edit') {{ editing = num; open.add(num); await refresh(true); return focusNote(num); }}
+    if (a === 'cancel') {{ editing = null; return refresh(true); }}
+    if (a === 'del') {{
+      await fetch('/api/note/' + num, {{method: 'DELETE'}});
+      open.delete(num); if (editing === num) editing = null;
+      return refresh(true);
+    }}
+    if (a === 'save') {{
       const text = el.querySelector('[data-f=text]').value.trim();
       if (!text) {{ el.querySelector('[data-f=text]').focus(); return; }}
-      await fetch('/api/note/' + num, {{method: 'PATCH',
+      const res = await fetch('/api/note/' + num, {{method: 'PATCH',
         headers: {{'Content-Type': 'application/json'}},
-        body: JSON.stringify({{text, chip: el.querySelector('[data-f=chip]').value}})}});
+        body: JSON.stringify({{text, chip: el.querySelector('[data-f=chip]').value,
+                             revision: n.revision || 0}})}});
+      if (res.status === 409) {{
+        alert('Somebody else changed this note while you were editing it. '
+              + 'Reloading it so you can see theirs first.');
+      }}
       editing = null; return refresh(true);
     }}
   }});
 }}
-frames().forEach(f => f.addEventListener('load', () => refresh(true)));
-setInterval(() => refresh(false), 1500); refresh(true); fit(); addEventListener('resize', fit);
-const e = document.getElementById('errors'); if (e) e.focus();
+$('#expandall').onclick = () => {{
+  const all = $$('#notes .note').map(e => +e.id.slice(4));
+  if (open.size >= all.length) {{ open.clear(); editing = null; $('#expandall').textContent = 'Expand all'; }}
+  else {{ all.forEach(n => open.add(n)); $('#expandall').textContent = 'Collapse all'; }}
+  refresh(true);
+}};
+
+/* ---- the decision form asks for what the outcome actually needs */
+const WHY = {{
+  'changes': ['optional when you have notes',
+    'Your notes are the work list. Add anything they do not cover, or leave this empty.'],
+  'reject':  ['needed',
+    'What is wrong with the direction \u2014 not the details. The next round is built from this.'],
+  '_accept': ['needed',
+    'One or two sentences for whoever reads this later, deciding whether to undo it. '
+    + '\u201cLooks good\u201d tells them nothing.'],
+  '_none':   ['', 'Pick an outcome above and this will say what it needs.'],
+}};
+function hintFor() {{
+  const v = ($('input[name=choice]:checked') || {{}}).value;
+  const notes = $$('#notes .note').length;
+  let key = '_none';
+  if (v === 'changes') key = 'changes';
+  else if (v === 'reject') key = 'reject';
+  else if (v) key = '_accept';
+  let [tag, hint] = WHY[key];
+  if (key === 'changes' && !notes) {{
+    tag = 'needed'; hint = 'You have left no notes, so this is the only thing the '
+      + 'next round has to go on.';
+  }}
+  $('#whytag').textContent = tag ? '  \u2014 ' + tag : '';
+  $('#whyhint').textContent = hint;
+  $('#send').textContent = v && v.startsWith('accept:')
+    ? 'Accept ' + v.slice(7) : (v === 'changes' ? 'Send these changes back'
+    : (v === 'reject' ? 'Record the rejection' : 'Record this decision'));
+}}
+$$('input[name=choice]').forEach(r => r.onchange = hintFor);
+hintFor();
+
+/* ---- loading: say something while the frames arrive (R-STATE-SLOW) */
+let pending = frames().length;
+frames().forEach(f => f.addEventListener('load', () => {{
+  if (--pending <= 0) {{
+    $('#frames').setAttribute('aria-busy', 'false');
+    const l = $('#loading'); if (l) l.remove();
+  }}
+  refresh(true);
+}}));
+setTimeout(() => {{ const l = $('#loading'); if (l) l.remove();
+  $('#frames').setAttribute('aria-busy', 'false'); }}, 12000);
+
+setInterval(() => refresh(false), 1500);
+refresh(true); fit();
+addEventListener('resize', fit);
+const e0 = document.getElementById('errors'); if (e0) e0.focus();
 </script></body></html>"""
 
 
@@ -781,27 +945,42 @@ def write_note(rec: dict, path: Path | None = None) -> Path:
 
 
 def validate(form: dict, rv: Review) -> list:
+    """What this outcome actually needs, and nothing else.
+
+    The old version asked every outcome for forty characters of reason and told
+    the person how many they were short. That is a character count standing in
+    for a requirement: a reviewer requesting changes has already written the
+    reason, note by note, and being asked for it again teaches them the form is
+    not reading what they did."""
     errs = []
     choice = (form.get("choice") or "").strip()
     who = (form.get("who") or "").strip()
     why = (form.get("why") or "").strip()
     valid = {f"accept:{v}" for v in rv.variants} | {"combine", "changes", "reject"}
     if choice not in valid:
-        errs.append("Pick an outcome. Nothing is recorded without one.")
+        errs.append("Choose an outcome. Nothing is recorded without one.")
     if not who:
-        errs.append("Say who is deciding. An approval with no author cannot be "
-                    "weighed later and cannot gate anything.")
+        errs.append("Add your name. An approval with no author cannot be weighed "
+                    "later, so it cannot gate anything.")
     elif SELF.search(who):
-        errs.append(f"“{who}” names the party that built these. The agent "
-                    f"that produced a variant cannot also be the authority accepting "
-                    f"it.")
-    if choice == "changes":
-        if not rv.notes and len(why) < MIN_REASON:
-            errs.append("Requesting changes with no notes and no reason leaves nothing "
-                        "to act on. Note the elements, or say what to change.")
-    elif len(why) < MIN_REASON:
-        errs.append(f"The reason is {len(why)} characters; {MIN_REASON} is the minimum. "
-                    f"It is what the next person reads when they are about to undo this.")
+        errs.append(f"\u201c{who}\u201d is the agent that produced these. Whoever is "
+                    f"deciding has to be someone other than the thing proposing \u2014 "
+                    f"put your own name in.")
+
+    accepting = choice.startswith("accept:") or choice == "combine"
+    if accepting and len(why) < MIN_REASON:
+        errs.append("Say why, in a sentence. This is what somebody reads when they "
+                    "are about to undo it, and it is the only part of an approval "
+                    "that carries any reasoning.")
+    elif choice == "combine" and len(why) < MIN_REASON + 20:
+        errs.append("A combination needs to say which parts of which variant, "
+                    "specifically enough to build from.")
+    elif choice == "reject" and len(why) < MIN_REASON:
+        errs.append("Say what is wrong with the direction. A rejection with no "
+                    "reason sends the next round out blind.")
+    elif choice == "changes" and not rv.notes and len(why) < MIN_REASON:
+        errs.append("You have left no notes, so this field is the only thing the "
+                    "next round has to go on. Say what to change.")
     return errs
 
 
@@ -999,6 +1178,19 @@ def handler_for(rv: Review, th: dict, notes_written: list, echo):
             if not text:
                 return self._send(b'{"error":"a note with no words is a deletion"}',
                                   "application/json", 400)
+            # Two tabs, or two reviewers, editing one note. The client sends the
+            # revision it read; a mismatch means somebody else has written since,
+            # and last-write-wins would drop their sentence without telling
+            # anyone (S-CONFLICT-OVERWRITE).
+            cur = rv.find(n)
+            if cur is None:
+                return self._send(b'{"error":"no such note"}', "application/json", 404)
+            seen = body.get("revision")
+            if seen is not None and int(seen) != int(cur.get("revision") or 0):
+                return self._send(json.dumps({
+                    "error": "changed since you opened it",
+                    "current": cur.get("text"), "revision": cur.get("revision")}).encode(),
+                    "application/json", 409)
             rec = rv.update_note(n, text, str(body.get("chip") or "").strip())
             if rec is None:
                 return self._send(b'{"error":"no such note"}', "application/json", 404)

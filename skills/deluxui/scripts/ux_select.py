@@ -250,7 +250,7 @@ def write(rec: dict) -> Path:
 
 
 def cmd_watch(a) -> int:
-    ws, target = cdp.connect_page()
+    ws, target = cdp.connect_page(getattr(a, 'url', None))
     if ws is None:
         sys.stderr.write(
             f"{target}\n\nStart the app and open it:\n"
@@ -362,6 +362,9 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd")
     w = sub.add_parser("watch")
     w.add_argument("--timeout", type=int, default=1800)
+    w.add_argument("--url", help="the page under test. Without it the overlay goes "
+                                 "into whichever tab is first, which is wrong the "
+                                 "moment two are open.")
     w.add_argument("--out", default=str(REQUESTS))
     w.set_defaults(fn=cmd_watch)
     for nm, fn in (("list", cmd_list), ("clear", cmd_clear)):

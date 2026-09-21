@@ -276,7 +276,7 @@ def main(argv=None) -> int:
         import subprocess as _sp
         w("\nR-FORCED-COLORS -- what the page loses when the OS takes the palette\n")
         fc_out = Path(tempfile.mkdtemp(prefix="deluxui-fc-"))
-        _sp.run([sys.executable, str(HERE / "ux_forcedcolors.py"),
+        _sp.run([sys.executable, str(HERE / "ux_forcedcolors.py"), "--url", url,
                  "--out", str(fc_out), "--route", "/"], capture_output=True, text=True)
         fcf = fc_out / "raw" / "root__forcedcolors.json"
         fc = json.loads(fcf.read_text()) if fcf.exists() else {}
@@ -290,6 +290,10 @@ def main(argv=None) -> int:
                 kinds[f["kind"]] = kinds.get(f["kind"], 0) + 1
                 labels.setdefault(f["kind"], []).append(f.get("label", ""))
             w(f"  emulated, {fc.get('paired')} paired elements, findings {kinds}\n")
+            # Both directions on one page: the fixture carries a tab group whose
+            # selected state is background-only (must be reported) beside one that
+            # underlines it (must not be). Without the second half, widening the
+            # exemptions would silently switch the check off.
             fl = " ".join(labels.get("focus-lost", []))
             if "box-shadow" not in fl:
                 fails.append("the box-shadow-only focus ring was not reported as lost in "
@@ -311,6 +315,36 @@ def main(argv=None) -> int:
                 fails.append("a tinted paragraph was reported as losing a boundary; its "
                              "text survives the mode, so that is the false-positive class "
                              "the region/text split exists to remove")
+
+        # The distinction pair gets its own page. On a busy one, whether those six
+        # buttons are among the sampled candidates depends on what else is there --
+        # and a test whose subject is incidental is not a test.
+        w("\nR-FORCED-COLORS -- a distinction carried by colour, and one that is not\n")
+        fc2 = Path(tempfile.mkdtemp(prefix="deluxui-fc2-"))
+        fc2_url = url.rstrip("/") + "/forced-distinction.html"
+        _sp.run(["agent-browser", "open", fc2_url], capture_output=True, text=True)
+        _sp.run([sys.executable, str(HERE / "ux_forcedcolors.py"), "--url", fc2_url,
+                 "--out", str(fc2), "--route", "/"], capture_output=True, text=True)
+        f2 = fc2 / "raw" / "root__forcedcolors.json"
+        d2 = json.loads(f2.read_text()) if f2.exists() else {}
+        k2, l2 = {}, []
+        for f in (d2.get("findings") or []):
+            k2[f["kind"]] = k2.get(f["kind"], 0) + 1
+            if f["kind"] == "distinction-lost":
+                l2.append(str(f.get("label", "")))
+        if not k2.get("distinction-lost"):
+            fails.append("the background-only tab group kept its selected state: a "
+                         "selection painted as a background cannot survive forced "
+                         "colors, and this is the check that says so")
+        else:
+            w(f"  ok    background-only selection reported ({k2['distinction-lost']})\n")
+        if any("good" in x for x in l2):
+            fails.append("the underlined tab group was reported too. A distinction "
+                         "carried by text-decoration survives the mode, and flagging "
+                         "it teaches people the check is noise")
+        else:
+            w("  ok    underlined selection not reported\n")
+        _sp.run(["agent-browser", "open", url], capture_output=True, text=True)
 
         w("\nR-AXE -- axe-core over the live page\n")
         ax_out = Path(tempfile.mkdtemp(prefix="deluxui-axe-"))

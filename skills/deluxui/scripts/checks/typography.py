@@ -263,8 +263,16 @@ def text_to_viewport_edge(f, p):
     out = []
     if not f.css:
         return out
+    # A gutter on `body` reaches everything inside it, so flagging `main` as well
+    # is one defect reported twice and a fix that cannot clear it.
+    outer_gutter = any(
+        re.search(r"^\s*(?:html|body)\s*$", sl.strip())
+        and re.search(r"padding(?:-(?:left|right|inline))?\s*:\s*(?!0(?:px)?\b)", bd)
+        for _p, sl, bd in _css_rules(f.css))
     for pos, sel, body in _css_rules(f.css):
         if not re.search(r"^\s*body\s*$|^\s*(?:main|article|\.container)\s*$", sel.strip()):
+            continue
+        if outer_gutter and not re.search(r"^\s*body\s*$", sel.strip()):
             continue
         m = re.search(r"padding(?:-(?:left|right|inline))?\s*:\s*0(?:px)?\b", body)
         if not m and not re.search(r"padding", body):

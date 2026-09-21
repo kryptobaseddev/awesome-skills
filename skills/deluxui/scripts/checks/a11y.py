@@ -202,10 +202,18 @@ def aria_hidden_focusable(f, p):
 @check("S-A11Y-NESTED", exts=SRC)
 def nested_interactive(f, p):
     out = []
+    # `option` and `optgroup` inside `select`, and `summary` inside `details`, are
+    # required markup, not a control inside a control. Reporting them is a finding
+    # whose only fix is to break the element.
+    REQUIRED_CHILD = {("option", "select"), ("optgroup", "select"),
+                      ("option", "optgroup"), ("summary", "details"),
+                      ("legend", "fieldset")}
     for t in f.tags:
         if not t.is_interactive():
             continue
         for a in ancestors(t):
+            if (t.name, a.name) in REQUIRED_CHILD:
+                break
             if a.is_interactive():
                 out.append(finding("S-A11Y-NESTED", f, t.line, t.raw,
                                    f"<{t.name}> is nested inside interactive <{a.name}>. "
