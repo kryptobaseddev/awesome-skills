@@ -1,0 +1,564 @@
+# Parity against impeccable, as data rather than as a claim.
+#
+# The honest reason this file exists: "we have everything they have" is exactly the
+# kind of sentence this skill was built to refuse anywhere else. It is unfalsifiable
+# prose about coverage, which is the same shape as "looks good" about an interface.
+# So the claim is written down one entry at a time, each with evidence that resolves
+# to a file in this skill, and `scripts/parity.py` checks that every piece of
+# evidence exists. A `mapped` row whose evidence does not resolve is a lint failure,
+# not a rounding error.
+#
+# `status` is one of:
+#   mapped   -- this skill does the same job. Evidence must resolve.
+#   partial  -- part of the job. `gap` is REQUIRED and says which part is missing.
+#   absent   -- not done here. `gap` is REQUIRED and says so plainly.
+#
+# A `partial` or `absent` with no `gap` fails the lint. That rule is the whole point:
+# the failure mode being guarded against is a status quietly softening over time
+# until the file reads as complete without anything having been built.
+#
+# Evidence kinds, all resolved inside this skill (never outside it, because a skill
+# is copied away from this repo and has to be able to check itself):
+#   op:<stem>          references/ops/<stem>.md
+#   workflow:<stem>    references/workflows/<stem>.md
+#   ref:<path>         any path under the skill
+#   script:<name>      scripts/<name>
+#   sub:<script>:<cmd> that script declares that subcommand
+#   flag:<script>:<f>  that script declares that option
+#   detector:<ID>      present in references/rules/detectors.yaml
+#   hook:<event>       documented in references/ops/hooks.md
+
+source:
+  project: impeccable
+  upstream: https://github.com/pbakaus/impeccable
+  license: Apache-2.0
+  cli_version: "4.0.0"
+  read_on: "2026-09-21"
+  read_from: >-
+    a local clone of the upstream repository, kept outside git (see .gitignore) and
+    not redistributed. Structure and command names are facts about a published
+    tool; none of their prose, rule text or code is copied. See ../../NOTICE.md.
+  enumerated_from:
+    - crates/cli/src/main.rs           # the top-level command dispatch
+    - crates/live/src/lib.rs           # the live-mode dispatch
+    - skill/scripts/command-metadata.json   # the 24 user-facing commands
+    - skill/SKILL.src.md               # their command table and categories
+    - skill/reference/                 # 36 operation references
+    - cursor-plugin/agents/            # 4 subagents
+    - cursor-plugin/hooks/hooks.json   # their hook wiring
+  counts:
+    user_commands: 24
+    cli_entry_points: 39
+    reference_files: 36
+    agents: 4
+
+# ---------------------------------------------------------------------------
+# 1. The 24 user-facing commands. This is the surface a person uses, and it is
+#    the list the phrase "everything they have" most plausibly means.
+# ---------------------------------------------------------------------------
+commands:
+  - name: adapt
+    does: adapt a design to other screen sizes, devices, contexts or platforms
+    status: mapped
+    here: "the `adapt` operation"
+    evidence: [op:adapt, op:adapt-native, detector:R-REFLOW, detector:R-TARGET-COARSE,
+               detector:R-ZOOM, detector:R-TEXTSPACING, detector:R-ORIENTATION]
+
+  - name: animate
+    does: purposeful animation, micro-interaction and motion
+    status: mapped
+    here: "the `animate` operation, with the reduced-motion branch as a gate"
+    evidence: [op:animate, detector:S-MOTION-REDUCE, detector:S-CONTRACT-MOTION,
+               detector:S-CRAFT-EASING, detector:R-MOTION]
+
+  - name: audit
+    does: technical quality checks across accessibility, performance, responsive
+    status: mapped
+    here: "the `audit` workflow, over all tiers, ending in a gate decision"
+    evidence: [workflow:audit, op:audit-native, script:ux_check.py, script:ux_report.py]
+
+  - name: bolder
+    does: amplify a safe or bland design
+    status: mapped
+    here: "the `bolder` operation"
+    evidence: [op:bolder, detector:S-SLOP-GRADIENT, detector:S-CRAFT-HALO]
+
+  - name: clarify
+    does: improve UX copy, labels and error messages
+    status: mapped
+    here: "the `clarify` operation"
+    evidence: [op:clarify, detector:S-CRAFT-VOICE]
+
+  - name: colorize
+    does: add strategic colour to a monochromatic UI
+    status: mapped
+    here: "the `colorize` operation, plus a generator that places roles against the
+           contrast each one owes"
+    evidence: [op:colorize, script:palette.py, detector:S-CONTRAST-PAIR]
+
+  - name: craft
+    does: "deprecated upstream: an alias for an ordinary new-work request"
+    status: mapped
+    here: "the `craft` reference is the detector floor; new work routes through
+           `new-work` and the mode router"
+    evidence: [op:craft, op:new-work, ref:references/design/craft-floor.md]
+
+  - name: critique
+    does: UX design review with heuristic scoring
+    status: partial
+    here: "the `critique` workflow, which reports findings against rule IDs"
+    gap: >-
+      no composite score. Deliberate, and the one place this skill refuses to copy
+      them: a single number invites optimising the number, and it cannot express
+      "four P2s and one unchecked P0", which is the distinction that decides whether
+      something ships. The finding list and the gate decision replace it.
+    evidence: [workflow:critique, script:ux_report.py]
+
+  - name: delight
+    does: personality and memorable touches
+    status: mapped
+    here: "the `delight` operation, bounded by the dark-pattern and emoji detectors"
+    evidence: [op:delight, detector:S-SLOP-EMOJI, detector:S-DARK-PATTERN,
+               detector:S-STATE-PREMATURE]
+
+  - name: distill
+    does: strip to essence, remove complexity
+    status: mapped
+    here: "the `distill` operation, which may not remove a recovery path"
+    evidence: [op:distill]
+
+  - name: document
+    does: generate a DESIGN.md capturing the current visual system from the code
+    status: mapped
+    here: "the `document` operation, which writes the prose AND a machine-readable
+           contract, because prose cannot be conformed to"
+    evidence: [op:document, script:derive_contract.py,
+               ref:assets/templates/design.contract.yaml]
+
+  - name: extract
+    does: pull repeated patterns and tokens into the design system
+    status: mapped
+    here: "the `extract` operation"
+    evidence: [op:extract]
+
+  - name: generate
+    does: >-
+      name an element and a direction in words, skip manual picking, and get N
+      variants in the live browser to cycle and accept
+    status: mapped
+    here: "`ux_live.py pick --describe` resolves the element from words to exactly
+           one node or refuses with the candidates; `vary --direction` builds the
+           variants; `show` puts them in the element's own position"
+    evidence: [op:generate, script:ux_live.py, flag:ux_live.py:--describe,
+               flag:ux_live.py:--direction, sub:ux_live.py:show]
+
+  - name: harden
+    does: "production-ready: errors, i18n, edge cases"
+    status: mapped
+    here: "the `harden` workflow, with the states forced rather than inspected"
+    evidence: [workflow:harden, script:ux_browser.sh, script:ux_slow.py,
+               detector:S-CONTENT-I18N]
+
+  - name: init
+    does: capture durable product context, pre-configure live mode, recommend next
+    status: mapped
+    here: "the `init` workflow plus the phase record it starts"
+    evidence: [workflow:init, script:ux_phase.py, ref:assets/templates/PRODUCT.md]
+
+  - name: layout
+    does: fix spacing, rhythm and visual hierarchy
+    status: mapped
+    here: "the `layout` operation, priority stated before arrangement"
+    evidence: [op:layout, detector:S-CRAFT-RHYTHM, detector:R-REFLOW,
+               detector:M-JUDGE-CONTENT-PRIORITY]
+
+  - name: live
+    does: pick elements in the browser and iterate on alternatives via HMR
+    status: partial
+    here: "`ux_live.py` — pick, vary, show in place, accept into the source, and
+           `text` for copy"
+    gap: >-
+      their accept writes through per-framework source adapters (Next, Nuxt,
+      SvelteKit, Astro, TanStack) and can restructure markup. This writes one
+      commented rule into the stylesheet that already holds the tokens, and rewrites
+      visible copy in place; it does not author or restructure JSX. See the
+      `live-wrap` and `live-insert` rows.
+    evidence: [op:live, script:ux_live.py, sub:ux_live.py:accept, sub:ux_live.py:text]
+
+  - name: onboard
+    does: first-run flows, empty states, activation
+    status: mapped
+    here: "the `onboard` operation"
+    evidence: [op:onboard, detector:R-STATE-EMPTY]
+
+  - name: optimize
+    does: diagnose and fix UI performance
+    status: mapped
+    here: "the `optimize` workflow, measured rather than inspected"
+    evidence: [workflow:optimize, script:ux_browser.sh]
+
+  - name: overdrive
+    does: push past conventional limits
+    status: mapped
+    here: "the `overdrive` operation, bounded by the visitor mode and the floor"
+    evidence: [op:overdrive, ref:references/design/visitor-modes.md,
+               detector:S-CRAFT-HERO-SCALE]
+
+  - name: polish
+    does: final quality pass before shipping
+    status: mapped
+    here: "the `polish` operation, which ends in the verdict"
+    evidence: [op:polish, script:ux_report.py]
+
+  - name: quieter
+    does: tone down an aggressive or overstimulating design
+    status: mapped
+    here: "the `quieter` operation"
+    evidence: [op:quieter]
+
+  - name: shape
+    does: plan UX/UI before writing code
+    status: mapped
+    here: "the `shape` operation, which returns a brief and writes no code"
+    evidence: [op:shape]
+
+  - name: typeset
+    does: improve typography hierarchy and fonts
+    status: mapped
+    here: "the `typeset` operation, a generated ladder, and a check that the declared
+           face can actually be rendered by a visitor"
+    evidence: [op:typeset, script:typescale.py, script:fontindex.py,
+               detector:S-CONTRACT-FONT-AVAIL]
+
+# ---------------------------------------------------------------------------
+# 2. The CLI. Their skill drives a Rust binary; this one drives Python scripts.
+#    Several entries here are about their own distribution and have no analogue
+#    because there is no binary to distribute — those are recorded as absent with
+#    the reason, not quietly dropped.
+# ---------------------------------------------------------------------------
+cli:
+  - name: detect
+    status: mapped
+    here: the static tier
+    evidence: [script:ux_check.py]
+
+  - name: engine-probe
+    status: mapped
+    here: "`doctor.py`, which also names what each unavailable engine costs in rules"
+    evidence: [script:doctor.py]
+
+  - name: ignores
+    status: mapped
+    here: "`exclude:` in the project config, read by the one config reader"
+    evidence: [script:uxconfig.py, ref:assets/templates/ux.config.yaml]
+
+  - name: context
+    status: mapped
+    here: "`ux_ledger.py state` — the declaration, the briefs, what the project is
+           measurably built with, and what is still open"
+    evidence: [script:ux_ledger.py, sub:ux_ledger.py:state]
+
+  - name: signals
+    status: mapped
+    here: "`ux_check.py --signals`"
+    evidence: [script:ux_check.py, flag:ux_check.py:--signals]
+
+  - name: doctor
+    status: mapped
+    evidence: [script:doctor.py, op:doctor]
+
+  - name: palette
+    status: mapped
+    evidence: [script:palette.py]
+
+  - name: surface-brief
+    status: mapped
+    here: "`ux_image.py brief`, plus the visitor-mode reference that decides what the
+           surface is for"
+    evidence: [script:ux_image.py, sub:ux_image.py:brief,
+               ref:references/design/visitor-modes.md]
+
+  - name: critique-storage
+    status: mapped
+    here: "reports under `.deuxui/reports/`, and the ledger for anything that was a
+           decision rather than a scan"
+    evidence: [script:ux_ledger.py, ref:references/verification/evidence.md]
+
+  - name: embed-prompt
+    status: mapped
+    here: "`comp_spec.py` records an asset's provenance inside the PNG"
+    evidence: [script:comp_spec.py]
+
+  - name: generate-image
+    status: mapped
+    here: "`ux_image.py generate`, reporting NOT_RUN when no provider is reachable"
+    evidence: [script:ux_image.py, sub:ux_image.py:generate]
+
+  - name: serve-question
+    status: mapped
+    here: "`ux_question.py ask` — served as a page, refusing an answer with no author"
+    evidence: [script:ux_question.py, sub:ux_question.py:ask, op:decide]
+
+  - name: comp-spec
+    status: mapped
+    evidence: [script:comp_spec.py]
+
+  - name: font-match
+    status: mapped
+    evidence: [script:fontindex.py]
+
+  - name: build-phase
+    status: mapped
+    here: "`ux_phase.py` — seven stages, each transition machine-checked"
+    evidence: [script:ux_phase.py, op:phase]
+
+  - name: hook
+    status: mapped
+    here: "PostToolUse runs the static tier on every interface file as it is written"
+    evidence: [op:hooks, script:ux_check.py, flag:ux_check.py:--stdin]
+
+  - name: hook-before-edit
+    status: mapped
+    here: "PreToolUse asks the phase gate, so the refusal lands while the file is open"
+    evidence: [op:hooks, script:ux_phase.py]
+
+  - name: hook-admin
+    status: mapped
+    evidence: [op:hooks]
+
+  - name: comp-diff
+    status: partial
+    here: "`ux_image.py verify` measures a comp against the contract, and the static
+           and runtime tiers measure the build against the same contract, so both
+           ends are bound to one declaration"
+    gap: >-
+      no direct comp-to-implementation pixel diff. Both artefacts are compared to
+      the contract rather than to each other, which catches a build that left the
+      system but not a build that matches the system and not the approved comp.
+    evidence: [script:ux_image.py, sub:ux_image.py:verify, detector:S-CONTRACT-COLOR]
+
+  - name: detect-csp
+    status: partial
+    here: >-
+      the live page is measured instead of the project config: `cdp.style_policy`
+      probes whether an injected stylesheet takes effect and says so rather than
+      producing an overlay that is present and invisible, and the review proxy
+      neutralises a `<meta http-equiv>` policy in the framed copy only
+    gap: >-
+      no static scan of the project's CSP configuration ahead of time, so a policy
+      that will block the overlay is discovered when the overlay is injected rather
+      than beforehand. Nothing here disables a page's policy.
+    evidence: [script:cdp.py, script:ux_review.py, script:ux_select.py]
+
+  - name: concept-seed
+    status: partial
+    here: "the wireframe round serves three options and records which was chosen,
+           by whom, when, and against exactly which contract"
+    gap: >-
+      no rolling challenger against an already-chosen direction. A decision here is
+      settled once and re-opened explicitly, not continuously contested.
+    evidence: [script:ux_question.py, op:visualize, op:decide]
+
+  - name: pin
+    status: absent
+    gap: >-
+      pins one of their commands into the agent's menu. Every operation here is a
+      plugin command and they are all present at once, so there is nothing to pin
+      or unpin. No capability is missing; the mechanism has no subject.
+
+  - name: skills
+    status: absent
+    gap: >-
+      their installer for their own CLI (`install`, `link`, `update`, `check`).
+      This ships as a skill and a plugin installed by `npx skills` and
+      `claude plugin`, so there is no binary to link and no updater to run.
+
+# ---------------------------------------------------------------------------
+# 3. Live mode, subcommand by subcommand. This is where the real remaining gaps
+#    are, and they are all the same gap: writing structure rather than values.
+# ---------------------------------------------------------------------------
+live:
+  - name: live
+    status: mapped
+    here: "`ux_live.py pick`"
+    evidence: [sub:ux_live.py:pick, op:live]
+
+  - name: live-target
+    status: mapped
+    here: "`pick --describe` names the element instead of clicking it"
+    evidence: [flag:ux_live.py:--describe]
+
+  - name: live-status
+    status: mapped
+    evidence: [sub:ux_live.py:status]
+
+  - name: live-resume
+    status: mapped
+    here: "a session is a file (`.deuxui/live/REQ-NNN.yaml`); any command naming that
+           id resumes it, and `show` re-injects the switcher"
+    evidence: [sub:ux_live.py:show, sub:ux_live.py:status]
+
+  - name: live-complete
+    status: mapped
+    here: "`accept` closes a session with a decision record; `discard` closes it
+           without one, and says that it does not revert the source"
+    evidence: [sub:ux_live.py:accept, sub:ux_live.py:discard]
+
+  - name: live-inject
+    status: mapped
+    here: "`show` puts every variant in the element's own position with a switcher"
+    evidence: [sub:ux_live.py:show]
+
+  - name: live-generate
+    status: mapped
+    here: "`vary` — declared values only, one axis per variant"
+    evidence: [sub:ux_live.py:vary]
+
+  - name: live-accept
+    status: mapped
+    here: "`accept` — checked before it is written, refused on a new P0 or P1,
+           recorded with the contract hash it was decided against"
+    evidence: [sub:ux_live.py:accept, script:ux_ledger.py]
+
+  - name: live-server
+    status: mapped
+    here: "`ux_review.py serve` hosts or proxies the app and injects the overlay"
+    evidence: [script:ux_review.py, sub:ux_review.py:serve]
+
+  - name: live-poll
+    status: mapped
+    here: "notes land as files as they are typed and print in the terminal;
+           `ux_select.py list` and `ux_live.py status` read the queue"
+    evidence: [script:ux_select.py, sub:ux_select.py:list, sub:ux_live.py:status]
+
+  - name: live-commit-manual-edits
+    status: partial
+    here: >-
+      `ux_live.py text` rewrites the visible copy of a picked element in the source:
+      the string must resolve to exactly one place by an anchor from the element
+      itself, the edit is checked before it is written, and every other occurrence of
+      the same literal — including a lookup key in an i18n catalogue — is reported
+      and deliberately left alone
+    gap: >-
+      copy only, one element at a time, initiated from the terminal. Theirs batches
+      edits typed directly into the page, leases the batch, and applies it through a
+      dedicated subagent with chunking and repair. There is no in-page editing
+      surface here and no batch protocol.
+    evidence: [sub:ux_live.py:text, flag:ux_live.py:--to]
+
+  - name: live-discard-manual-edits
+    status: partial
+    here: "nothing is staged, so there is nothing to discard: `text --dry-run` shows
+           the diff and writes nothing"
+    gap: >-
+      follows from the row above. With no staged batch there is no discard verb; the
+      equivalent of abandoning a batch is not running the command.
+    evidence: [flag:ux_live.py:--dry-run]
+
+  - name: live-wrap
+    status: absent
+    gap: >-
+      wraps a picked element in new markup. This writes declared values and copy; it
+      does not author or restructure JSX. Doing it properly needs per-framework
+      source adapters of the kind their `crates/live` carries, and guessing at the
+      component boundary would write a plausible edit to the wrong place — which
+      still reads as success, the failure this whole write path exists to refuse.
+
+  - name: live-insert
+    status: absent
+    gap: >-
+      inserts a new element beside a picked one. Same reason as `live-wrap`: it is a
+      structural edit, and the honest position is that it is not implemented rather
+      than half-implemented.
+
+# ---------------------------------------------------------------------------
+# 4. Their subagents.
+# ---------------------------------------------------------------------------
+agents:
+  - name: impeccable-finish-reviewer
+    status: mapped
+    here: "the `ux-reviewer` subagent — an independent assessment produced separately
+           from the detector evidence so the findings do not anchor the review"
+    evidence: [ref:references/workflows/audit.md]
+
+  - name: impeccable-documenter
+    status: partial
+    here: "the `document` operation derives the contract from the shipped code"
+    gap: >-
+      runs in the main thread, not as a separate agent. The independence argument
+      that justifies a separate reviewer does not obviously apply to recording what
+      the code already says, but it is a difference and it is recorded as one.
+    evidence: [op:document, script:derive_contract.py]
+
+  - name: impeccable-asset-producer
+    status: partial
+    here: "`ux_image.py render` draws comps from the contract with no model or
+           network; `generate` calls a provider; `comp_spec.py` reads a reference
+           image back and records provenance in the PNG"
+    gap: >-
+      no production-cleanup pass over an approved mock — crops, contact sheets,
+      raster ingredients for code to compose. Comps here are decision artefacts, not
+      shipping assets.
+    evidence: [script:ux_image.py, script:comp_spec.py]
+
+  - name: impeccable-manual-edit-applier
+    status: partial
+    here: "`ux_live.py text` applies one copy edit, with the checks as the gate"
+    gap: >-
+      no leased batch protocol and no separate applier agent. See
+      `live-commit-manual-edits`.
+    evidence: [sub:ux_live.py:text]
+
+# ---------------------------------------------------------------------------
+# 5. What is here that is not there. Recorded for the same reason as the gaps:
+#    a parity file that only lists deficits is as misleading as one that only
+#    lists matches.
+# ---------------------------------------------------------------------------
+additional:
+  - name: the rule registry
+    what: >-
+      235 rules with a severity, a cited normative basis and the detectors that
+      adjudicate them, linted so no prose can cite a rule that does not exist and no
+      detector can claim coverage nobody implemented.
+    evidence: [ref:references/rules/registry.yaml, script:lint_rules.py]
+
+  - name: NOT_RUN as a status
+    what: >-
+      a rule that was not checked reports NOT_RUN, never PASS, and an unchecked P0
+      blocks a release audit. The report also audits itself: a PASS must name a
+      detector that ran.
+    evidence: [script:ux_report.py, ref:references/verification/evidence.md]
+
+  - name: the phase gate
+    what: >-
+      seven stages with machine-checked transitions, wired to PreToolUse, refusing
+      production UI edits until somebody has used a prototype and accepted it. The
+      override is audited.
+    evidence: [script:ux_phase.py, op:phase]
+
+  - name: the design ledger
+    what: >-
+      contracts archived by content hash, so a decision's `contract_sha` resolves to
+      the bytes that were declared at the time. An unresolvable reference is reported
+      as a gap and never filled in from the present.
+    evidence: [script:ux_ledger.py, op:ledger]
+
+  - name: a working prototype
+    what: >-
+      generated from the contract — real states, a form that validates, a dialog that
+      traps focus, an undo that works — so the second review stage is something a
+      person can use rather than look at.
+    evidence: [script:ux_proto.py, op:prototype]
+
+  - name: native platforms
+    what: >-
+      38 iOS and Android rules with static detectors, and a driver for Simulator and
+      emulator evidence that states plainly when a stub is not a phone.
+    evidence: [script:ux_native.sh, script:native_conformance.py, op:ios, op:android]
+
+  - name: the tiers prove themselves
+    what: >-
+      `selftest.py` asserts every check fires on a known-bad fixture and stays silent
+      on a known-good one; `browsertest.py` requires each runtime probe's numbers to
+      match the pixels the browser painted.
+    evidence: [script:selftest.py, script:browsertest.py]

@@ -432,12 +432,60 @@ const META = {meta};
 """
 
 
+# `<meta http-equiv="Content-Security-Policy">` tags found while proxying, by
+# variant. Reported once each rather than per request, because a framework renders
+# the same tag into every document it serves.
+CSP_SEEN: dict[str, str] = {}
+
+_META_CSP = re.compile(
+    r"""<meta\s[^>]*http-equiv\s*=\s*(?P<q>["']?)\s*content-security-policy"""
+    r"""(?:-report-only)?\s*(?P=q)[^>]*>""", re.I)
+
+
+def strip_meta_csp(text: str) -> tuple[str, list[str]]:
+    """Neutralise a document-level CSP, and say what was neutralised.
+
+    The proxy already drops the `Content-Security-Policy` *header* on the way
+    through -- but a policy delivered as a `<meta http-equiv>` tag lives in the
+    body, so it survived, and it is the form Next.js and Nuxt emit when the app
+    sets a nonce-based policy itself.
+
+    That mattered because the overlay this tool injects is an inline `<script>`.
+    Under `script-src 'self' 'nonce-...'` the browser refuses it, and the refusal
+    goes to the page's own console -- not here. The reviewer got a page that
+    looked right and could not be Alt-clicked, with nothing anywhere saying why.
+    A tool whose failure mode is "the feature quietly does not exist" is worse
+    than one that does not have the feature.
+
+    The tag is replaced with a comment rather than deleted, so anybody reading
+    the framed source sees that something was removed and by whom. Nothing else
+    about the policy is altered: this is the reviewer's own browser looking at
+    their own dev server, and the policy still ships in production, where it is
+    doing the job it exists for."""
+    found: list[str] = []
+
+    def sub(m):
+        found.append(m.group(0))
+        return "<!-- deuxui review: meta CSP neutralised so the selection overlay " \
+               "can run; the policy is untouched everywhere else -->"
+
+    return _META_CSP.sub(sub, text), found
+
+
 def inject_into(body: bytes, variant: str) -> bytes:
     js = INJECT.replace("__VARIANT__", variant).replace("{chips}", json.dumps(CHIPS))
     try:
         text = body.decode("utf-8", "replace")
     except Exception:
         return body
+    text, csp = strip_meta_csp(text)
+    if csp and variant not in CSP_SEEN:
+        CSP_SEEN[variant] = csp[0]
+        sys.stderr.write(
+            f"\ndeuxui: variant `{variant}` ships a document CSP as a meta tag:\n"
+            f"  {csp[0][:160]}\n"
+            f"  Neutralised in the framed copy only -- otherwise it blocks the "
+            f"inline selection overlay and nothing says so.\n\n")
     low = text.lower()
     i = low.rfind("</body>")
     if i == -1:

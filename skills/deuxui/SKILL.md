@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.3.0"
-  last_updated: "2026-09-21 20:10:00"
+  version: "5.4.0"
+  last_updated: "2026-09-21 21:05:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -98,7 +98,7 @@ Read this table first — each row is a failure that reaches real users.
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
 | **Design craft is checked against a declaration, never against taste.** | `.deuxui/design.contract.yaml` states the type roles, colour roles, one depth metaphor, radii and motion band *before* the code is written. The `S-CONTRACT-*` checks then compare the artifact to it. With no contract they report NOT_RUN — an undeclared system cannot be conformed to, and "is this beautiful?" has no decision procedure while "does this match what was declared?" does. |
 | **The 20 UX laws now carry verdicts — 14 measured, 5 by attestation.** | Each enforceable law is indexed to the detectors that adjudicate one of its `verify:` clauses, and the report rolls them up. A law whose only evidence is a human attestation says `attested only` instead of passing as measured. The rule ID is still the finer-grained claim, so cite `NUM-004` when you mean the threshold and `LAW-02` when you mean the principle. |
-| **213 of the 235 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
+| **215 of the 235 rules have an automated detector; the other 20 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 20 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The contract is declared before the code, and that order is now measured.** | Entering the `comp` phase snapshots the contract's hash, the git head and every UI file's hash; entering `verify` compares against it. A contract declared with no file changed since is a contract written to describe code that already existed — it will always show conformance, so every `S-CONTRACT-*` PASS behind it would be circular. `A-PHASE-ORDER` FAILs on exactly that. |
 | **An approval whose declaration cannot be produced is not an approval.** | A decision records the hash of the contract it was made against, and a hash with no bytes behind it is a fingerprint of a document nobody kept. `ux_ledger.py` archives the contract under that hash every time one is derived, gated or approved, so `show DEC-003` prints what was declared at the time. When it cannot, it says so — printing *today's* contract beside an old approval would make every past decision look as though it were made with today's information, which is the worst thing a record can do. `A-CONTRACT-ARCHIVED` reports it to the gate. |
 | **A drawing cannot be used, so it cannot tell you whether the thing works.** | There are two review stages. A wireframe settles structure; a working prototype settles usability, and `build` is gated on the second. `ux_proto.py` generates a real, clickable prototype from the contract — the five states as a switch, a form that validates, a dialog that traps focus, an undo that puts the row back — and `ux_review.py` hosts it beside the current product so a person can Alt-click any element and say what is wrong in their own words. |
@@ -154,7 +154,7 @@ Match the request to a mode, then read that workflow file. Do not read all of th
 When the request is ambiguous, `critique` is the safe default: it reads and
 reports without touching anything. When it does not name a mode at all, read
 `references/ops/routing.md` — it maps what people actually say ("make it bolder",
-"clean this up", "the design feels off") onto one of the 30 operations, and it
+"clean this up", "the design feels off") onto one of the 35 operations, and it
 decides from measured signals rather than from the wording.
 
 A mode is the shape of the whole job. An **operation** is one move inside it —
@@ -294,9 +294,10 @@ Each reference is self-contained. Read the one you need.
 | The prototype wrapper every generated prototype uses, with its named slots | `assets/templates/prototype-shell.html` |
 | Identity lock, preserve vs depart, variants | `references/preserve.md` |
 | The AI-tell catalogue and why each one reads as generated | `references/anti-slop.md` |
-| **The 33 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
+| **The 35 operations** — one named job each, with the detectors that judge it | `references/ops/index.md` |
 | Which operation, for what the user actually said | `references/ops/routing.md` |
 | iOS and Android rules, detector by detector | `references/ops/ios.md`, `references/ops/android.md` |
+| What impeccable does, what this does, and every remaining gap | `references/parity/impeccable.yaml` |
 | Everything in this skill, indexed | `references/index.md` |
 | Governance, priority order, exceptions | `references/rules/00-governance.md` |
 | Rule packs by domain (a11y, forms, state, layout, …) | `references/rules/` |
@@ -313,7 +314,7 @@ Each reference is self-contained. Read the one you need.
 
 | Script | Purpose |
 |---|---|
-| `scripts/ux_check.py` | **Static tier.** 183 source checks bound to rule IDs, across web and native source. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
+| `scripts/ux_check.py` | **Static tier.** 184 source checks bound to rule IDs, across web and native source. Takes a file or a directory and reads exactly that. `--json`, `--signals`, `--inventory`, `--detector`, `--max`, `--config`, `--stdin` for editor hooks. |
 | `scripts/ux_browser.sh` | **Runtime tier.** Drives agent-browser across your viewport matrix, measures contrast, targets, focus and vitals, and forces aborted, empty and offline states. |
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
 | `scripts/derive_contract.py` | **Brownfield's first move.** Reads the real type steps, families, radii, shadows, durations and colour roles out of an existing codebase and writes the visual contract, with the spread beside each dominant value so you can tell the scale from the drift. `--write`, `--json`. |
@@ -333,7 +334,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |
 | `scripts/ux_question.py` | **The decision, served.** A page on localhost showing the comps and the structural claim each one makes. Refuses an answer with no author, an agent as the author, a reason too thin to weigh, and a timeout. Writes `.deuxui/decisions/DEC-NNN.yaml` hashed against exactly what was shown. |
 | `scripts/ux_phase.py` | **The gate.** discover → declare → comp → approve → build → verify → release, each transition's requirements machine-checked. `gate write` refuses UI edits before a direction is approved, wired to PreToolUse so the refusal lands while the file is open. The override is audited, because a gate with no way past it gets bypassed by deleting the file. |
-| `scripts/ux_live.py` | **Pick, compare in place, accept into the source.** `pick` points at an element in the running app and resolves it to exactly one place in the source or refuses; `vary` builds variants from declared values only, one axis at a time, emitting `var(--token)` where the project has one; `show` puts them all in the element's own position with a switcher; `accept` runs the static tier against the edit first and refuses a variant that introduces a P0 or P1, then writes one commented rule into the stylesheet that already holds the tokens and records a decision carrying the contract hash. |
+| `scripts/ux_live.py` | **Pick, compare in place, accept into the source.** `pick` points at an element in the running app and resolves it to exactly one place in the source or refuses; `vary` builds variants from declared values only, one axis at a time, emitting `var(--token)` where the project has one; `show` puts them all in the element's own position with a switcher; `accept` runs the static tier against the edit first and refuses a variant that introduces a P0 or P1, then writes one commented rule into the stylesheet that already holds the tokens and records a decision carrying the contract hash. `pick --describe "the pricing cards"` skips the clicking when an agent already has the element in words — six tiers of evidence, most specific first, resolving to exactly one node or refusing with the candidates. `text` rewrites what the element *says*, in the source, and reports every other place that same literal appears — an i18n key on the English string is the coupling it exists to surface. |
 | `scripts/ux_ledger.py` | **The system of record.** `state` says what the design is right now — the declaration field by field with blanks shown as blanks, what PRODUCT.md and DESIGN.md actually say, what the project is measurably built with, the live approval per stage, and what is still open. `log` says how it got there. `snapshot` archives the contract under its own hash, so a decision's `contract_sha` resolves to bytes and `show DEC-003` can print what was declared **at the time**. An unresolvable reference is reported as a gap, never filled in from the present. |
 | `scripts/fontindex.py` | **Does the declared face exist here.** Finds every way a face legitimately arrives — `@font-face`, `@fontsource`, `next/font`, a file in the tree, a Google Fonts request — matches across spellings, and refuses to treat the build host's own fonts as evidence about a visitor. |
 | `scripts/comp_spec.py` | **Read a reference image.** Palette by coverage, canvas and ink with the measured ratio, region bands, and which are photographic rather than flat — the distinction that decides whether a region ships as a raster or as code. Also records an asset's provenance inside the PNG. |
@@ -341,6 +342,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/browsertest.py` | **Integration test for the runtime tier.** Serves a fixture with known defects and requires each probe's numbers to match the pixels the browser painted. |
 | `scripts/uxconfig.py` | The only reader of `.deuxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
+| `scripts/parity.py` | **The coverage claim, made falsifiable.** `references/parity/impeccable.yaml` records what impeccable does row by row and what this skill does about it; this resolves every piece of evidence in it and refuses a `partial` or `absent` that does not say what is missing. "We have everything they have" is the same shape of unfalsifiable sentence as "looks good", so it is checked rather than asserted. |
 | `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
 
 ## Common mistakes

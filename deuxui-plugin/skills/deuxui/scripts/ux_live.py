@@ -54,6 +54,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import yaml                                                        # noqa: E402
 import cdp                                                         # noqa: E402
+import ux_select                                                   # noqa: E402
 import ux_image                                                    # noqa: E402
 import uxconfig                                                    # noqa: E402
 
@@ -67,6 +68,10 @@ SKIP = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", "out",
 SPLIT = "[" + "\n" + "\u2022|\u00b7" + "]|\\s{2,}"
 SRC_EXT = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro", ".html", ".htm"}
 STYLE_EXT = {".css", ".scss", ".sass", ".less"}
+# Where a lookup key for a piece of visible copy lives, as opposed to where the copy
+# itself is rendered. Only `coupled()` reads this set; nothing is ever located here.
+COUPLED_EXT = {".json", ".yaml", ".yml", ".toml", ".md", ".mdx", ".txt", ".csv",
+               ".py", ".rb", ".go", ".java", ".kt", ".swift", ".php", ".cs", ".rs"}
 
 
 def now() -> str:
@@ -92,6 +97,14 @@ def load(p: Path):
         return yaml.safe_load(p.read_text(errors="replace"))
     except (OSError, yaml.YAMLError):
         return None
+
+
+def _rel(q: Path, root: Path) -> str:
+    """`q` as the project sees it, or its own path when it is outside the project."""
+    try:
+        return str(q.resolve().relative_to(root.resolve()))
+    except ValueError:
+        return str(q)
 
 
 def session(rid: str) -> Path:
@@ -407,9 +420,23 @@ OVERLAY = r"""
 
 
 def inject(rec: dict, variants: list, rid: str) -> dict:
-    ws = cdp.connect_page()
-    if not ws:
-        return {"ok": False, "why": "no page is open. `agent-browser open <url>` first."}
+    # `connect_page` returns (ws, info-or-reason). This unpacked it as a single value,
+    # so `ws` was the tuple: always truthy, so the "no page is open" guard never fired,
+    # and the next line raised AttributeError instead. `show` could not work at all,
+    # and the failure surfaced as a traceback rather than as the guard's message.
+    ws, why = cdp.connect_page()
+    if ws is None:
+        return {"ok": False, "why": str(why)}
+    # A variant switcher is an overlay, and an overlay's <style> is inline style.
+    # Under a strict `style-src` it appends and renders unstyled, which reads as
+    # "the variants did not appear". Measured, never bypassed -- see cdp.style_policy.
+    pol = cdp.style_policy(ws)
+    if pol["styled"] is False:
+        try:
+            ws.close()
+        except Exception:
+            pass
+        return {"ok": False, "why": pol["why"]}
     js = OVERLAY % {"sel": json.dumps(rec["selector"]),
                     "variants": json.dumps(variants),
                     "rid": json.dumps(rid)}
@@ -427,8 +454,8 @@ def inject(rec: dict, variants: list, rid: str) -> dict:
 
 
 def read_choice(rid: str) -> str | None:
-    ws = cdp.connect_page()
-    if not ws:
+    ws, _why = cdp.connect_page()
+    if ws is None:
         return None
     try:
         res = cdp.evaluate(ws, "window.__uxLive && window.__uxLive.rid === "
@@ -566,7 +593,118 @@ def phase_permits(sheet: Path) -> tuple[bool, str]:
 
 
 # -------------------------------------------------------------------- commands
+# --------------------------------------------------------------- resolve by name
+RESOLVE = r"""
+(() => {
+  const WANT = %(want)s;
+__PICK_JS__
+  const norm = s => (s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const want = norm(WANT);
+  const words = want.split(' ').filter(w => w.length > 2);
+
+  const ours = el => el.closest && (el.closest('.uxsel-panel') || el.closest('.uxlive-bar')
+                || el.classList.contains('uxsel-hi') || el.classList.contains('uxsel-tag')
+                || el.classList.contains('uxsel-badge'));
+  const visible = el => {
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return false;
+    const c = getComputedStyle(el);
+    return c.visibility !== 'hidden' && c.display !== 'none' && c.opacity !== '0';
+  };
+  const all = [...document.querySelectorAll('body *')].filter(e => !ours(e) && visible(e));
+  const name = el => norm(el.getAttribute('aria-label') || el.getAttribute('alt')
+                          || el.getAttribute('title') || '');
+  const text = el => norm(el.innerText || '');
+  const tokens = el => norm((el.getAttribute('class') || '') + ' '
+                            + (el.getAttribute('data-testid') || '')).replace(/-/g, ' ');
+
+  // Tiers, most specific first. The FIRST tier with any hit decides; a later tier
+  // never adds to an earlier one, because "matched the text exactly" and "shares
+  // three class words" are not the same kind of evidence and must not be pooled.
+  const tiers = [
+    ['css selector',  () => { try { return WANT.match(/^[#.\[]|^[a-z]+[.#\[]/i)
+                                ? [...document.querySelectorAll(WANT)].filter(visible) : []; }
+                              catch (e) { return []; } }],
+    ['test id',       () => all.filter(e => norm(e.getAttribute('data-testid')) === want)],
+    ['accessible name', () => all.filter(e => name(e) === want)],
+    ['exact text',    () => all.filter(e => text(e) === want)],
+    ['text prefix',   () => all.filter(e => text(e).startsWith(want) && text(e).length < want.length + 40)],
+    ['class words',   () => words.length ? all.filter(e => words.every(w => tokens(e).includes(w))) : []],
+  ];
+
+  for (const [kind, fn] of tiers) {
+    let hits = fn();
+    if (!hits.length) continue;
+
+    // A container's text contains its children's, so an ancestor and its leaf both
+    // match. Keep the innermost: the leaf is what a person means by "the heading".
+    hits = hits.filter(e => !hits.some(o => o !== e && e.contains(o)));
+
+    if (hits.length > 1) {
+      // A plural phrase ("the pricing cards") names a group. If every hit is a
+      // sibling under one parent, that parent IS the single thing meant. Otherwise
+      // there is no single answer and inventing one picks the wrong element
+      // silently.
+      const p0 = hits[0].parentElement;
+      if (p0 && hits.every(h => h.parentElement === p0)) {
+        return JSON.stringify({ok: true, kind: kind + ' (the group they share)',
+                               hits: hits.length, el: describe(p0)});
+      }
+      return JSON.stringify({ok: false, kind: kind, hits: hits.length,
+        candidates: hits.slice(0, 8).map(e => ({selector: selectorFor(e),
+                                                text: text(e).slice(0, 60)}))});
+    }
+    hits[0].scrollIntoView({block: 'center', behavior: 'instant'});
+    return JSON.stringify({ok: true, kind: kind, hits: 1, el: describe(hits[0])});
+  }
+  return JSON.stringify({ok: false, kind: null, hits: 0, candidates: []});
+})()
+"""
+
+
+def resolve_by_name(want: str) -> dict:
+    """Find the one element a phrase names, on the page the browser already has open.
+
+    `pick` needs a person to click, which is the right default: pointing is
+    unambiguous and it is the input this whole loop exists to capture. But an agent
+    handed "make the pricing cards bolder" has the element in words already, and
+    forcing a human into the loop to re-express it as a click is ceremony.
+
+    So this resolves words to exactly one node, or refuses and lists what it found.
+    Six tiers of evidence, most specific first, and a later tier never adds to an
+    earlier one -- "the text is exactly this" and "three class words overlap" are
+    different claims and pooling them is how the wrong element gets picked with
+    confidence. Ancestors of a hit are dropped, because a container's innerText
+    contains its children's and a person saying "the heading" means the heading.
+
+    The one place several hits still resolve to one element: when every hit is a
+    sibling under one parent, a plural phrase named the group, and the group is
+    that parent. Anything else is reported as ambiguous with the candidates, which
+    is the only honest answer -- a guess here edits the wrong part of somebody's
+    page and the variant looks like it worked."""
+    ws, why = cdp.connect_page()
+    if ws is None:
+        return {"ok": False, "why": str(why)}
+    pol = cdp.style_policy(ws)
+    js = (RESOLVE % {"want": json.dumps(want)}).replace("__PICK_JS__", ux_select.PICK_JS)
+    try:
+        res = cdp.evaluate(ws, js)
+    except RuntimeError as e:
+        return {"ok": False, "why": f"the page would not answer: {e}"}
+    finally:
+        try:
+            ws.close()
+        except Exception:
+            pass
+    out = json.loads(res) if isinstance(res, str) else (res or {})
+    out.setdefault("ok", False)
+    out["styled"] = pol["styled"]
+    return out
+
+
 def cmd_pick(a) -> int:
+    if getattr(a, "describe", None):
+        return _pick_described(a)
     r = subprocess.run([sys.executable, str(HERE / "ux_select.py"), "watch",
                         *(["--timeout", str(a.timeout)] if a.timeout else [])])
     if r.returncode not in (0, 2):
@@ -592,6 +730,63 @@ def cmd_pick(a) -> int:
                                                      allow_unicode=True, width=92))
     w(f"\n  next     python3 scripts/ux_live.py vary {reqs[-1].stem}\n\n")
     return 0
+
+
+def _open_session(rec: dict, how: str) -> int:
+    """Write the live session for one resolved element, and say where it is in the source."""
+    rid = ux_select.next_id()
+    rec = dict(rec)
+    rec["id"] = rid
+    rec["recorded_at"] = now()
+    rec["recorded_by"] = how
+    ux_select.REQUESTS.mkdir(parents=True, exist_ok=True)
+    (ux_select.REQUESTS / f"{rid}.yaml").write_text(
+        yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=92))
+    loc = locate(rec)
+    w(f"\n{rid}  {rec.get('selector', '?')}\n")
+    if loc["found"]:
+        w(f"  source   {loc['file']}:{loc['line']}  (matched on the "
+          f"{loc['anchor_kind']} {loc['anchor']!r})\n")
+    else:
+        w(f"  source   NOT LOCATED. {loc['why']}\n")
+        for tr in loc["tried"]:
+            w(f"             {tr['kind']:<6} {tr['anchor'][:44]!r}  {tr['hits']} hit(s)\n")
+    st = {"id": rid, "at": now(), "element": rec, "source": loc,
+          "variants": [], "accepted": None}
+    LIVE.mkdir(parents=True, exist_ok=True)
+    session(rid).write_text(yaml.safe_dump(st, sort_keys=False, allow_unicode=True,
+                                          width=92))
+    w(f"\n  next     python3 scripts/ux_live.py vary {rid}\n\n")
+    return 0
+
+
+def _pick_described(a) -> int:
+    res = resolve_by_name(a.describe)
+    if not res.get("ok"):
+        if res.get("why"):
+            w(f"\n{res['why']}\n\n")
+            return 2
+        if res.get("candidates"):
+            w(f"\n{a.describe!r} matches {res['hits']} elements on this page by "
+              f"{res['kind']}, and they are not one group:\n\n")
+            for c in res["candidates"]:
+                w(f"    {c['selector'][:60]:<60}  {c['text']!r}\n")
+            w(f"\n  Nothing was picked. Name one of these, or use "
+              f"`ux_live.py pick` and click it.\n\n")
+            return 2
+        w(f"\nNothing on this page matches {a.describe!r} — not by selector, test id, "
+          f"accessible name, visible text or class name.\n"
+          f"  The page is whatever the browser has open; check you are on the right "
+          f"route.\n\n")
+        return 2
+    if res.get("styled") is False:
+        w("\nnote: this page's CSP refuses an injected <style>, so `show` will not be "
+          "able to render the variant switcher here. `pick` and `vary` still work; "
+          "compare through `ux_review.py serve` instead.\n")
+    w(f"\nresolved by {res['kind']}\n")
+    return _open_session(res["el"],
+                         f"deuxui/scripts/ux_live.py pick --describe "
+                         f"{a.describe!r} -- resolved by {res['kind']}")
 
 
 def cmd_vary(a) -> int:
@@ -733,7 +928,9 @@ def cmd_accept(a) -> int:
            "rationale": a.why or f"{variant['title']} — {variant['decides']}",
            "contract_sha": st.get("contract_sha"),
            "axis": variant["axis"], "declarations": variant["declarations"],
-           "written_to": {"file": str(sheet), "scope": scope},
+           # Project-relative where it can be. An absolute path in a decision record
+           # names one machine, and the record is meant to outlive the checkout.
+           "written_to": {"file": _rel(sheet, root), "scope": scope},
            "element_source": {"file": loc.get("file"), "line": loc.get("line")},
            "checks": {"ran": bool(delta.get("ran")),
                       "before": delta.get("before"), "after": delta.get("after"),
@@ -755,6 +952,205 @@ def cmd_accept(a) -> int:
     w(f"\n  written  {sheet}\n  recorded {dp}\n\n{diff}\n"
       f"  The dev server's own reload will show it. `ux_ledger.py show {did}` has the "
       f"contract it was decided against.\n\n")
+    return 0
+
+
+def coupled(root: Path, literal: str, home: Path) -> list:
+    """Every OTHER place this exact string appears, with whether it looks like a key.
+
+    Visible copy is often also a lookup key -- an object property, an icon map, an
+    analytics label, a translation id. Renaming the rendered text and leaving the key
+    breaks the thing the key was pointing at, and the breakage shows up somewhere
+    that has nothing to do with the edit.
+
+    Deliberately searches WIDER than `locate` does. `locate` only looks at component
+    source, and it already guaranteed the string appears exactly once there -- so
+    restricted to the same file set this function could never find anything, which is
+    how it was first written and it was very nearly dead code. The occurrences that
+    actually matter are in the files `locate` never opens: `en.json` and its
+    siblings, a YAML content file, a Markdown table, a server-side constant. A
+    translation catalogue keyed on the English string is the single most common
+    coupling there is.
+
+    It does not rename them. Deciding that a second occurrence is coincidence is a
+    judgement about somebody's codebase, and a tool that quietly edits six files
+    because one word matched is doing something it was not asked to do."""
+    out = []
+    for q in (list(iter_files(root, SRC_EXT)) + list(iter_files(root, STYLE_EXT))
+              + list(iter_files(root, COUPLED_EXT))):
+        if q.resolve() == home.resolve():
+            continue
+        try:
+            body = q.read_text(errors="replace")
+        except OSError:
+            continue
+        for m in re.finditer(re.escape(literal), body):
+            line = body[:m.start()].count("\n") + 1
+            ctx = body[max(0, m.start() - 40):m.end() + 12].replace("\n", " ")
+            looks_key = bool(re.search(re.escape(literal) + r"\s*['\"]?\s*:", body[m.start():m.end() + 6]))
+            out.append({"file": str(q.relative_to(root)), "line": line,
+                        "key_like": looks_key, "context": ctx.strip()[:80]})
+            if len(out) >= 12:
+                return out
+    return out
+
+
+def cmd_text(a) -> int:
+    """Rewrite the visible copy of a picked element, in the source, or refuse.
+
+    This is the half of the live loop that was missing. `accept` moves declared
+    values -- a size, a role, a radius -- by writing one rule into the stylesheet.
+    It cannot change what a thing SAYS, and "this label is wrong" is the single most
+    common thing a person says while looking at a real screen.
+
+    The rule is the same as everywhere else in this file: the string has to resolve
+    to exactly one place in the source, by an anchor from the element itself, or
+    nothing is written. A copy edit applied to the wrong line still reads as
+    success, and the wrong line is usually another component rendering the same word.
+    """
+    st = load(session(a.id)) or {}
+    if not st:
+        w(f"\nNo live session for {a.id}. `ux_live.py pick` starts one.\n\n")
+        return 2
+    rec = st.get("element") or {}
+    root = Path.cwd()
+
+    if not a.who:
+        w("\nA copy change needs a person's name on it — it becomes a decision record "
+          "the build gate reads. Pass --who \"NAME\".\n\n")
+        return 2
+
+    loc = st.get("source") or {}
+    if not loc.get("found") or loc.get("anchor_kind") != "text":
+        w(f"\nREFUSED. This element's source location "
+          f"{'was matched on its ' + str(loc.get('anchor_kind')) if loc.get('found') else 'was never resolved'}"
+          f", not on its text, so there is no known string in the source to replace.\n"
+          f"  Rewriting the line this element was located BY would change something "
+          f"else — a class name, a container — and a copy edit that hits the wrong "
+          f"token still looks like it worked.\n"
+          f"  Edit the file yourself: {loc.get('file') or 'unknown'}"
+          f"{':' + str(loc['line']) if loc.get('line') else ''}\n\n")
+        return 2
+
+    old = str(loc["anchor"])
+    new = a.to
+    if new == old:
+        w(f"\nThe new text is identical to {old!r}. Nothing to do.\n\n")
+        return 0
+    if not new.strip():
+        w("\nREFUSED. Empty copy is not a copy edit — a label with no text has no "
+          "accessible name either (A11Y-007, COMP-002). Delete the element instead, "
+          "knowingly.\n\n")
+        return 2
+
+    f = root / loc["file"]
+    try:
+        body = f.read_text(errors="replace")
+    except OSError as e:
+        w(f"\nCould not read {f}: {e}\n\n")
+        return 2
+    n = body.count(old)
+    if n == 0:
+        w(f"\nREFUSED. {old!r} is no longer in {loc['file']} — the file changed since "
+          f"this element was picked. Pick it again.\n\n")
+        return 2
+    if n > 1:
+        w(f"\nREFUSED. {old!r} appears {n} times in {loc['file']} alone, so there is no "
+          f"single occurrence to rewrite. Edit the file directly, or pick a child "
+          f"element whose text is unique.\n\n")
+        return 2
+
+    new_text = body.replace(old, new, 1)
+    line = body[:body.index(old)].count("\n") + 1
+    also = coupled(root, old, f)
+
+    ok, why = phase_permits(f)
+    if not ok and not a.force:
+        w(f"\nThe phase gate refuses this write:\n  {why}\n\n")
+        return 1
+
+    delta = check_delta(root, f, new_text)
+    w(f"\n{a.id}  copy edit in {loc['file']}:{line}\n")
+    w(f"  from     {old!r}\n  to       {new!r}\n")
+    if delta.get("ran"):
+        w(f"  checks   {delta['before']} finding(s) before, {delta['after']} after\n")
+        if not delta.get("graded"):
+            w("           severity UNRESOLVED — the registry could not be read, so "
+              "nothing can be graded blocking and this write is NOT gated.\n")
+        for x in delta["introduced"]:
+            w(f"             + {x.get('severity') or '--'}  {x.get('detector')}  "
+              f"{x.get('file')}:{x.get('line')}\n")
+        if delta["blocking"] and not a.force:
+            w(f"\n  REFUSED. This wording introduces {len(delta['blocking'])} P0/P1 "
+              f"finding(s):\n")
+            for x in delta["blocking"]:
+                w(f"    {x.get('severity')}  {x.get('detector')}  {x.get('file')}:"
+                  f"{x.get('line')}\n      {x.get('snippet')}\n")
+            w("\n  Copy is checked like anything else — a label that says nothing, or "
+              "an error message that blames the user, is a finding with a rule behind "
+              "it.\n\n")
+            return 1
+    else:
+        w(f"  checks   NOT_RUN — {delta.get('why')}\n"
+          f"           Recorded as unchecked rather than as clean.\n")
+
+    if also:
+        w(f"\n  ALSO     {old!r} appears in {len(also)} other place(s). Nothing here "
+          f"touches them:\n")
+        for x in also:
+            w(f"             {x['file']}:{x['line']}"
+              f"{'  LOOKS LIKE A KEY' if x['key_like'] else ''}\n"
+              f"               {x['context']}\n")
+        w("           If any of those is a lookup key for this same string — an icon "
+          "map,\n           a translation id, an analytics label — it still points at "
+          "the old\n           wording and will now miss. Check them before you "
+          "ship.\n")
+
+    diff = "".join(difflib.unified_diff(
+        body.splitlines(True), new_text.splitlines(True),
+        fromfile=str(f), tofile=str(f) + " (copy edit)", n=2))
+    if a.dry_run:
+        w(f"\n  --dry-run, nothing written:\n\n{diff}\n")
+        return 0
+    f.write_text(new_text)
+
+    did = _next_id(DECISIONS, "DEC")
+    drec = {"id": did, "question": f"What should {rec.get('selector')} say?",
+            "surface": rec.get("selector"),
+            "chosen": "copy", "outcome": "accept:copy",
+            "approves_a_build": False,
+            "who": a.who, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "recorded_at": now(),
+            "rationale": a.why or f"copy changed from {old!r} to {new!r}",
+            "contract_sha": st.get("contract_sha"),
+            "axis": "copy",
+            "declarations": {"from": old, "to": new},
+            # Project-relative, not absolute: a record that names
+            # /home/someone/checkout/... cannot be read on any other machine, and a
+            # decision is supposed to outlive the checkout it was made in.
+            "written_to": {"file": loc["file"], "line": line},
+            "element_source": {"file": loc.get("file"), "line": loc.get("line")},
+            "checks": {"ran": bool(delta.get("ran")),
+                       "before": delta.get("before"), "after": delta.get("after"),
+                       "introduced": len(delta.get("introduced") or [])},
+            "coupled_occurrences": also,
+            "reviewed": [],
+            "source": "ux_live.py text (copy rewritten in the source from a picked "
+                      "element)",
+            "recorded_by": "deuxui/scripts/ux_live.py"}
+    DECISIONS.mkdir(parents=True, exist_ok=True)
+    dp = DECISIONS / f"{did}.yaml"
+    dp.write_text(yaml.safe_dump(drec, sort_keys=False, allow_unicode=True, width=92))
+    try:
+        import ux_ledger
+        ux_ledger.archive(by="ux_live.py text (copy accepted into the source)")
+    except Exception:
+        pass
+    st.setdefault("copy_edits", []).append(
+        {"at": now(), "from": old, "to": new, "decision": did})
+    session(a.id).write_text(yaml.safe_dump(st, sort_keys=False, allow_unicode=True,
+                                            width=92))
+    w(f"\n  written  {f}\n  recorded {dp}\n\n{diff}\n")
     return 0
 
 
@@ -794,6 +1190,11 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("pick", help="point at an element and find it in the source")
+    s.add_argument("--describe", metavar="WORDS",
+                   help="name the element instead of clicking it: a CSS selector, a "
+                        "test id, an accessible name, its visible text, or words from "
+                        "its class. Resolves to exactly one element or refuses with "
+                        "the candidates.")
     s.add_argument("--timeout", type=int)
     s.set_defaults(fn=cmd_pick)
 
@@ -820,6 +1221,17 @@ def main(argv=None) -> int:
                    help="write despite a blocking finding or a closed phase gate. "
                         "Recorded in the decision either way.")
     s.set_defaults(fn=cmd_accept)
+
+    s = sub.add_parser("text", help="rewrite what the picked element says, in the source")
+    s.add_argument("id")
+    s.add_argument("--to", required=True, metavar="COPY", help="the new wording")
+    s.add_argument("--who", help="the person deciding, by name")
+    s.add_argument("--why")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--force", action="store_true",
+                   help="write despite a blocking finding or a closed phase gate. "
+                        "Recorded in the decision either way.")
+    s.set_defaults(fn=cmd_text)
 
     s = sub.add_parser("status", help="what is open")
     s.set_defaults(fn=cmd_status)

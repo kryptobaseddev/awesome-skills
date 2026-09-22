@@ -1,6 +1,6 @@
 # Operations
 
-Thirty-three operations, each one a named job with a mechanism behind it and a set
+Thirty-five operations, each one a named job with a mechanism behind it and a set
 of detectors that adjudicate its output. The ten broader
 [workflows](../workflows/) are the modes; these are the moves inside them.
 

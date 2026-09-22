@@ -120,8 +120,71 @@ def sync(check: bool) -> int:
             sys.stderr.write("\n  python3 scripts/sync_plugin.py\n")
             return 1
         sys.stderr.write(f"plugin copy is identical to the skill (v{sv})\n")
-        return 0
+
+    # Checked on both paths, because a copy can be perfectly in sync and still ship a
+    # command citing a rule nobody wrote.
+    cites = cited_ids(PAIRS[0][0], ROOT / "deuxui-plugin" / "commands")
+    if cites:
+        sys.stderr.write("\nplugin commands cite IDs the skill does not define:\n")
+        for c in cites:
+            sys.stderr.write(f"  {c}\n")
+        return 1
+    sys.stderr.write(f"plugin commands cite only IDs the skill defines "
+                     f"({len(list((ROOT / 'deuxui-plugin' / 'commands').glob('*.md')))} "
+                     f"command file(s))\n")
     return 0
+
+
+def cited_ids(skill: Path, commands: Path) -> list:
+    """Rule and detector IDs cited by a plugin command that the skill does not define.
+
+    `lint_rules.py` proves no prose inside the skill invents a rule ID. The plugin's
+    slash commands are outside the skill, so nothing checked them -- and they are the
+    text an agent reads first, which makes an invented ID there worse than one buried
+    in a reference. A command that says `S-CRAFT-RYTHM` sends the agent looking for a
+    detector that does not exist and, finding nothing, to report the check as passing.
+    """
+    import yaml
+    ids = set()
+
+    def harvest(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if isinstance(k, str) and re.fullmatch(r"[SRAM]-[A-Z0-9][A-Z0-9-]*", k):
+                    ids.add(k)
+                if k == "id" and isinstance(v, str):
+                    ids.add(v)
+                harvest(v)
+        elif isinstance(o, list):
+            for x in o:
+                harvest(x)
+
+    for name in ("registry.yaml", "detectors.yaml", "thresholds.yaml"):
+        q = skill / "references" / "rules" / name
+        if q.exists():
+            try:
+                harvest(yaml.safe_load(q.read_text()))
+            except yaml.YAMLError:
+                pass
+    if not ids:
+        return [f"{skill.name}: no rule or detector IDs could be read, so the commands "
+                f"cannot be checked against them"]
+
+    # A trailing `-*` is a family, not an ID: `S-CONTRACT-*` names the whole group.
+    pat = re.compile(r"\b([SRAM]-[A-Z0-9][A-Z0-9-]{2,}|"
+                     r"(?:A11Y|LAY|NUM|GOV|CONTENT|UX|VIS|FORM|COMP|STATE|PERF|TRUST"
+                     r"|AI|MEASURE|QA|CTX|NAV|AND|IOS|LAW)-\d{3})\b")
+    bad = []
+    for f in sorted(commands.glob("*.md")):
+        body = f.read_text(errors="replace")
+        for m in sorted(set(pat.findall(body))):
+            if m in ids:
+                continue
+            if re.search(re.escape(m) + r"-\*", body):
+                continue                      # a family wildcard, not a claim about one ID
+            bad.append(f"commands/{f.name} cites {m}, which is not in the skill's "
+                       f"registry or detector table")
+    return bad
 
 
 def main(argv=None) -> int:

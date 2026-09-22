@@ -62,6 +62,63 @@ ACTIONS = [
     ("broken", "This is a defect, not a preference"),
 ]
 
+# The two functions that turn a DOM node into a record: a short, greppable
+# selector and the computed snapshot. Factored out of the overlay because
+# `ux_live.py pick --describe` resolves an element from words instead of from
+# a click, and it has to produce the SAME record -- a second implementation
+# would drift, and then a session picked by hand and one picked by name would
+# disagree about what the element is.
+PICK_JS = r"""
+  function selectorFor(el) {
+    // Short, stable, and readable by a person grepping the source. An id wins; a
+    // test id wins next; otherwise a class path with nth-of-type where needed.
+    if (el.id) return '#' + el.id;
+    const t = el.getAttribute('data-testid') || el.getAttribute('data-test');
+    if (t) return `[data-testid="${t}"]`;
+    const parts = [];
+    let n = el;
+    while (n && n.nodeType === 1 && parts.length < 4 && n !== document.body) {
+      let p = n.tagName.toLowerCase();
+      const cls = (n.getAttribute('class') || '').trim().split(/\s+/)
+        .filter(c => c && !/^(uxsel|ng-|css-[0-9a-z]{4,})/.test(c)).slice(0, 3);
+      if (cls.length) p += '.' + cls.join('.');
+      const sibs = n.parentElement
+        ? [...n.parentElement.children].filter(x => x.tagName === n.tagName) : [];
+      if (sibs.length > 1) p += `:nth-of-type(${sibs.indexOf(n) + 1})`;
+      parts.unshift(p);
+      n = n.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  function describe(el) {
+    const c = getComputedStyle(el), r = el.getBoundingClientRect();
+    const txt = (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+    return {
+      selector: selectorFor(el), tag: el.tagName.toLowerCase(),
+      role: el.getAttribute('role') || null,
+      classes: (el.getAttribute('class') || '').slice(0, 200),
+      text: txt,
+      box: {x: Math.round(r.x), y: Math.round(r.y),
+            w: Math.round(r.width), h: Math.round(r.height)},
+      computed: {
+        fontSize: c.fontSize, fontWeight: c.fontWeight, fontFamily: c.fontFamily,
+        lineHeight: c.lineHeight, letterSpacing: c.letterSpacing,
+        color: c.color, background: c.backgroundColor, backgroundImage:
+          c.backgroundImage === 'none' ? null : c.backgroundImage.slice(0, 120),
+        padding: c.padding, margin: c.margin, gap: c.gap,
+        borderRadius: c.borderRadius, border: c.border,
+        boxShadow: c.boxShadow === 'none' ? null : c.boxShadow.slice(0, 160),
+        display: c.display, position: c.position, zIndex: c.zIndex,
+        width: c.width, height: c.height,
+      },
+      viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio},
+      url: location.href,
+    };
+  }
+"""
+
+
 OVERLAY = r"""
 (() => {
   if (window.__uxSelect) { window.__uxSelect.active = true; return "already"; }
@@ -115,53 +172,7 @@ OVERLAY = r"""
   const isOurs = n => n && n.closest && (n.closest('.uxsel-panel') || n === badge
                   || n === hi || n === tag);
 
-  function selectorFor(el) {
-    // Short, stable, and readable by a person grepping the source. An id wins; a
-    // test id wins next; otherwise a class path with nth-of-type where needed.
-    if (el.id) return '#' + el.id;
-    const t = el.getAttribute('data-testid') || el.getAttribute('data-test');
-    if (t) return `[data-testid="${t}"]`;
-    const parts = [];
-    let n = el;
-    while (n && n.nodeType === 1 && parts.length < 4 && n !== document.body) {
-      let p = n.tagName.toLowerCase();
-      const cls = (n.getAttribute('class') || '').trim().split(/\s+/)
-        .filter(c => c && !/^(uxsel|ng-|css-[0-9a-z]{4,})/.test(c)).slice(0, 3);
-      if (cls.length) p += '.' + cls.join('.');
-      const sibs = n.parentElement
-        ? [...n.parentElement.children].filter(x => x.tagName === n.tagName) : [];
-      if (sibs.length > 1) p += `:nth-of-type(${sibs.indexOf(n) + 1})`;
-      parts.unshift(p);
-      n = n.parentElement;
-    }
-    return parts.join(' > ');
-  }
-
-  function describe(el) {
-    const c = getComputedStyle(el), r = el.getBoundingClientRect();
-    const txt = (el.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 120);
-    return {
-      selector: selectorFor(el), tag: el.tagName.toLowerCase(),
-      role: el.getAttribute('role') || null,
-      classes: (el.getAttribute('class') || '').slice(0, 200),
-      text: txt,
-      box: {x: Math.round(r.x), y: Math.round(r.y),
-            w: Math.round(r.width), h: Math.round(r.height)},
-      computed: {
-        fontSize: c.fontSize, fontWeight: c.fontWeight, fontFamily: c.fontFamily,
-        lineHeight: c.lineHeight, letterSpacing: c.letterSpacing,
-        color: c.color, background: c.backgroundColor, backgroundImage:
-          c.backgroundImage === 'none' ? null : c.backgroundImage.slice(0, 120),
-        padding: c.padding, margin: c.margin, gap: c.gap,
-        borderRadius: c.borderRadius, border: c.border,
-        boxShadow: c.boxShadow === 'none' ? null : c.boxShadow.slice(0, 160),
-        display: c.display, position: c.position, zIndex: c.zIndex,
-        width: c.width, height: c.height,
-      },
-      viewport: {w: innerWidth, h: innerHeight, dpr: devicePixelRatio},
-      url: location.href,
-    };
-  }
+__PICK_JS__
 
   function place(el) {
     const r = el.getBoundingClientRect();
@@ -257,7 +268,18 @@ def cmd_watch(a) -> int:
             f"  agent-browser open <url>\n"
             f"Then run this again. Nothing is captured and nothing is claimed.\n")
         return 2
-    js = OVERLAY.replace("__ACTIONS__", json.dumps(ACTIONS))
+    # Measured before anything is appended. A page whose `style-src` forbids inline
+    # style renders this overlay invisibly, and the refusal goes to the page's own
+    # console rather than to this terminal. See cdp.style_policy.
+    pol = cdp.style_policy(ws)
+    if pol["styled"] is False:
+        sys.stderr.write(f"\nthe overlay cannot be styled here: {pol['why']}\n\n")
+        ws.close()
+        return 2
+    if pol["styled"] is None:
+        sys.stderr.write(f"note: {pol['why']}; continuing. If the overlay appears "
+                         f"unstyled, check the page console for a CSP refusal.\n")
+    js = OVERLAY.replace("__ACTIONS__", json.dumps(ACTIONS)).replace("__PICK_JS__", PICK_JS)
     try:
         state = cdp.evaluate(ws, js)
     except RuntimeError as e:

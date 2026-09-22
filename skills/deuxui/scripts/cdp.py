@@ -248,6 +248,65 @@ def evaluate(ws: WS, js: str):
     return v
 
 
+def style_policy(ws: WS) -> dict:
+    """Whether this page's CSP will let an injected overlay be styled, and how we know.
+
+    Everything this tool evaluates over CDP is already exempt from the page's
+    policy -- `Runtime.evaluate` runs in the debugger's world. What is *not* exempt
+    is what that code then puts into the document: a `<style>` element is inline
+    style no matter which world created it, so under `style-src 'self'` the
+    highlight, the badge and the panel all append successfully and then render with
+    no styling at all.
+
+    That failure read as "the overlay is broken", in a page whose own console held
+    the real answer and whose operator was reading a terminal. So this measures it
+    instead of guessing: append a probe rule, read back whether it took effect, and
+    remove it. `styleSheet.cssRules` is empty and the measured width is unchanged
+    when the policy refused it.
+
+    Deliberately does NOT disable the policy. A dev-time convenience is not a
+    reason for a tool to switch off a page's security controls, and the operator
+    can grant `style-src 'unsafe-inline'` in their own dev config if they want the
+    overlay -- knowingly, in a file they own, rather than because we did it to them.
+
+    Returns `{"styled": bool, "why": str}`. `styled` is None when the probe itself
+    could not run, which is reported as unknown rather than as either answer."""
+    js = r"""
+    (() => {
+      try {
+        const el = document.createElement('style');
+        el.setAttribute('data-deuxui-probe', '1');
+        el.textContent = '#__deuxui_probe__{width:123px}';
+        document.head.appendChild(el);
+        const n = el.sheet ? el.sheet.cssRules.length : 0;
+        const d = document.createElement('div');
+        d.id = '__deuxui_probe__';
+        d.style.position = 'fixed'; d.style.left = '-9999px';
+        document.body.appendChild(d);
+        const w = getComputedStyle(d).width;
+        d.remove(); el.remove();
+        return JSON.stringify({rules: n, width: w});
+      } catch (e) { return JSON.stringify({error: String(e)}); }
+    })()
+    """
+    try:
+        r = evaluate(ws, js)
+    except Exception as e:
+        return {"styled": None, "why": f"the probe could not run ({type(e).__name__})"}
+    if not isinstance(r, dict) or "error" in r:
+        return {"styled": None,
+                "why": f"the probe could not run ({(r or {}).get('error', 'no answer')})"}
+    if r.get("rules") and r.get("width") == "123px":
+        return {"styled": True, "why": "an injected stylesheet takes effect on this page"}
+    return {"styled": False,
+            "why": ("this page's Content-Security-Policy refuses an injected "
+                    "<style> element, so an overlay appends but renders unstyled. "
+                    "Nothing here disables that policy. To use the overlay, allow "
+                    "`style-src 'unsafe-inline'` in your DEV config only, or review "
+                    "through `ux_review.py serve`, which proxies the page and does "
+                    "not inherit its policy.")}
+
+
 def set_media(ws: WS, features: list[tuple[str, str]], media: str = ""):
     ws.call("Emulation.setEmulatedMedia",
             {"media": media,

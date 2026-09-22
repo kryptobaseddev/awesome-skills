@@ -5,7 +5,7 @@ A check that cannot fail its own negative case is not a check, it is a comment.
 Run this before trusting any report.
 """
 from __future__ import annotations
-import os, shutil, subprocess, sys, tempfile, json
+import os, shutil, subprocess, sys, tempfile, json, io, contextlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -270,9 +270,210 @@ def no_shipped_bytecode():
     return strays
 
 
+def overlay_policy():
+    """A page's CSP must change the tool's behaviour, in both directions.
+
+    Two silent failures lived here. `ux_review.py serve` drops the
+    `Content-Security-Policy` *header* on the way through, but a policy delivered
+    as `<meta http-equiv>` sits in the body and survived, so the inline selection
+    overlay was refused by the browser and the refusal went to the framed page's
+    console -- not to the terminal the reviewer was watching. And `ux_select.py`
+    appends a `<style>` element, which is inline style whatever world created it,
+    so a strict `style-src` produced an overlay that was present and invisible.
+
+    Both are now reported. These are the controls that keep them reported: each
+    case asserts the detection fires, and each has a negative case that must NOT
+    fire, because a matcher that flags every `<meta>` tag would "fix" this by
+    breaking every page."""
+    import re as _re
+    fails = []
+    sys.path.insert(0, str(HERE))
+    import ux_review, cdp                                          # noqa: E402
+
+    # --- meta CSP: positive cases -----------------------------------------
+    positives = [
+        '<meta http-equiv="Content-Security-Policy" content="script-src \'self\'">',
+        "<meta http-equiv='content-security-policy' content=\"default-src 'none'\">",
+        '<meta http-equiv=Content-Security-Policy-Report-Only content="x">',
+    ]
+    for src in positives:
+        out, found = ux_review.strip_meta_csp(src)
+        if len(found) != 1:
+            fails.append(f"meta CSP not detected: {src[:60]}")
+        elif "deuxui review" not in out:
+            fails.append(f"meta CSP detected but not replaced: {src[:60]}")
+
+    # --- meta CSP: negative cases (the thing an over-broad matcher breaks) --
+    negatives = [
+        '<meta charset="utf-8">',
+        '<meta http-equiv="X-UA-Compatible" content="IE=edge">',
+        '<meta name="description" content="content-security-policy">',
+        '<meta http-equiv="refresh" content="0;url=/x">',
+    ]
+    for src in negatives:
+        out, found = ux_review.strip_meta_csp(src)
+        if found or out != src:
+            fails.append(f"a non-CSP meta tag was rewritten: {src[:60]}")
+
+    # --- the overlay still reaches the document after neutralising ---------
+    doc = ('<!doctype html><html><head>'
+           '<meta http-equiv="Content-Security-Policy" content="script-src \'self\'">'
+           '</head><body><h1>x</h1></body></html>').encode()
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        out = ux_review.inject_into(doc, "__selftest__").decode()
+    if "<script" not in out:
+        fails.append("inject_into stopped injecting the overlay")
+    if _re.search(r"http-equiv", out, _re.I):
+        fails.append("inject_into left the document CSP in place")
+    if "meta tag" not in err.getvalue():
+        fails.append("inject_into neutralised a CSP without telling the operator")
+
+    # --- the style probe is a real probe, not a constant -------------------
+    class _Fake:
+        def __init__(self, rules, width): self.r = {"rules": rules, "width": width}
+        def call(self, *a, **k): return {"result": {"value": json.dumps(self.r)}}
+        def close(self): pass
+    if cdp.style_policy(_Fake(1, "123px"))["styled"] is not True:
+        fails.append("style_policy calls a page that DID apply the rule unstyled")
+    if cdp.style_policy(_Fake(0, "0px"))["styled"] is not False:
+        fails.append("style_policy calls a page that refused the rule styled")
+    if cdp.style_policy(_Fake(1, "0px"))["styled"] is not False:
+        fails.append("style_policy trusts the rule count without measuring the effect")
+
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 def contract_checks():
     """Invariants the check corpus cannot catch on its own."""
     fails = []
+
+    # Every count this skill states about ITSELF, checked against the thing counted.
+    # These had drifted three separate ways at once: SKILL.md advertised 183 static
+    # checks against 184, "one of the 30 operations" two lines above "all thirty-five",
+    # and "213 of the 235 rules have an automated detector; the other 21" -- where the
+    # two numbers do not even add up to 235, and the real split is 215 and 20.
+    #
+    # A number in prose is a claim like any other. Nobody recounts them by hand, so
+    # they are recounted here.
+    from collections import defaultdict
+    _reg = yaml.safe_load((HERE.parent / "references/rules/registry.yaml").read_text())
+    _det = yaml.safe_load((HERE.parent / "references/rules/detectors.yaml").read_text())
+    _rules = _reg["rules"] if "rules" in _reg else _reg
+    _dets = _det["detectors"] if "detectors" in _det else _det
+    _items = (_dets.items() if isinstance(_dets, dict)
+              else ((d["id"], d) for d in _dets))
+    _by_rule, _eng = defaultdict(set), []
+    for _k, _v in _items:
+        _v = _v or {}
+        _eng.append(_v.get("engine"))
+        for _r in (_v.get("rules") or []):
+            _by_rule[_r].add(_v.get("engine"))
+    _ids = [r["id"] for r in _rules]
+    facts = {
+        "rules": len(_ids),
+        # "static" is the TIER, not one engine: the engine table maps `source` and
+        # `element` onto it. Counting `engine == "source"` gave 143 and would have
+        # "corrected" a correct number in SKILL.md down to a wrong one -- a control
+        # that enforces its own miscount is worse than no control.
+        "static": sum(1 for e in _eng
+                      if (_det.get("engines", {}).get(e) or {}).get("tier") == "static"),
+        "automated": sum(1 for i in _ids if _by_rule.get(i, set()) - {"manual"}),
+        "manual_only": sum(1 for i in _ids
+                           if _by_rule.get(i) and not (_by_rule[i] - {"manual"})),
+        "ops": len([q for q in (HERE.parent / "references/ops").glob("*.md")
+                    if q.stem != "index"]),
+        "workflows": len(list((HERE.parent / "references/workflows").glob("*.md"))),
+    }
+    skill = (HERE.parent / "SKILL.md").read_text()
+    opsidx = (HERE.parent / "references/ops/index.md").read_text()
+    _WORDS = {33: "thirty-three", 34: "thirty-four", 35: "thirty-five",
+              36: "thirty-six", 37: "thirty-seven"}
+    claims = [
+        (skill, "SKILL.md", f"{facts['static']} source checks",
+         r"(\d+) source checks"),
+        (skill, "SKILL.md", f"{facts['automated']} of the {facts['rules']} rules",
+         r"(\d+) of the \d+ rules have an automated detector"),
+        (skill, "SKILL.md", f"the other {facts['manual_only']} are the manual tier",
+         r"the other (\d+) are the manual tier"),
+        (skill, "SKILL.md", f"one of the {facts['ops']} operations",
+         r"one of the (\d+) operations"),
+        (skill, "SKILL.md", f"The {facts['ops']} operations",
+         r"The (\d+) operations"),
+        (opsidx, "references/ops/index.md",
+         f"{_WORDS.get(facts['ops'], facts['ops']).capitalize()} operations",
+         r"^(\w+) operations"),
+    ]
+    import re as _re2
+    for body, where, want, pat in claims:
+        if want not in body:
+            m = _re2.search(pat, body, _re2.M)
+            fails.append(f"{where} does not say {want!r}"
+                         + (f" -- it says {m.group(0)!r}" if m else " at all"))
+
+    # `ux_live.py text` rewrites visible copy in the source. Its whole value is in
+    # what it REFUSES, and one of its two safety features was very nearly dead code:
+    # `coupled()` searched the same file set as `locate()`, which had already proved
+    # the string appears exactly once there -- so it could never report anything, and
+    # a translation catalogue keyed on the English string would go unmentioned.
+    import ux_live                                                   # noqa: E402
+    if ux_live.COUPLED_EXT & ux_live.SRC_EXT:
+        fails.append("ux_live.COUPLED_EXT overlaps SRC_EXT, so coupled() re-searches "
+                     "files locate() already proved unique -- it can only report noise")
+    if not (ux_live.COUPLED_EXT & {".json", ".yaml"}):
+        fails.append("ux_live.COUPLED_EXT does not cover .json/.yaml, where an i18n "
+                     "catalogue keyed on the visible English string lives -- the most "
+                     "common coupling there is")
+    with tempfile.TemporaryDirectory() as _d:
+        _r = Path(_d)
+        (_r / "Page.tsx").write_text('<h1>Plans that scale</h1>\n')
+        (_r / "en.json").write_text('{"Plans that scale": "Plans that scale"}\n')
+        (_r / "notes.md").write_text("nothing relevant here\n")
+        hits = ux_live.coupled(_r, "Plans that scale", _r / "Page.tsx")
+        if not any(h["file"] == "en.json" for h in hits):
+            fails.append("coupled() missed a lookup key in en.json")
+        if not any(h["key_like"] for h in hits):
+            fails.append("coupled() found the occurrence but did not mark it key-like, "
+                         "which is the part that tells a reader it will now miss")
+        if any(h["file"] == "Page.tsx" for h in hits):
+            fails.append("coupled() reported the file being edited as a coupling")
+        if ux_live.coupled(_r, "no such string anywhere", _r / "Page.tsx"):
+            fails.append("coupled() reports hits for a string that is not present")
+
+    # cdp.connect_page returns (ws, info-or-reason). Two call sites in ux_live.py
+    # bound it to ONE name, so `ws` was the tuple: always truthy, so the
+    # "no page is open" guard never fired, and `ws.call` raised AttributeError one
+    # line later. `ux_live.py show` could not work at all, in any project, and the
+    # symptom was a traceback rather than the guard's own message.
+    #
+    # Nothing in the check corpus can see this -- it is this tool's own code, not a
+    # project's -- so it is asserted here, over every caller, by shape.
+    import ast as _ast
+    for q in sorted(HERE.glob("*.py")):
+        try:
+            tree = _ast.parse(q.read_text())
+        except SyntaxError as e:
+            fails.append(f"{q.name} does not parse: {e}")
+            continue
+        for node in _ast.walk(tree):
+            if not isinstance(node, _ast.Assign):
+                continue
+            call = node.value
+            if not isinstance(call, _ast.Call):
+                continue
+            fn = call.func
+            nm = (fn.attr if isinstance(fn, _ast.Attribute) else
+                  getattr(fn, "id", None))
+            if nm != "connect_page":
+                continue
+            tgt = node.targets[0]
+            if not isinstance(tgt, _ast.Tuple) or len(tgt.elts) != 2:
+                fails.append(
+                    f"{q.name}:{node.lineno} binds connect_page() to a single name. "
+                    f"It returns (ws, info-or-reason), so that name is a tuple: the "
+                    f"None guard cannot fire and the next .call() raises")
 
     # ux_check.py duplicates the extension set in HOOK_EXT so the PostToolUse
     # fast path can bail before importing yaml and the check modules. If the two
@@ -626,6 +827,7 @@ def main():
     contract = contract_checks()
     wiring = config_wiring()
     bytecode = no_shipped_bytecode()
+    overlay = overlay_policy()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
     with tempfile.TemporaryDirectory() as d:
@@ -644,7 +846,9 @@ def main():
     print(f"contract invariants: {'all ok' if not contract else str(len(contract)) + ' FAILING'}")
     print(f"config wiring:       {'all ok' if not wiring else str(len(wiring)) + ' FAILING'}")
     print(f"shipped bytecode:    {'none' if not bytecode else str(len(bytecode)) + ' FOUND'}")
-    ok = not missed and not leaked and not contract and not wiring and not bytecode
+    print(f"overlay vs page CSP: {'all ok' if not overlay else str(len(overlay)) + ' FAILING'}")
+    ok = (not missed and not leaked and not contract and not wiring and not bytecode
+          and not overlay)
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
