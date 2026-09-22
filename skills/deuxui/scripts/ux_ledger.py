@@ -498,7 +498,7 @@ def state() -> dict:
         gaps.insert(0, f"this project's records are in {legacy.name}/, the pre-rename "
                        f"directory name, and everything here reads {ROOT}/ -- so every "
                        f"contract version, decision and note it holds is being reported "
-                       f"as absent. Rename it: mv {legacy.name} {ROOT}")
+                       f"as absent. Move it: `ux_ledger.py migrate --apply`")
     br = briefs()
     for b in br:
         if not b["exists"]:
@@ -825,6 +825,64 @@ def cmd_check(a) -> int:
     return 0
 
 
+def cmd_migrate(a) -> int:
+    """Rename the pre-rename state directory, or say why there is nothing to do.
+
+    The detector in `uxconfig.legacy_state` and the row in `doctor.py` both end at
+    "rename it", which leaves the one mechanical step of the rename to a human who
+    has to get the two directory names right. This performs it, and it refuses in
+    the one case where a wrong answer would destroy a record: both directories
+    present. Then which one is live is a question only the project can answer, and
+    a tool that guesses silently merges two histories into one that never happened.
+    """
+    w = sys.stdout.write
+    old, new = Path(uxconfig.LEGACY_STATE), ROOT
+    res = {"legacy": str(old), "current": str(new),
+           "legacy_present": old.is_dir(), "current_present": new.is_dir(),
+           "applied": False, "moved": None, "status": None, "note": None}
+
+    if not old.is_dir():
+        res["status"] = "NOT_APPLICABLE"
+        res["note"] = (f"no {old}/ here, so nothing was renamed. "
+                       + (f"{new}/ holds this project's records."
+                          if new.is_dir() else
+                          f"{new}/ does not exist either -- run "
+                          f"`ux_phase.py init` to start a record."))
+    elif new.is_dir():
+        res["status"] = "REFUSED"
+        res["note"] = (f"both {old}/ and {new}/ exist. Which one is the live record "
+                       f"is a question this tool cannot answer, and merging them "
+                       f"would produce a history that never happened. Compare them "
+                       f"and remove or archive the one you are not keeping.")
+    else:
+        files = sorted(q for q in old.rglob("*") if q.is_file())
+        res["moved"] = [str(q.relative_to(old)) for q in files]
+        if not a.apply:
+            res["status"] = "PLANNED"
+            res["note"] = (f"would move {len(files)} file(s) from {old}/ to {new}/. "
+                           f"Re-run with --apply.")
+        else:
+            old.rename(new)
+            res["applied"] = True
+            res["status"] = "MOVED"
+            res["note"] = (f"moved {len(files)} file(s) from {old}/ to {new}/. "
+                           f"Nothing inside was rewritten -- every contract version, "
+                           f"decision and note keeps its bytes, so every "
+                           f"`contract_sha` still resolves.")
+
+    if a.json:
+        w(json.dumps(res, indent=1) + "\n")
+        return 0
+    w(f"\n{res['status']}: {res['note']}\n")
+    if res["moved"] and not res["applied"]:
+        for f in res["moved"][:20]:
+            w(f"  {f}\n")
+        if len(res["moved"]) > 20:
+            w(f"  ... and {len(res['moved']) - 20} more\n")
+    w("\n")
+    return 0 if res["status"] in ("MOVED", "NOT_APPLICABLE", "PLANNED") else 2
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -862,6 +920,14 @@ def main() -> int:
     s = sub.add_parser("check", help="the ledger's own process detector, for ux_report")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_check)
+
+    s = sub.add_parser("migrate", help="move a pre-rename state directory onto this "
+                                      "version's name")
+    s.add_argument("--apply", action="store_true",
+                   help="perform the move; without it the plan is printed and "
+                        "nothing on disk changes")
+    s.add_argument("--json", action="store_true")
+    s.set_defaults(fn=cmd_migrate)
 
     a = ap.parse_args()
     return a.fn(a)

@@ -206,21 +206,26 @@ def contract(start: Path | None = None, explicit: str | None = None) -> dict:
     return out
 
 
-LEGACY_STATE = ".deluxui"
 STATE = ".deuxui"
+
+# The one place this codebase still spells the pre-rename name. It is a probe, not a
+# path anybody writes to: `legacy_state` looks for it so that a project carrying an
+# older record is told where its history went, instead of reading as a project that
+# never declared anything. Removing this line would not remove those directories from
+# anyone's disk -- it would only stop us finding them.
+LEGACY_STATE = ".deluxui"
 
 
 def legacy_state(root: Path | None = None) -> Path | None:
     """The pre-rename state directory, when it is the only one present.
 
-    The skill was renamed from `deluxui` to `deuxui`, and its project directory with
-    it. A project that still has `.deluxui/` holds every contract version, decision
-    and note it ever recorded -- and every path in this tool now points at `.deuxui/`,
-    so that project reads as though nothing had ever been declared or approved.
+    A project holding one has every contract version, decision and note it ever
+    recorded in there, while every path in this version points at STATE -- so it
+    reads as though nothing had ever been declared or approved.
 
-    Returned rather than silently followed. A tool that reads both directories would
-    make "which one is live" unanswerable the first time somebody has both, and the
-    fix here is one `mv` that the reader should perform knowingly."""
+    Returned rather than silently followed. A tool that read both directories would
+    make "which one is live" unanswerable the first time somebody had both.
+    `ux_ledger.py migrate --apply` performs the move and refuses that case."""
     root = root or Path.cwd()
     old, new = root / LEGACY_STATE, root / STATE
     return old if old.is_dir() and not new.is_dir() else None

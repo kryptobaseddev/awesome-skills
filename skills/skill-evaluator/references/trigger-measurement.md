@@ -26,8 +26,8 @@ what they are dealing with — and invoke the skill several calls later. Skills
 whose own instructions begin "first, inspect the project" are penalised hardest,
 which is exactly backwards.
 
-Measured on `deluxui`: **0/11 positives** by this method. Direct observation of
-the same queries showed `Skill(deluxui)` firing at call 9 and the workflow
+Measured on `deuxui`: **0/11 positives** by this method. Direct observation of
+the same queries showed `Skill(deuxui)` firing at call 9 and the workflow
 proceeding correctly. `trigger_behavior_eval.py` reports the median call depth
 for this reason — if it is above 1, a first-call detector is lying to you.
 
@@ -50,7 +50,7 @@ A good trigger query names files, routes, a stack, a dev server — that is what
 makes it realistic. Run it in an empty directory and the agent correctly answers
 *"there's nothing here to look at"* and triggers nothing at all.
 
-Observed directly: three `deluxui` queries scored 0/3 in a fixture missing the
+Observed directly: three `deuxui` queries scored 0/3 in a fixture missing the
 files they named. After adding a `DataTable.tsx` and a Three.js component to the
 fixture, the same three queries scored 2/3, 2/3 and 3/3 with no change to the
 skill. **Every one of those "misses" was a property of the fixture.**

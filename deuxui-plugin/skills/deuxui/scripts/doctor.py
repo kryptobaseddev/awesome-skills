@@ -210,7 +210,8 @@ def diagnose(root: Path) -> list[dict]:
             row("project state", GONE, f"{legacy.name}/ (pre-rename name)",
                 f"This project's records are in {legacy.name}/ and every path in this "
                 f"version points at {_uc.STATE}/, so the contract, decisions and notes "
-                f"all read as absent. Rename it: mv {legacy.name} {_uc.STATE}")
+                f"all read as absent. Move it: "
+                f"scripts/ux_ledger.py migrate --apply")
     except Exception:
         pass
 
