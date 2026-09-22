@@ -525,6 +525,64 @@ def contract_checks():
             fails.append(f"{where} does not say {want!r}"
                          + (f" -- it says {m.group(0)!r}" if m else " at all"))
 
+    # A record of ours under a name this version does not use has to be FOUND, and
+    # found by its contents. The first version of this check hardcoded the one name the
+    # skill used before it was renamed, which identified a record by the least reliable
+    # thing about it: it saw exactly one spelling, missed a directory somebody had
+    # copied or renamed by hand, and left a dead string in the source describing a
+    # decision nobody could act on. These cases pin the behaviour that replaced it --
+    # including the two refusals, because a migration that guesses which of two
+    # histories is real destroys one of them.
+    import uxconfig as _uc2                                          # noqa: E402
+    with tempfile.TemporaryDirectory() as _d:
+        _r = Path(_d)
+        # THE ONLY PLACE the pre-rename name appears anywhere in this skill, and it is
+        # test DATA, not a code path: no script, reference, template or config spells it
+        # any more. It is here because that name is on real disks -- a project set up
+        # before the rename has a directory called this -- and the one way to prove the
+        # detector still finds it is to create one and look. Deleting this line would
+        # not make those directories go away; it would only delete the proof that they
+        # are still handled.
+        _PRE_RENAME = ".deluxui"
+        (_r / _PRE_RENAME).mkdir()
+        (_r / _PRE_RENAME / "ux.config.yaml").write_text("x: 1\n")
+        if _uc2.legacy_state(_r) is None:
+            fails.append(f"legacy_state missed a state directory called "
+                         f"{_PRE_RENAME}/, which is the name on every project set up "
+                         f"before the rename")
+        # A name nothing could have hardcoded. Asserted against `legacy_state`, not
+        # only `state_candidates`: the first version of this case checked the candidate
+        # LIST, which still reads contents, so it passed with `legacy_state` reverted to
+        # a hardcoded name -- the exact design it is here to rule out.
+        with tempfile.TemporaryDirectory() as _d2:
+            _r2 = Path(_d2)
+            (_r2 / ".hand-copied-ux").mkdir()
+            (_r2 / ".hand-copied-ux" / "phase.yaml").write_text("phase: build\n")
+            _got = _uc2.legacy_state(_r2)
+            if _got is None or _got.name != ".hand-copied-ux":
+                fails.append("legacy_state did not find a record under an arbitrary "
+                             "directory name, which is the whole reason it reads "
+                             "contents instead of a remembered name")
+        (_r / ".hand-copied-ux").mkdir()
+        (_r / ".hand-copied-ux" / "phase.yaml").write_text("phase: build\n")
+        if len(_uc2.state_candidates(_r)) != 2:
+            fails.append("state_candidates did not list both records")
+        # A hidden directory that is NOT ours must never be a candidate.
+        (_r / ".github").mkdir()
+        (_r / ".github" / "workflows.yml").write_text("name: ci\n")
+        if any(q.name == ".github" for q in _uc2.state_candidates(_r)):
+            fails.append("state_candidates claimed .github/ as a record of ours")
+        # Once STATE exists, nothing is invisible, so legacy_state must stay quiet --
+        # the conflict is doctor's row, not a missing history.
+        (_r / _uc2.STATE).mkdir()
+        (_r / _uc2.STATE / "ux.config.yaml").write_text("x: 1\n")
+        if _uc2.legacy_state(_r) is not None:
+            fails.append("legacy_state reports a missing history while STATE is live, "
+                         "which would send a migration at a directory already in use")
+        if len(_uc2.state_candidates(_r)) != 2:
+            fails.append("state_candidates stopped listing rivals once STATE existed, "
+                         "so a second record beside the live one goes unreported")
+
     # `ux_live.py text` rewrites visible copy in the source. Its whole value is in
     # what it REFUSES, and one of its two safety features was very nearly dead code:
     # `coupled()` searched the same file set as `locate()`, which had already proved

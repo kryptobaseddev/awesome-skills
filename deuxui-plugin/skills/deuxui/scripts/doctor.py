@@ -207,11 +207,26 @@ def diagnose(root: Path) -> list[dict]:
         import uxconfig as _uc
         legacy = _uc.legacy_state(root)
         if legacy:
-            row("project state", GONE, f"{legacy.name}/ (pre-rename name)",
+            row("project state", GONE, f"{legacy.name}/ (not this version's name)",
                 f"This project's records are in {legacy.name}/ and every path in this "
                 f"version points at {_uc.STATE}/, so the contract, decisions and notes "
                 f"all read as absent. Move it: "
                 f"scripts/ux_ledger.py migrate --apply")
+        else:
+            # The other half, which this row used to miss: a live state directory with
+            # a SECOND one beside it. `legacy_state` returns None here by design -- the
+            # tool can see its own records, so nothing is invisible -- but two records
+            # in one project means at least one of them is being ignored silently, and
+            # "what can run here" is exactly the place to say so.
+            rival = [q.name for q in _uc.state_candidates(root)]
+            if rival and (root / _uc.STATE).is_dir():
+                row("project state", WARN,
+                    f"{_uc.STATE}/ is live, and so is {', '.join(r + '/' for r in rival)}",
+                    f"Two directories here hold records of this tool. Only "
+                    f"{_uc.STATE}/ is read, so everything in the other is being "
+                    f"ignored -- including any approval a decision points at. Compare "
+                    f"them and archive the one you are not keeping; "
+                    f"`ux_ledger.py migrate` refuses to choose for you.")
     except Exception:
         pass
 

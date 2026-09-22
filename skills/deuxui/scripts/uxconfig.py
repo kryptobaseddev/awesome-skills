@@ -208,27 +208,53 @@ def contract(start: Path | None = None, explicit: str | None = None) -> dict:
 
 STATE = ".deuxui"
 
-# The one place this codebase still spells the pre-rename name. It is a probe, not a
-# path anybody writes to: `legacy_state` looks for it so that a project carrying an
-# older record is told where its history went, instead of reading as a project that
-# never declared anything. Removing this line would not remove those directories from
-# anyone's disk -- it would only stop us finding them.
-LEGACY_STATE = ".deluxui"
+# Files only this tool writes, and only into its own state directory. A directory
+# holding one of these IS a record of ours whatever it happens to be called.
+STATE_MARKERS = ("design.contract.yaml", "ux.config.yaml", "phase.yaml")
+
+
+def state_candidates(root: Path | None = None) -> list:
+    """Every hidden directory that holds a record of ours, whatever it is called.
+
+    Separate from `legacy_state` because the two questions are different.
+    `legacy_state` asks "is there a record here that this version cannot see", which
+    is only interesting when STATE is absent. Migration also has to answer "is there
+    more than one", and "does one exist alongside STATE" -- both of which are refusals,
+    and neither of which a None-or-path return can express."""
+    root = root or Path.cwd()
+    return [q for q in sorted(root.glob(".*"))
+            if q.is_dir() and q.name != STATE
+            and any((q / m).exists() for m in STATE_MARKERS)]
 
 
 def legacy_state(root: Path | None = None) -> Path | None:
-    """The pre-rename state directory, when it is the only one present.
+    """A state directory of ours under a name this version does not use.
 
-    A project holding one has every contract version, decision and note it ever
-    recorded in there, while every path in this version points at STATE -- so it
-    reads as though nothing had ever been declared or approved.
+    This was a hardcoded check for the one name the skill used before it was renamed.
+    Identifying a record by its FILENAME was the weaker half of the idea, for the same
+    reason a contract is identified by its content everywhere else in this tool: the
+    name is the least reliable thing about it. A hardcoded name finds exactly one
+    spelling, misses a directory somebody copied or renamed by hand, and leaves a dead
+    string in the source forever describing a decision nobody can act on any more.
 
-    Returned rather than silently followed. A tool that read both directories would
-    make "which one is live" unanswerable the first time somebody had both.
-    `ux_ledger.py migrate --apply` performs the move and refuses that case."""
+    So it asks what is inside instead. Any hidden directory holding a file only this
+    tool writes is a record of ours, and a project holding one has every contract
+    version, decision and note it ever made in there while every path in this version
+    points at STATE -- so it reads as though nothing had ever been declared.
+
+    Returned rather than silently followed, and only when STATE is absent. A tool that
+    read two of these would make "which one is live" unanswerable the first time
+    somebody had both. `ux_ledger.py migrate --apply` performs the move and refuses
+    that case explicitly."""
     root = root or Path.cwd()
-    old, new = root / LEGACY_STATE, root / STATE
-    return old if old.is_dir() and not new.is_dir() else None
+    if (root / STATE).is_dir():
+        return None
+    for q in sorted(root.glob(".*")):
+        if not q.is_dir() or q.name == STATE:
+            continue
+        if any((q / m).exists() for m in STATE_MARKERS):
+            return q
+    return None
 
 
 BRAND = Path(__file__).resolve().parent.parent / "assets" / "brand" / "brand.contract.yaml"

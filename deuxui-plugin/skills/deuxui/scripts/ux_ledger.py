@@ -826,53 +826,68 @@ def cmd_check(a) -> int:
 
 
 def cmd_migrate(a) -> int:
-    """Rename the pre-rename state directory, or say why there is nothing to do.
+    """Move a record of ours onto this version's directory name, or say why not.
 
-    The detector in `uxconfig.legacy_state` and the row in `doctor.py` both end at
-    "rename it", which leaves the one mechanical step of the rename to a human who
-    has to get the two directory names right. This performs it, and it refuses in
-    the one case where a wrong answer would destroy a record: both directories
-    present. Then which one is live is a question only the project can answer, and
-    a tool that guesses silently merges two histories into one that never happened.
+    `uxconfig.legacy_state` and the row in `doctor.py` both used to end at "rename
+    it", leaving the one mechanical step to a person who has to get two directory
+    names right. This performs it.
+
+    It identifies the directory by its CONTENTS rather than by a remembered name --
+    see `uxconfig.legacy_state` -- and it refuses in the two cases where a wrong
+    answer destroys a record: more than one candidate, and a candidate sitting beside
+    a live `.deuxui/`. In both, which one is the real history is a question only the
+    project can answer, and a tool that guesses merges two histories into one that
+    never happened.
     """
     w = sys.stdout.write
-    old, new = Path(uxconfig.LEGACY_STATE), ROOT
-    res = {"legacy": str(old), "current": str(new),
-           "legacy_present": old.is_dir(), "current_present": new.is_dir(),
+    root, new = Path.cwd(), ROOT
+    found = uxconfig.state_candidates(root)
+    res = {"current": str(new), "current_present": new.is_dir(),
+           "candidates": [q.name for q in found], "markers": list(uxconfig.STATE_MARKERS),
            "applied": False, "moved": None, "status": None, "note": None}
 
-    if not old.is_dir():
-        res["status"] = "NOT_APPLICABLE"
-        res["note"] = (f"no {old}/ here, so nothing was renamed. "
-                       + (f"{new}/ holds this project's records."
-                          if new.is_dir() else
-                          f"{new}/ does not exist either -- run "
-                          f"`ux_phase.py init` to start a record."))
-    elif new.is_dir():
+    if new.is_dir() and found:
         res["status"] = "REFUSED"
-        res["note"] = (f"both {old}/ and {new}/ exist. Which one is the live record "
-                       f"is a question this tool cannot answer, and merging them "
-                       f"would produce a history that never happened. Compare them "
-                       f"and remove or archive the one you are not keeping.")
+        res["note"] = (f"{new}/ is live, and {', '.join(q.name + '/' for q in found)} "
+                       f"also holds a record of ours. Which one is the history is a "
+                       f"question this tool cannot answer, and merging them would "
+                       f"produce a history that never happened. Compare them and "
+                       f"remove or archive the one you are not keeping.")
+    elif not found:
+        res["status"] = "NOT_APPLICABLE"
+        res["note"] = ((f"nothing to move: {new}/ already holds this project's records."
+                        if new.is_dir() else
+                        f"no record of ours anywhere here, under any name, and no "
+                        f"{new}/ -- run `ux_phase.py init` to start one.")
+                       + f" (Looked for a hidden directory containing any of: "
+                         f"{', '.join(uxconfig.STATE_MARKERS)}.)")
+    elif len(found) > 1:
+        res["status"] = "REFUSED"
+        res["note"] = (f"{len(found)} directories here hold a record of ours "
+                       f"({', '.join(q.name + '/' for q in found)}) and none of them "
+                       f"is {new}/. Only one can be the history. Remove or archive the "
+                       f"others, then re-run.")
     else:
+        old = found[0]
         files = sorted(q for q in old.rglob("*") if q.is_file())
+        res["from"] = old.name
         res["moved"] = [str(q.relative_to(old)) for q in files]
         if not a.apply:
             res["status"] = "PLANNED"
-            res["note"] = (f"would move {len(files)} file(s) from {old}/ to {new}/. "
-                           f"Re-run with --apply.")
+            res["note"] = (f"would move {len(files)} file(s) from {old.name}/ to "
+                           f"{new}/. Re-run with --apply.")
         else:
             old.rename(new)
             res["applied"] = True
             res["status"] = "MOVED"
-            res["note"] = (f"moved {len(files)} file(s) from {old}/ to {new}/. "
+            res["note"] = (f"moved {len(files)} file(s) from {old.name}/ to {new}/. "
                            f"Nothing inside was rewritten -- every contract version, "
                            f"decision and note keeps its bytes, so every "
                            f"`contract_sha` still resolves.")
 
     if a.json:
         w(json.dumps(res, indent=1) + "\n")
-        return 0
+        return 0 if res["status"] != "REFUSED" else 2
     w(f"\n{res['status']}: {res['note']}\n")
     if res["moved"] and not res["applied"]:
         for f in res["moved"][:20]:
