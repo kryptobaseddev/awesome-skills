@@ -67,7 +67,7 @@ holding the file, which is the only moment the fix is cheap.
 ## 6. Baseline, then start
 
 ```bash
-bash scripts/ux_live.sh http://localhost:5173      # records the baseline
+bash scripts/ux_delta.sh http://localhost:5173      # records the baseline
 ```
 
 Every run after this one shows what moved. Work down a family at a time.

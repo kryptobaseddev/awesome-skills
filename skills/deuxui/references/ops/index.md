@@ -63,7 +63,8 @@ what was taken and what was changed.
 | [onboard](onboard.md) | The first five minutes in a new project. |
 | [document](document.md) | Derive the contract the code already implies. |
 | [generate](generate.md) | Scaffold from the contract, with every state. |
-| [live](live.md) | Change something, see what moved. |
+| [live](live.md) | Pick it on the screen, compare variants in place, accept one into the source. |
+| [delta](delta.md) | Change something, see what moved. |
 | [live-setup](live-setup.md) | Wire the loop once so it runs without flags. |
 | [hooks](hooks.md) | Surface the defect while the file is still open. |
 | [ledger](ledger.md) | The system of record: what the design is, and how it got that way. |

@@ -20,7 +20,7 @@ Protocol — the same channel `ux_forcedcolors.py` and `ux_slow.py` use, because
 
 What it deliberately does not do: patch the DOM with a generated variant. The
 change belongs in the source, where the dev server's own hot reload will show it
-and `ux_live.sh` will measure the delta. A variant that exists only in the page
+and `ux_delta.sh` will measure the delta. A variant that exists only in the page
 has to be committed back later, and that round trip is where an edit gets lost.
 
     ux_select.py watch [--timeout 1800] [--out .deuxui/requests]
@@ -324,7 +324,7 @@ def cmd_watch(a) -> int:
                      "the element in the source (the selector and the text are both "
                      "there), make the change, and let the dev server reload it. Then "
                      "measure what moved:\n"
-                     "  bash scripts/ux_live.sh <url>\n")
+                     "  bash scripts/ux_delta.sh <url>\n")
     for p, rec in made:
         sys.stderr.write(f"  {p.stem}: references/ops/{_op_file(rec['action'])}\n")
     return 0

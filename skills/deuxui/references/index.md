@@ -24,14 +24,14 @@ something specific.
 | `workflows/responsive.md` | Layout, reflow, phone ergonomics |
 | `workflows/optimize.md` | Perceived and measured performance |
 
-## Operations — the thirty-four named moves
+## Operations — the thirty-five named moves
 
 A workflow is the shape of a job; an operation is one move inside it. Each one
 names the detectors that judge its output.
 
 | File | What it is |
 |---|---|
-| `ops/index.md` | All thirty-four, grouped by what they are for |
+| `ops/index.md` | All thirty-five, grouped by what they are for |
 | `ops/routing.md` | **Read this when the request does not name an operation.** Maps what people actually say onto a move, from measured signals |
 | `ops/colorize.md`, `ops/typeset.md`, `ops/layout.md`, `ops/animate.md`, `ops/craft.md` | Making the system. The first two have generators behind them |
 | `ops/bolder.md`, `ops/quieter.md`, `ops/distill.md`, `ops/clarify.md`, `ops/delight.md`, `ops/overdrive.md`, `ops/extract.md`, `ops/adapt.md`, `ops/polish.md` | Changing what exists. `polish` is where every other one hands off |

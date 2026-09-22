@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.0.0"
-  last_updated: "2026-09-22 02:30:00"
+  version: "5.1.0"
+  last_updated: "2026-09-22 03:15:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -50,6 +50,27 @@ The loop is not ceremony. Each step exists because skipping it is how a specific
 class of defect ships. If you are making a one-line copy change, run the static
 tier and say so. If you are touching a flow that takes someone's money, run all
 three tiers and mean it.
+
+## Four stages, and the gate between them
+
+| Stage | The question | Moves | Gate out of it |
+|---|---|---|---|
+| **Start** | What is this for, and what world does it live in? | `init` · `shape` · `design` (greenfield) · `uplift` (brownfield) · `comp` · `decide` | A **declared contract**, and a named person who chose a structure |
+| **Improve** | Is this the right thing, and does it read? | `live` · `prototype` · `colorize` · `typeset` · `layout` · `animate` · `bolder` · `quieter` · `distill` · `clarify` · `delight` · `polish` | A named person **used a working prototype** and accepted it |
+| **Check** | Does it hold up where nobody looks? | `audit` · `harden` · `responsive` · `optimize` · `critique` · `ios` · `android` · `delta` | The rule matrix, with **no unchecked P0** |
+| **Maintain** | Is it still the same system six months on? | `document` · `extract` · `ledger` · `doctor` · `hooks` · `operate` | The ledger resolves: every approval names the declaration it was made against |
+
+The stages are the shape of the work; `ux_phase.py` is the part that enforces the
+order, and it refuses production UI edits before somebody has accepted a prototype.
+Read [`references/ops/phase.md`](references/ops/phase.md) for why that gate exists
+and [`references/ops/ledger.md`](references/ops/ledger.md) for what it leaves behind.
+
+**`live` is the one that edits while somebody is looking.** Pick an element in the
+running app, see two or three variants **in its own position**, accept one into the
+source. Every variant is built from declared values only, one axis at a time, and
+accept refuses a variant that introduces a P0 or P1 finding — taste chooses between
+admissible options, it does not make an inadmissible one admissible. See
+[`references/ops/live.md`](references/ops/live.md).
 
 ## Facts that prevent broken work
 
@@ -131,7 +152,7 @@ reports without touching anything. When it does not name a mode at all, read
 decides from measured signals rather than from the wording.
 
 A mode is the shape of the whole job. An **operation** is one move inside it —
-`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-four
+`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-five
 are indexed in `references/ops/index.md`, and each one ends by naming the
 detectors that judge its output, so it finishes in a status rather than an
 impression.
@@ -258,6 +279,7 @@ Each reference is self-contained. Read the one you need.
 | Task | Reference |
 |---|---|
 | The full execution loop, step by step | `references/loop.md` |
+| Pick it on screen, compare in place, accept it into the source | `references/ops/live.md` |
 | The record: what the design is, and how it got that way | `references/ops/ledger.md` |
 | What the visitor came to do, and what it changes | `references/design/visitor-modes.md` |
 | The craft floor: every number, and which detector decides it | `references/design/craft-floor.md` |
@@ -289,7 +311,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_report.py` | **The verdict.** `--collect` interprets raw probes; `--merge` combines all tiers into the rule matrix and gate decision. |
 | `scripts/derive_contract.py` | **Brownfield's first move.** Reads the real type steps, families, radii, shadows, durations and colour roles out of an existing codebase and writes the visual contract, with the spread beside each dominant value so you can tell the scale from the drift. `--write`, `--json`. |
 | `scripts/ux_native.sh` | **Native tier.** Drives `xcrun simctl` or `adb` for light, dark and enlarged-text captures, naming the device. Where the tooling is absent it records that and the evidence rules report NOT_RUN. |
-| `scripts/ux_live.sh` | **The iteration loop.** Runs the tiers and prints the delta against the last run: regressed, stopped, fixed, still failing. A check that stopped running is never counted as a fix. |
+| `scripts/ux_delta.sh` | **The iteration loop.** Runs the tiers and prints the delta against the last run: regressed, stopped, fixed, still failing. A check that stopped running is never counted as a fix. |
 | `scripts/palette.py` | **Colour, generated and measured.** OKLCH roles placed against the contrast each owes, chroma tapered at the extremes. `--contract`, `--css`, `--dark`, `--check`. |
 | `scripts/typescale.py` | **Type, generated and measured.** A role ladder whose steps clear 1.25x by construction, leading tuned to the measure, tracking tuned to the size. `--contract`, `--css`, `--check`. |
 | `scripts/doctor.py` | **What can run here.** Names every tier that cannot, what it costs in rules, and how to fix it. Exit 2 when something is unavailable, so CI cannot go green on a fraction of the rules. |
@@ -304,6 +326,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |
 | `scripts/ux_question.py` | **The decision, served.** A page on localhost showing the comps and the structural claim each one makes. Refuses an answer with no author, an agent as the author, a reason too thin to weigh, and a timeout. Writes `.deuxui/decisions/DEC-NNN.yaml` hashed against exactly what was shown. |
 | `scripts/ux_phase.py` | **The gate.** discover → declare → comp → approve → build → verify → release, each transition's requirements machine-checked. `gate write` refuses UI edits before a direction is approved, wired to PreToolUse so the refusal lands while the file is open. The override is audited, because a gate with no way past it gets bypassed by deleting the file. |
+| `scripts/ux_live.py` | **Pick, compare in place, accept into the source.** `pick` points at an element in the running app and resolves it to exactly one place in the source or refuses; `vary` builds variants from declared values only, one axis at a time, emitting `var(--token)` where the project has one; `show` puts them all in the element's own position with a switcher; `accept` runs the static tier against the edit first and refuses a variant that introduces a P0 or P1, then writes one commented rule into the stylesheet that already holds the tokens and records a decision carrying the contract hash. |
 | `scripts/ux_ledger.py` | **The system of record.** `state` says what the design is right now — the declaration field by field with blanks shown as blanks, what PRODUCT.md and DESIGN.md actually say, what the project is measurably built with, the live approval per stage, and what is still open. `log` says how it got there. `snapshot` archives the contract under its own hash, so a decision's `contract_sha` resolves to bytes and `show DEC-003` can print what was declared **at the time**. An unresolvable reference is reported as a gap, never filled in from the present. |
 | `scripts/fontindex.py` | **Does the declared face exist here.** Finds every way a face legitimately arrives — `@font-face`, `@fontsource`, `next/font`, a file in the tree, a Google Fonts request — matches across spellings, and refuses to treat the build host's own fonts as evidence about a visitor. |
 | `scripts/comp_spec.py` | **Read a reference image.** Palette by coverage, canvas and ink with the measured ratio, region bands, and which are photographic rather than flat — the distinction that decides whether a region ships as a raster or as code. Also records an asset's provenance inside the PNG. |

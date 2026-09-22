@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_25 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-09-21 18:48:42._
+_24 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-09-21 19:03:48._
 
 ### 🧰 Skill Development
 
@@ -164,7 +164,6 @@ _25 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Las
 
 | Skill | Description |
 |---|---|
-| [`deluxui`](skills/deluxui/) | DEPRECATED POINTER — this skill was renamed to `deuxui` (DeuxUI). It exists only so existing installs receive the rename notice on their next update. Do not use it for real work: install and use th… |
 | [`deuxui`](skills/deuxui/) | Engineer and verify interfaces against a 235-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout -… |
 | [`svelte5-sveltekit`](skills/svelte5-sveltekit/) | Comprehensive guide for building modern web applications with Svelte 5 and SvelteKit. Use when creating Svelte components, implementing Svelte 5 runes ($state, $derived, $effect, $props), building … |
 

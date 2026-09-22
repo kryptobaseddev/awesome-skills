@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
-# deuxui live iteration -- change something, see what moved.
+# deuxui delta loop -- change something, see what moved.
 #
-#   ux_live.sh [base-url] [--routes /,/settings] [--reset] [--out DIR]
+# Named `delta` rather than `live`: `ux_live.py` is the live loop now (pick an
+# element in the running app, compare variants in place, accept one into the
+# source), and one name for two different jobs made both harder to find.
+#
+#   ux_delta.sh [base-url] [--routes /,/settings] [--reset] [--out DIR]
 #
 # Runs the static and runtime tiers, then prints the DELTA against the previous
 # run: which detectors were fixed, which regressed, and which are still failing.

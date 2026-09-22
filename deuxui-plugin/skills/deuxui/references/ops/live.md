@@ -1,92 +1,118 @@
-# live — change something, see what moved
+# live — pick it on the screen, compare in place, accept it into the source
 
-The iteration loop. Without a delta the loop is: edit, re-read a 228-row matrix,
-guess. `ux_live.sh` answers the only question that matters between edits.
-
-impeccable's `live` renders parameterised variants in a browser for a human to
-steer. deuxui's answers a different question with the same loop — not "which of
-these do you prefer" but "did that edit help" — because a preference needs a
-person and a delta does not. See NOTICE.md.
-
-## Run it
+The loop nothing else here closes. A person looks at the real running app, says
+*that bit*, sees two or three honest alternatives **in the element's own position**
+rather than in a mock, picks one, and the pick lands in the source.
 
 ```bash
-bash scripts/ux_live.sh http://localhost:5173 --routes /,/settings   # baseline
-# ... make one change ...
-bash scripts/ux_live.sh http://localhost:5173 --routes /,/settings   # the delta
+python3 scripts/ux_live.py pick                        # point at it
+python3 scripts/ux_live.py vary REQ-001 --count 3       # variants, from the contract
+python3 scripts/ux_live.py show REQ-001                 # all of them, in the page
+python3 scripts/ux_live.py accept REQ-001 --variant B --who "NAME"
 ```
 
-The first run records a snapshot and says so. Every run after it prints:
+Everything before this either measured a screen that already existed or generated a
+separate artefact to look at. This is the one that edits the thing while somebody is
+looking at it — which is also why it is the one that needs the most refusing.
 
-| Row | Meaning |
-|---|---|
-| `REGRESSED` | was PASS, now FAIL. Listed first, always. |
-| `STOPPED` | was PASS or FAIL, now NOT_RUN or NOT_APPLICABLE. The check examined nothing, so nothing was proved. |
-| `fixed` | was FAIL, now PASS. |
-| `still` | failing before and after. |
+## Four properties, and each one is a refusal
 
-`STOPPED` is the row that makes a green delta trustworthy. An earlier version of
-this script did not have it, and deleting the only Kotlin file in a project
-reported fifteen Android rules as fixed. Deleting the evidence is not a repair,
-and a delta that cannot tell the difference is worse than no delta.
+**A variant can only propose declared values.** Every size comes off the type
+ladder, every colour is a role, every gap is on the spacing scale, every raise uses
+the one declared depth metaphor. The variants are conformant by construction, so a
+person choosing between them cannot accidentally choose drift. A generator free to
+propose anything is the fastest route yet out of the system it is meant to hold —
+and `selftest.py` asserts every generated value is declared, because this file is
+the one place where the tool writes rather than reads.
 
-## One change at a time
+Where the project has a custom property for a declared value, the variant emits
+`var(--color-canvas)` rather than the literal. That distinction is not cosmetic: the
+check caught this generator writing raw hex, and a literal in a rule is a token that
+escaped — it will not follow the theme, it will not flip in dark mode, and nobody
+will find it again.
 
-The delta is only readable if the edit was. Two changes in one step produce a
-mixed result with nothing to attribute it to. This is slower to type and faster
-to finish.
+**One axis at a time.** Three variants that each move type, colour, spacing and
+depth together cannot tell you which change did the work, so "why did you pick B"
+becomes "it looked better" — which is not a decision anyone can build on. Each
+variant names the single axis it moves and what that axis decides.
 
-## What live iteration is for
+The axes are read off the contract: `type-up`, `type-down`, `space-loose`,
+`space-tight`, `surface`, `emphasis`, `depth`, `radius-card`, `radius-control`. A
+plain-language steer picks among them — `--direction "bolder"`, `quieter`,
+`tighter`, `roomier`, `lift`, `flatter`. A direction with no matching axis is
+**reported as unmatched** rather than approximated, because three variants labelled
+"brutalist" that are really three font sizes is how a person stops trusting labels.
 
-- Closing a specific list: take the FAIL rows from one detector family and work
-  down them, confirming each one moved.
-- Regression safety on a refactor: baseline, refactor, delta. Zero regressed is
-  the bar, and `STOPPED` rows count against it.
-- Threshold experiments: change `.deuxui/ux.config.yaml`, re-run, see which
-  rules moved. A STANDARD-class value will refuse to move, loudly — that refusal
-  is the point.
+**Ambiguous source refuses.** The element has to resolve to exactly one place by a
+distinctive anchor — its text first, since that is what the person was reading, then
+its classes. Zero matches or several, and it says which anchors it tried and how many
+each hit, and stops. Writing to the wrong line is worse than not writing, because the
+wrong line still looks like success: the edit is plausible, the page does not change,
+and the next twenty minutes go on wondering why.
 
-## What it is not for
+**Accept is measured, not merely chosen.** The edit is applied to a copy of the
+tree, the static tier runs against it, and a variant that introduces a **P0 or P1**
+finding is refused with the measurement quoted:
 
-It is not a verdict. `ux_live.sh` compares two runs; `ux_report.py --merge`
-produces the gate. A delta of "12 fixed, 0 regressed" on a project with 90
-NOT_RUN rules is progress inside an unverified product.
-
-Setup: [live-setup.md](live-setup.md). Verdict: [polish.md](polish.md).
-
-## Point at it, and have the pointing land as a record
-
-The most valuable input in this work is a person looking at the real thing and
-saying "that". It is also the input that evaporates fastest: it arrives as "the
-spacing on the card feels off", the agent guesses which card, and the correction
-is lost by the next message.
-
-```bash
-agent-browser open http://localhost:5173
-python3 scripts/ux_select.py watch
+```
+REFUSED. This variant introduces 2 P0/P1 finding(s):
+  P1  S-CONTRAST-PAIR  src/styles/tokens.css:7
+    #b8b8b8 on #ffffff
+    Contrast 1.98:1 is below the 4.5:1 floor for normal text (NUM-001).
 ```
 
-An overlay goes into the page the browser already has open — no server, no
-framework adapter, no build step. Hovering outlines an element; clicking captures
-it and asks what is wrong with it, in the vocabulary the operations already use:
-`bolder`, `quieter`, `distill`, `clarify`, `layout`, `space`, `colorize`,
-`typeset`, `polish`, or `broken` for a defect rather than a preference.
+Taste chooses between admissible options. It does not get to make an inadmissible
+one admissible. That gate had a real bug worth knowing about: it graded findings by
+reading a `severity` field, findings carry no severity — it is a property of the
+**rule**, in the registry — so nothing was ever graded blocking and the gate accepted
+grey on white at 1.98:1 while printing a tidy summary. `selftest.py` now asserts the
+grading is non-empty and that contrast grades P1, with a control proving the
+assertion fails when the grading goes inert.
 
-Each answer becomes `.deuxui/requests/REQ-NNN.yaml` carrying the selector, the
-element's text, its computed type, colour, spacing, radius and shadow, its box,
-and the viewport it was seen at. So the request names an operation and an element
-rather than a feeling, and the agent has enough to find it in the source without
-guessing.
+## Where the accepted change goes
 
-What this deliberately does **not** do is patch the DOM with a generated variant.
-The change belongs in the source, where the dev server's own hot reload shows it
-and the delta loop above measures it. A variant that exists only in the page has
-to be committed back afterwards, and that round trip is where an edit gets lost —
-which is also why nothing here needs a per-framework adapter.
+Into the stylesheet that already defines the project's tokens, as one commented rule
+scoped to a class the element already has.
 
-Nobody pointing at anything is NOT_RUN, not agreement: an unreviewed screen is not
-a reviewed one.
+Not a new file: a rule in a file nobody imports is a change that does not happen,
+and a tool that creates `deuxui-overrides.css` has moved the problem rather than
+solved it. Not a merge into an existing rule either — a merge silently changes
+whatever else used it. And never an invented class name, because then the change is
+half-applied: present in the stylesheet, absent on the screen.
+
+If the element has no class distinctive enough, it says so and stops. `--into PATH`
+and `--scope '.selector'` override both decisions when you know better.
+
+## It is still gated, and it is still recorded
+
+`accept` asks the phase gate before writing. Production UI edits wait until somebody
+has used a prototype and accepted it — see [phase.md](phase.md) — and `--force`
+writes anyway, on the record.
+
+Every accept writes a decision to `.deuxui/decisions/` carrying the axis, the
+declarations, the file and scope it was written to, the element's source location,
+the check delta, and the **hash of the contract it was decided against**. The
+contract's bytes are archived at the same moment, so `ux_ledger.py show DEC-003`
+can print what was declared when the change was accepted rather than what is
+declared now. See [ledger.md](ledger.md).
+
+An accept is not a build approval: `approves_a_build: false`. It changed one
+element's rule; it did not say the surface is ready.
+
+## What this is not
+
+It is not a visual editor, and it does not write JSX. It moves declared values on one
+element and records why. Restructuring a component is [shape](shape.md) or
+[prototype](prototype.md); changing the system itself is [colorize](colorize.md),
+[typeset](typeset.md) or [layout](layout.md).
+
+It also does not revert. `discard` forgets the session; the rule already written stays,
+and git is what takes it back out.
+
+## Verify
 
 ```bash
-python3 scripts/ux_select.py list
+python3 scripts/ux_live.py status            # what is open, what was accepted
+python3 scripts/ux_check.py .                # the rule is in the source now
+bash scripts/ux_delta.sh http://localhost:5173   # and did it help
 ```

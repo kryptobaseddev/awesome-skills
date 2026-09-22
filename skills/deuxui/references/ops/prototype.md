@@ -170,7 +170,7 @@ back afterwards, and that round trip is where an edit gets lost.
 ```bash
 python3 scripts/ux_review.py notes --source review   # the work list
 python3 scripts/ux_check.py .deuxui/proto           # did the fix conform
-bash scripts/ux_live.sh http://localhost:5173        # what moved, what regressed
+bash scripts/ux_delta.sh http://localhost:5173        # what moved, what regressed
 ```
 
 ## Verified by

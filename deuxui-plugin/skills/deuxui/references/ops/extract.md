@@ -50,9 +50,9 @@ the fix for them.
 ## Migrate, and prove nothing broke
 
 ```bash
-bash scripts/ux_live.sh http://localhost:5173     # before
+bash scripts/ux_delta.sh http://localhost:5173     # before
 # ... migrate call sites ...
-bash scripts/ux_live.sh http://localhost:5173     # after
+bash scripts/ux_delta.sh http://localhost:5173     # after
 ```
 
 Zero regressed is the bar, and a `STOPPED` row counts against it. Extraction

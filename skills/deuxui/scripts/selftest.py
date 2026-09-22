@@ -5,7 +5,7 @@ A check that cannot fail its own negative case is not a check, it is a comment.
 Run this before trusting any report.
 """
 from __future__ import annotations
-import shutil, subprocess, sys, tempfile, json
+import os, shutil, subprocess, sys, tempfile, json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -306,6 +306,83 @@ def contract_checks():
         if "on.css" in files:
             fails.append("S-CONTRACT-RAMP fired on a colour ON the declared ramp, so "
                          "it reports conformance as a violation")
+
+    # ux_live's accept gate. The bug this is here for: it graded blocking findings by
+    # reading `finding["severity"]`, and a finding has no severity -- severity is a
+    # property of the RULE, in the registry. So `blocking` was empty every time and the
+    # gate accepted a variant putting grey on white at 1.98:1. A check that cannot fail
+    # is not a check, which is this skill's own first sentence.
+    import ux_live
+    sev = ux_live.severity_of()
+    if not sev:
+        fails.append("ux_live.severity_of() is empty, so nothing can be graded "
+                     "blocking and every variant would be accepted")
+    for det, want in (("S-CONTRAST-PAIR", ("P0", "P1")), ("S-CONTRACT-COLOR", ("P0", "P1"))):
+        if sev.get(det) not in want:
+            fails.append(f"ux_live grades {det} as {sev.get(det)!r}, so a variant that "
+                         f"introduces it would not be refused")
+
+    # A variant may only propose declared values, and source must resolve to exactly
+    # one place or refuse. Both directions on each, in a project laid out like a real
+    # one -- an accept that writes to the wrong file still looks like success.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        (proj / ".deuxui").mkdir()
+        (proj / "src").mkdir()
+        (proj / ".deuxui" / "design.contract.yaml").write_text(
+            "visitor_mode: operate\nworld: Warm paper, one serif voice, ink text.\n"
+            "type: {families: {display: Inter, body: Inter, mono: null},"
+            " scale_px: [12, 14, 16, 20, 26]}\n"
+            "color: {roles: {canvas: '#fbf9f4', surface: '#ffffff', ink: '#16181d',"
+            " muted: '#6b7280', interactive: '#1b5fd9'}}\n"
+            "depth: {metaphor: border, elevations: ['1px solid #e7e2d8']}\n"
+            "spacing: {base_px: 4, scale: [4, 8, 12, 16, 24]}\n"
+            "radius: {control_px: 8, card_px: 20}\n")
+        (proj / "src" / "Card.tsx").write_text(
+            'export const Card = () => (\n  <article className="job-card">\n'
+            '    <h3>Boiler service at 14 Mill Lane</h3>\n  </article>\n);\n')
+        rec = {"selector": "article.job-card", "classes": "job-card",
+               "text": "Boiler service at 14 Mill Lane",
+               "computed": {"fontSize": "16px", "padding": "8px"}}
+        here = Path.cwd()
+        try:
+            os.chdir(proj)
+            import ux_image
+            import uxconfig as _cfg
+            loc = ux_live.locate(rec, proj)
+            if not loc.get("found"):
+                fails.append("ux_live.locate could not place an element that appears "
+                             "exactly once in the source")
+            shutil.copy(proj / "src" / "Card.tsx", proj / "src" / "Card2.tsx")
+            dup = ux_live.locate(rec, proj)
+            if dup.get("found"):
+                fails.append(f"ux_live.locate picked one of two identical matches "
+                             f"({dup.get('file')}) instead of refusing -- writing to "
+                             f"the wrong file still looks like success")
+            (proj / "src" / "Card2.tsx").unlink()
+
+            c = ux_image.Contract(_cfg.contract(proj))
+            variants = ux_live.build_variants(rec, c, 4, None)
+            if len(variants) < 3:
+                fails.append(f"ux_live generated {len(variants)} variants, expected 3+")
+            declared = {str(v) for v in (c.roles or {}).values()}
+            declared |= {f"{s:g}px" for s in c.scale}
+            declared |= {f"{c.r_card:g}px", f"{c.r_control:g}px"}
+            for s in (c.raw.get("spacing") or {}).get("scale") or []:
+                declared.add(f"{float(s):g}px")
+            for v in variants:
+                for prop, val in v["declarations"].items():
+                    val = str(val)
+                    if val.startswith("var(") or prop in ("line-height", "box-shadow",
+                                                          "border"):
+                        continue
+                    if val not in declared:
+                        fails.append(f"ux_live variant {v['id']} proposes "
+                                     f"{prop}: {val} which the contract does not "
+                                     f"declare -- the generator is a route out of the "
+                                     f"system it is supposed to hold")
+        finally:
+            os.chdir(here)
 
     # R-FOCUS-WALK's reading-order rule, in isolation. The probe runs in a browser,
     # so the corpus cannot reach it; the arithmetic is what was wrong. `top` alone
