@@ -1133,11 +1133,18 @@ def capabilities():
     #     keep it honest are exercised the same way parity's are: by handing the checker
     #     a file that breaks each one, and one that breaks none.
     import defects
-    _good = {"id": "DEF-01", "title": "t", "class": "wrong-result",
+    _good = {"id": "DEF-01", "title": "t", "class": "wrong-result", "kind": "product",
              "found_in": "5.0.0", "fixed_in": "5.0.0", "surface": "scripts/selftest.py",
              "symptom": "s", "consequence": "c", "fix": "f",
              "guard": [{"file": "scripts/selftest.py", "text": "def capabilities"}],
              "control": [{"file": "scripts/selftest.py", "text": "def capabilities"}]}
+    # A control defect's row IS a control, so it cites none of its own -- claiming
+    # otherwise is the circularity those rows record -- and its standing is the revert.
+    _ctl = {k: v for k, v in _good.items() if k != "control"}
+    _ctl.update(kind="control", verified_by_revert=True)
+    _ctl_cites = dict(_ctl, control=[{"file": "scripts/selftest.py",
+                                      "text": "def capabilities"}])
+    _ctl_unproven = {k: v for k, v in _ctl.items() if k != "verified_by_revert"}
     _bad_control = dict(_good, control=[{"file": "references/index.md", "text": "#"}])
     # Built by concatenation on purpose: written as one literal it would appear in THIS
     # file, which is the file the citation points at, and the case would pass while
@@ -1161,7 +1168,17 @@ def capabilities():
                  "a fix claimed in a release that does not exist was accepted"),
                 (_silent, False,
                  "a row with no control and no reason for having none was accepted, so "
-                 "an unguarded fix can hide inside the total")):
+                 "an unguarded fix can hide inside the total"),
+                (_ctl, True,
+                 "a well-formed control defect was refused, so the population this "
+                 "ledger exists to stop hiding cannot be recorded at all"),
+                (_ctl_cites, False,
+                 "a control defect citing a control of its own was accepted -- the row "
+                 "IS the control, and letting it guard itself is the circularity those "
+                 "rows record"),
+                (_ctl_unproven, False,
+                 "a control defect with no recorded revert was accepted, so a "
+                 "replacement case nobody proved can fail reads as a fix")):
             _p.write_text(yaml.safe_dump({"scope": "t", "defects": [_row]}))
             if defects.audit(_p)["ok"] is not _want:
                 fails.append(_why)

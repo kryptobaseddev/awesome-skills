@@ -163,7 +163,12 @@ def runs(script: str) -> tuple[bool, str]:
     invocation every script here supports, it touches no project files, and it forces
     the whole import graph -- which is where rot actually shows up. Exit status is
     read, and stderr is quoted when it fails, so the report says what broke rather
-    than that something did."""
+    than that something did.
+
+    Verifying THIS is easy to get wrong, and I did: a `raise` appended to the end of a
+    script sits after `sys.exit(main())`, where it never executes, so both the shallow
+    and the deep check pass and the conclusion is that `--deep` does not work. A break
+    has to go where rot actually lives -- at module scope, after the imports."""
     if script in _RUNS:
         return _RUNS[script]
     q = SKILL / "scripts" / script

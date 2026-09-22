@@ -52,7 +52,23 @@ CONTROLS = ("scripts/selftest.py", "scripts/browsertest.py", "scripts/lint_rules
             "scripts/native_conformance.py", "scripts/parity.py", "scripts/checks/")
 
 REQUIRED = ("id", "title", "surface", "symptom", "consequence", "fix",
-            "found_in", "fixed_in", "class")
+            "found_in", "fixed_in", "class", "kind")
+
+# Two populations, and they are not interchangeable.
+#
+#   product   the skill did something wrong to somebody's project.
+#   control   a CONTROL could not fail. The assertion existed, it named the right
+#             mechanism, and deleting that mechanism changed no outcome -- so it was
+#             evidence of nothing while reading as proof. This skill's first sentence
+#             is that a check which cannot fail its own negative case is a comment, so
+#             these are defects in exactly the same sense, and leaving them out of the
+#             ledger would be the cosmetic accounting the ledger exists to stop.
+#
+# A control row cites no `control` of its own: the row IS one. What stands behind it is
+# `verified_by_revert` -- the replacement case was proven to fail with the mechanism
+# removed. Claiming a control guards itself would be the circularity these rows are
+# about, so it is refused.
+KINDS = ("product", "control")
 
 # What kind of wrong it was. Not decoration: a wrong result and a check that could
 # not fail need different kinds of control, and counting them together hides which
@@ -153,13 +169,29 @@ def audit(ledger=None) -> dict:
             if not ok:
                 problems.append(f"{where}: guard {why}")
 
+        who = str(row.get("kind") or "")
+        if who and who not in KINDS:
+            problems.append(f"{where}: kind {who!r} is not one of {', '.join(KINDS)}")
+
         controls = row.get("control") or []
         excuse = str(row.get("no_control") or "").strip()
-        if controls and excuse:
-            problems.append(f"{where}: has a control AND an excuse for having none")
-        if not controls and not excuse:
-            problems.append(f"{where}: no `control` and no `no_control` saying why. An "
-                            f"unguarded fix has to be declared, not omitted")
+        if who == "control":
+            # The row is a control. It cannot also cite one -- that is the circularity
+            # these rows record. Its standing is the revert that was performed.
+            if controls:
+                problems.append(f"{where}: a control defect cites a `control` of its "
+                                f"own. The row IS the control; what stands behind it is "
+                                f"`verified_by_revert`")
+            if not row.get("verified_by_revert"):
+                problems.append(f"{where}: a control defect with no recorded revert. "
+                                f"The replacement case is unproven, which is the defect "
+                                f"it claims to have fixed")
+        else:
+            if controls and excuse:
+                problems.append(f"{where}: has a control AND an excuse for having none")
+            if not controls and not excuse:
+                problems.append(f"{where}: no `control` and no `no_control` saying why. "
+                                f"An unguarded fix has to be declared, not omitted")
         for c in controls:
             c = c if isinstance(c, dict) else {}
             cf = str(c.get("file") or "")
@@ -171,15 +203,19 @@ def audit(ledger=None) -> dict:
                 problems.append(f"{where}: control {why}")
 
         rows.append({"id": rid, "title": row.get("title"), "surface": surface,
-                     "class": kind, "found_in": row.get("found_in"), "fixed_in": fixed,
+                     "class": kind, "kind": who,
+                     "found_in": row.get("found_in"), "fixed_in": fixed,
                      "guards": len(guards), "controls": len(controls),
-                     "guarded": bool(controls),
+                     "guarded": bool(controls) or (who == "control"
+                                                   and bool(row.get("verified_by_revert"))),
                      "reverted": bool(row.get("verified_by_revert")),
                      "no_control": excuse or None})
 
     return {"ok": not problems, "rows": rows, "problems": problems,
             "scope": doc.get("scope"),
             "counts": {"defects": len(rows),
+                       "product": sum(1 for r in rows if r["kind"] == "product"),
+                       "control": sum(1 for r in rows if r["kind"] == "control"),
                        "guarded": sum(1 for r in rows if r["guarded"]),
                        "unguarded": sum(1 for r in rows if not r["guarded"]),
                        "revert_verified": sum(1 for r in rows if r["reverted"])},
@@ -223,8 +259,10 @@ def main(argv=None) -> int:
           f"{str(row['class']):<13} {str(row['title'])[:52]}\n")
         if not row["guarded"]:
             w(f"        UNGUARDED: {row['no_control']}\n")
-    w(f"\n  {c['defects']} defect(s): {c['guarded']} guarded by a control, "
-      f"{c['unguarded']} not.\n")
+    w(f"\n  {c['defects']} defect(s): {c['guarded']} guarded, {c['unguarded']} not.\n")
+    w(f"  {c['product']} did something wrong to a project; {c['control']} were a "
+      f"CONTROL that could not fail,\n  which is a defect in this skill's own terms and "
+      f"is counted as one.\n")
     w("  by kind:   " + " · ".join(f"{k} {n}" for k, n in r["by_class"].items()) + "\n")
     w(f"  {c['revert_verified']} of them had the control verified by deleting the "
       f"mechanism it guards.\n")

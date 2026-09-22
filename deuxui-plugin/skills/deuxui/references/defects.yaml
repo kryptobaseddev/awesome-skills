@@ -10,15 +10,29 @@
 # reverted -- and a row with no such assertion says UNGUARDED rather than blending
 # into a total.
 #
-# Writing this out found three things no release note had: two fixes whose control
-# did not exist (DEF-19, DEF-25), and one case where I was about to add a control
-# that was already there (DEF-15).
+# Writing this out found four things no release note had: two fixes whose control did
+# not exist (DEF-19, DEF-25), one case where I was about to add a control that was
+# already there (DEF-15), and a defect I created while doing it (DEF-33).
+#
+# On the number. Through the v5 release notes I carried a running count in prose, and
+# at v5.20.1 it read "sixteen defects". That figure was maintained by hand, it counted
+# some releases' clusters as one item and others individually, and it left out every
+# defect in a CONTROL. It cannot be reconciled row by row with anything, because it was
+# never derived from a list -- which is the whole argument for this file existing.
+#
+# What can be checked, and is: every defect any v5 release note describes has a row
+# here. The sixteen are a subset of the forty-nine; the other thirty-three are not new
+# problems, they are the ones the prose never counted.
 
 scope: >-
-  Every defect found in the v5 series, from the rename at 5.0.0 to now. Earlier
-  releases fixed defects too -- v4.5.0 alone carried six field-reported detector
-  defects -- and they are deliberately out of scope here rather than half-recorded:
-  this file only claims what it checks.
+  Every defect found in the v5 series, from the rename at 5.0.0 to now, in two
+  populations: those that did something wrong to somebody's project, and those where a
+  CONTROL could not fail. The second is a defect in this skill's own terms -- its first
+  sentence is that a check which cannot fail its own negative case is a comment -- and
+  leaving them out would be exactly the cosmetic accounting this file exists to stop.
+  Earlier releases fixed defects too (v4.5.0 alone carried six field-reported detector
+  defects) and they are deliberately out of scope rather than half-recorded: this file
+  only claims what it checks.
 
 # class: what kind of wrong it was. The distinction is not cosmetic -- a wrong
 # result and a check that cannot fail need different kinds of control.
@@ -34,6 +48,7 @@ defects:
   - id: DEF-01
     title: the accept gate graded findings by a key a finding does not have
     class: undetectable
+    kind: product
     found_in: "5.1.0"
     fixed_in: "5.1.0"
     surface: scripts/ux_live.py
@@ -59,6 +74,7 @@ defects:
   - id: DEF-02
     title: the review chrome was themed from hardcoded hex, in the tool that finds hex
     class: wrong-result
+    kind: product
     found_in: "5.2.0"
     fixed_in: "5.2.0"
     surface: scripts/ux_review.py
@@ -84,6 +100,7 @@ defects:
   - id: DEF-03
     title: S-CONTRACT-FONT-AVAIL read a declared stack as one opaque face name
     class: wrong-result
+    kind: product
     found_in: "5.2.0"
     fixed_in: "5.2.0"
     surface: scripts/fontindex.py
@@ -107,6 +124,7 @@ defects:
   - id: DEF-04
     title: the composed dark theme was mixed rather than stepped down the declared ramp
     class: wrong-result
+    kind: product
     found_in: "5.2.0"
     fixed_in: "5.2.0"
     surface: scripts/ux_question.py
@@ -129,6 +147,7 @@ defects:
   - id: DEF-05
     title: "`show` bound a (ws, reason) tuple to one name, so its guard never fired"
     class: never-worked
+    kind: product
     found_in: "5.4.0"
     fixed_in: "5.4.0"
     surface: scripts/ux_live.py
@@ -153,6 +172,7 @@ defects:
   - id: DEF-06
     title: the review proxy stripped CSP headers but not a meta policy
     class: never-worked
+    kind: product
     found_in: "5.4.0"
     fixed_in: "5.4.0"
     surface: scripts/ux_review.py
@@ -176,6 +196,7 @@ defects:
   - id: DEF-07
     title: an overlay's <style> is inline style whatever world created it
     class: never-worked
+    kind: product
     found_in: "5.4.0"
     fixed_in: "5.4.0"
     surface: scripts/cdp.py
@@ -200,6 +221,7 @@ defects:
   - id: DEF-08
     title: coupled() searched only the files locate() had already proved unique
     class: undetectable
+    kind: product
     found_in: "5.4.0"
     fixed_in: "5.4.0"
     surface: scripts/ux_live.py
@@ -223,6 +245,7 @@ defects:
   - id: DEF-09
     title: the skill's own counts disagreed with its own registry
     class: drift
+    kind: product
     found_in: "5.4.0"
     fixed_in: "5.4.0"
     surface: SKILL.md
@@ -249,6 +272,7 @@ defects:
   - id: DEF-10
     title: wrap moved the element's first child instead of the element
     class: wrong-result
+    kind: product
     found_in: "5.5.0"
     fixed_in: "5.5.0"
     surface: scripts/jsxspan.py
@@ -273,6 +297,7 @@ defects:
   - id: DEF-11
     title: a state directory was recognised by a remembered name, not by its contents
     class: wrong-result
+    kind: product
     found_in: "5.6.0"
     fixed_in: "5.6.0"
     surface: scripts/uxconfig.py
@@ -297,6 +322,7 @@ defects:
   - id: DEF-12
     title: doctor said nothing when a second record sat beside the live one
     class: undetectable
+    kind: product
     found_in: "5.6.0"
     fixed_in: "5.6.0"
     surface: scripts/doctor.py
@@ -320,6 +346,7 @@ defects:
   - id: DEF-13
     title: the archive --adopt created was detected as a new rival on the next run
     class: never-worked
+    kind: product
     found_in: "5.8.0"
     fixed_in: "5.8.0"
     surface: scripts/uxconfig.py
@@ -343,6 +370,7 @@ defects:
   - id: DEF-14
     title: contrast was read as a dict when comp_spec reports a bare float
     class: undetectable
+    kind: product
     found_in: "5.9.0"
     fixed_in: "5.9.0"
     surface: scripts/comp_diff.py
@@ -365,6 +393,7 @@ defects:
   - id: DEF-15
     title: a lost tonal step was printed as two rows with the same built percentage
     class: wrong-result
+    kind: product
     found_in: "5.9.0"
     fixed_in: "5.9.0"
     surface: scripts/comp_diff.py
@@ -389,6 +418,7 @@ defects:
   - id: DEF-16
     title: hue decided whether two greys matched
     class: wrong-result
+    kind: product
     found_in: "5.9.0"
     fixed_in: "5.9.0"
     surface: scripts/comp_diff.py
@@ -411,6 +441,7 @@ defects:
   - id: DEF-17
     title: a wireframe's placeholder band was measured as design intent
     class: wrong-result
+    kind: product
     found_in: "5.9.0"
     fixed_in: "5.9.0"
     surface: scripts/comp_diff.py
@@ -436,6 +467,7 @@ defects:
   - id: DEF-18
     title: a no-op slice made the prefix-anchor case look handled
     class: wrong-result
+    kind: product
     found_in: "5.10.0"
     fixed_in: "5.10.0"
     surface: scripts/ux_live.py
@@ -460,6 +492,7 @@ defects:
   - id: DEF-19
     title: a parity row was marked mapped while carrying a gap
     class: drift
+    kind: product
     found_in: "5.10.0"
     fixed_in: "5.10.0"
     surface: scripts/parity.py
@@ -487,6 +520,7 @@ defects:
   - id: DEF-20
     title: locate dead-ended on text that lives in data rather than markup
     class: dead-end
+    kind: product
     found_in: "5.11.0"
     fixed_in: "5.11.0"
     surface: scripts/ux_live.py
@@ -512,6 +546,7 @@ defects:
   - id: DEF-21
     title: a word boundary before *ngFor can never match
     class: never-worked
+    kind: product
     found_in: "5.12.0"
     fixed_in: "5.12.0"
     surface: scripts/jsxspan.py
@@ -535,6 +570,7 @@ defects:
   - id: DEF-22
     title: the repeat check required a strict ancestor, and v-for sits on the element
     class: never-worked
+    kind: product
     found_in: "5.12.0"
     fixed_in: "5.12.0"
     surface: scripts/jsxspan.py
@@ -557,6 +593,7 @@ defects:
   - id: DEF-23
     title: a .forEach() was reported as a .map()
     class: wrong-result
+    kind: product
     found_in: "5.12.0"
     fixed_in: "5.12.0"
     surface: scripts/jsxspan.py
@@ -578,6 +615,7 @@ defects:
   - id: DEF-24
     title: the parity checker proved evidence existed, not that it worked
     class: undetectable
+    kind: product
     found_in: "5.13.0"
     fixed_in: "5.13.0"
     surface: scripts/parity.py
@@ -602,6 +640,7 @@ defects:
   - id: DEF-25
     title: a shadowed variable made every row in the deep report nameless
     class: wrong-result
+    kind: product
     found_in: "5.13.0"
     fixed_in: "5.13.0"
     surface: scripts/parity.py
@@ -629,6 +668,7 @@ defects:
   - id: DEF-26
     title: the provenance control pointed at a PNG that does not exist
     class: undetectable
+    kind: control
     found_in: "5.14.0"
     fixed_in: "5.14.0"
     surface: scripts/checks/fixtures/provenance.png
@@ -644,7 +684,6 @@ defects:
     guard:
       - file: scripts/checks/fixtures/provenance.png
         text: PNG
-    control:
       - file: scripts/selftest.py
         text: so the provenance round-trip cannot be
     verified_by_revert: true
@@ -652,6 +691,7 @@ defects:
   - id: DEF-27
     title: classify called the commonest generic in CSS a serif
     class: wrong-result
+    kind: product
     found_in: "5.15.0"
     fixed_in: "5.15.0"
     surface: scripts/fontindex.py
@@ -675,6 +715,7 @@ defects:
   - id: DEF-28
     title: classify classified the whole stack rather than the face
     class: wrong-result
+    kind: product
     found_in: "5.15.0"
     fixed_in: "5.15.0"
     surface: scripts/fontindex.py
@@ -697,6 +738,7 @@ defects:
   - id: DEF-29
     title: two concurrent applies would each diff against a file the other had rewritten
     class: latent
+    kind: product
     found_in: "5.20.0"
     fixed_in: "5.20.0"
     surface: scripts/ux_live.py
@@ -721,6 +763,7 @@ defects:
   - id: DEF-30
     title: a stale anchor was explained as "reworded" in both of its two causes
     class: wrong-result
+    kind: product
     found_in: "5.20.0"
     fixed_in: "5.20.0"
     surface: scripts/ux_live.py
@@ -747,6 +790,7 @@ defects:
   - id: DEF-31
     title: a batch of edits was scanned one file at a time
     class: undetectable
+    kind: product
     found_in: "5.20.1"
     fixed_in: "5.20.1"
     surface: scripts/ux_live.py
@@ -772,6 +816,7 @@ defects:
   - id: DEF-33
     title: selftest had no argument parsing, so --help ran the whole suite
     class: never-worked
+    kind: product
     found_in: "5.22.0"
     fixed_in: "5.22.0"
     surface: scripts/selftest.py
@@ -804,6 +849,7 @@ defects:
   - id: DEF-32
     title: the decision record described the last file, not the batch
     class: wrong-result
+    kind: product
     found_in: "5.20.1"
     fixed_in: "5.20.1"
     surface: scripts/ux_live.py
@@ -822,4 +868,352 @@ defects:
     control:
       - file: scripts/selftest.py
         text: check_delta_many reported
+    verified_by_revert: true
+
+  # ---------------------------------------------------------------- control defects
+  #
+  # An assertion that named the right mechanism and did not change when that mechanism
+  # was deleted. It read as proof and was evidence of nothing. Every one of these was
+  # caught the same way -- by deleting the code the control claimed to guard and
+  # checking the control went red -- and never by reading the control, which is the
+  # single most useful thing in this ledger.
+
+  - id: DEF-34
+    title: the counts control enforced its own miscount
+    class: undetectable
+    kind: control
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      Recounting the skill's own numbers from the registry, the first version counted
+      `engine == "source"` as the static tier and got 143. The engine table maps both
+      `source` and `element` onto that tier.
+    consequence: >-
+      It would have "corrected" a correct number in SKILL.md down to a wrong one. A
+      control that enforces its own miscount is worse than no control, because the
+      wrong number then arrives with a citation.
+    fix: >-
+      The tier is resolved through the engine table, and the comment says why, so the
+      next person does not repeat the shortcut.
+    guard:
+      - file: scripts/selftest.py
+        text: is the TIER, not one engine
+    verified_by_revert: true
+
+  - id: DEF-35
+    title: a commented-out sibling tag proved nothing about comment skipping
+    class: undetectable
+    kind: control
+    found_in: "5.5.0"
+    fixed_in: "5.5.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      The case put `{/* <Legacy /> */}` beside the element. A self-closing tag inside a
+      comment is a balanced sibling, so the span survives with comment skipping removed.
+    consequence: >-
+      One of three span cases that passed with the mechanism deleted, in the group that
+      decides whether a structural edit may write to somebody's source.
+    fix: >-
+      The stray tag is unbalanced and inside the element now, which is the only
+      arrangement where skipping comments changes the answer.
+    guard:
+      - file: scripts/selftest.py
+        text: that version of this case proved nothing
+    verified_by_revert: true
+
+  - id: DEF-36
+    title: a comparison inside braces kept the same outer brackets either way
+    class: undetectable
+    kind: control
+    found_in: "5.5.0"
+    fixed_in: "5.5.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      `<Cell value={a > b}>Total` with a real closing tag has the same outer boundaries
+      whether brace depth is tracked or not.
+    consequence: >-
+      The case named brace tracking and could not fail when brace tracking was removed.
+    fix: >-
+      Replaced with an arrangement where the brace contents move the boundary.
+    guard:
+      - file: scripts/selftest.py
+        text: that was the first version of this case
+    verified_by_revert: true
+
+  - id: DEF-37
+    title: a stray closing tag in a string outside the element was discarded anyway
+    class: undetectable
+    kind: control
+    found_in: "5.5.0"
+    fixed_in: "5.5.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      A `</section>` inside a string outside the markup pops an empty stack and is
+      thrown away, so the case passed with string skipping removed.
+    consequence: >-
+      Third of the three. All three were written the same afternoon, which is the
+      lesson: a control written beside the code it guards inherits its assumptions.
+    fix: >-
+      The stray tag is inside the element, where discarding it is not an option.
+    guard:
+      - file: scripts/selftest.py
+        text: passed with string skipping removed
+    verified_by_revert: true
+
+  - id: DEF-38
+    title: the arbitrary-name case was asserted against the wrong function
+    class: undetectable
+    kind: control
+    found_in: "5.6.0"
+    fixed_in: "5.6.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      It asserted against `state_candidates`, which reads a directory's contents either
+      way, so it passed with `legacy_state` reverted to a hardcoded name -- the exact
+      design the case exists to rule out.
+    consequence: >-
+      The control for "find a record whatever it is called" could not tell that
+      detection had gone back to matching one spelling.
+    fix: >-
+      Asserted against `legacy_state`, the function whose behaviour the claim is about.
+    guard:
+      - file: scripts/selftest.py
+        text: so it passed with `legacy_state` reverted to a hardcoded name
+    verified_by_revert: true
+
+  - id: DEF-39
+    title: the pre-rename name was kept as test data after it had stopped proving anything
+    class: undetectable
+    kind: control
+    found_in: "5.7.0"
+    fixed_in: "5.7.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      One case created a directory under the old name to prove the detector still found
+      it. That was true of the old detector, which matched a hardcoded name. Once
+      detection read a directory's CONTENTS, the name became irrelevant to the code path.
+    consequence: >-
+      It kept the one string the rename existed to remove, and defended it as evidence,
+      while being redundant against the generic case beside it.
+    fix: >-
+      Two arbitrary names instead. The revert control got stronger: hardcoding a single
+      name now fails two cases rather than one.
+    guard:
+      - file: scripts/selftest.py
+        text: Keeping the old name here proved nothing
+    verified_by_revert: true
+
+  - id: DEF-40
+    title: the grey-pair case used two greys whose hues happened to agree
+    class: undetectable
+    kind: control
+    found_in: "5.9.0"
+    fixed_in: "5.9.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      The case existed to prove hue does not decide a match at zero chroma, and its two
+      warm greys had hues close enough to match with the guard deleted.
+    consequence: >-
+      A control for numerical instability, written with a numerically stable pair.
+    fix: >-
+      A pair whose hues are far apart and whose colours are the same grey.
+    guard:
+      - file: scripts/selftest.py
+        text: first version of this case used two warm greys
+    verified_by_revert: true
+
+  - id: DEF-41
+    title: the negative control for --deep was appended where it could never execute
+    class: undetectable
+    kind: control
+    found_in: "5.13.0"
+    fixed_in: "5.13.0"
+    surface: scripts/parity.py
+    symptom: >-
+      To prove `--deep` catches a broken script I appended `raise` to the end of one --
+      after `sys.exit(main())`, which never runs.
+    consequence: >-
+      Shallow and deep both passed and I nearly concluded `--deep` did not work. The
+      conclusion would have been to delete a check that was functioning.
+    fix: >-
+      A break has to go where rot actually lives: at module scope, after the imports.
+      Recorded in `runs()` so the technique is not rediscovered by the next person.
+    guard:
+      - file: scripts/parity.py
+        text: it never executes, so both the shallow
+    verified_by_revert: true
+
+  - id: DEF-42
+    title: the classify revert changed nothing until the fixture held a disagreeing stack
+    class: undetectable
+    kind: control
+    found_in: "5.15.0"
+    fixed_in: "5.15.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      Deleting stack resolution from `classify` changed no outcome, because every case in
+      the list classified the same whether the primary face or the whole string was read.
+    consequence: >-
+      The control named the mechanism and could not see it go.
+    fix: >-
+      `Inter, Georgia, serif` -- a stack whose primary disagrees in class with what the
+      whole string matches -- is in the cases now, in both directions.
+    guard:
+      - file: scripts/selftest.py
+        text: so the control passed with the
+    verified_by_revert: true
+
+  - id: DEF-43
+    title: a control asserted a failure the tool was right not to produce
+    class: wrong-result
+    kind: control
+    found_in: "5.15.0"
+    fixed_in: "5.15.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      It asserted `ux_question.py check` should exit non-zero in a project with no
+      decisions. It should not: `check` verifies the decisions that exist, and having
+      none to verify is not a failure of the verifier.
+    consequence: >-
+      Had I trusted the control I would have changed a correct tool to satisfy a wrong
+      assertion. The NOT_RUN belongs to the rules that need an approval, which is
+      doctor's row and the report's status.
+    fix: >-
+      The control asserts that instead, by rule ID.
+    guard:
+      - file: scripts/selftest.py
+        text: The first version of this case asserted it should
+    verified_by_revert: true
+
+  - id: DEF-44
+    title: emptying PATH broke the script before it reached the branch under test
+    class: undetectable
+    kind: control
+    found_in: "5.16.0"
+    fixed_in: "5.16.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      To hide agent-browser I set `PATH=/nonexistent`. The driver needs bash, python3 and
+      coreutils to get as far as the check, so it failed to start.
+    consequence: >-
+      The case proved nothing about the code it named -- it proved a shell script needs a
+      shell.
+    fix: >-
+      Only agent-browser's own directory is removed, and the test asserts the trimmed
+      PATH really does hide it.
+    guard:
+      - file: scripts/selftest.py
+        text: rather than a bogus
+    verified_by_revert: true
+
+  - id: DEF-45
+    title: the lowercase-tag case asserted the outcome and not the reason
+    class: undetectable
+    kind: control
+    found_in: "5.17.0"
+    fixed_in: "5.17.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      It asserted found/not-found. With the guard deleted, `component_source("div")`
+      searches for `function div`, finds nothing, and still returns not-found.
+    consequence: >-
+      It passed while the useful part was lost: "no file defines div" is what stops
+      somebody looking for a file that cannot exist.
+    fix: >-
+      It asserts the reason, which is the whole value of that branch.
+    guard:
+      - file: scripts/selftest.py
+        text: passed with the guard deleted and only the message was lost
+    verified_by_revert: true
+
+  - id: DEF-46
+    title: two pre-checks could not fail because the fixture had no ambiguity in it
+    class: undetectable
+    kind: control
+    found_in: "5.18.0"
+    fixed_in: "5.19.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      The fixture's classes were each unique and none were utilities, so relaxing the
+      uniqueness check and deleting the utility guard changed no outcome.
+    consequence: >-
+      Two controls passing over two mechanisms neither of them could see. Investigating
+      it showed one guard was redundant -- `find()` already enforced it -- so the right
+      answer was deleting code rather than fixing the test.
+    fix: >-
+      The fixture carries a class that repeats and a utility class, which is the only
+      arrangement where either mechanism decides the outcome.
+    guard:
+      - file: scripts/selftest.py
+        text: passed with the code removed.
+    verified_by_revert: true
+
+  - id: DEF-47
+    title: a control asserted a limit that a correct improvement made untrue
+    class: drift
+    kind: control
+    found_in: "5.19.0"
+    fixed_in: "5.19.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      One case asserted that ANY element with no distinguishing class is undecidable.
+      Once a component with exactly one element of the picked tag resolved by tag, that
+      stopped being true.
+    consequence: >-
+      Treating the control as the authority would have blocked a correct improvement to
+      preserve a limit I had written down. The opposite error to the rest of this list,
+      and the harder one to see.
+    fix: >-
+      It asserts the narrower truth: two identical elements of the same tag must refuse.
+      Recognising which of the two -- code or control -- is wrong is the whole skill.
+    guard:
+      - file: scripts/selftest.py
+        text: picked one of two identical <span>s
+    verified_by_revert: true
+
+  - id: DEF-48
+    title: a stale-citation case cited a string that lives in the file it searches
+    class: undetectable
+    kind: control
+    found_in: "5.22.0"
+    fixed_in: "5.22.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      Proving the ledger refuses a guard that no longer resolves needs a pattern that is
+      absent. Written as one literal, the pattern appears in this file -- which is the
+      file the citation points at -- so it resolved and the case passed.
+    consequence: >-
+      The control for "a citation must resolve" was itself satisfied by its own source
+      text. Caught on the first run, by the case failing for the opposite reason.
+    fix: >-
+      The pattern is built by concatenation, so it exists only at runtime.
+    guard:
+      - file: scripts/selftest.py
+        text: proving nothing. The first version did exactly that.
+    verified_by_revert: true
+
+  - id: DEF-49
+    title: two controls raised inside the code they guard instead of reporting a finding
+    class: undetectable
+    kind: control
+    found_in: "5.22.0"
+    fixed_in: "5.22.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      Reinstating the shadowed row name raises a TypeError deep inside `audit` where
+      `sorted()` meets two Nones; removing selftest's argument parsing makes the
+      front-door probe time out. Both reverts produced a traceback, not a report.
+    consequence: >-
+      A traceback is detection of a sort and a terrible report: it names a sort, or a
+      subprocess, rather than the claim that lost its name. Somebody reading it looks
+      for a broken test.
+    fix: >-
+      Both are caught and named, so the failure says what went wrong and the assertion
+      for the non-crashing variant still stands behind it.
+    guard:
+      - file: scripts/selftest.py
+        text: a traceback here reads as a broken test
+      - file: scripts/selftest.py
+        text: A traceback is detection of a sort
     verified_by_revert: true
