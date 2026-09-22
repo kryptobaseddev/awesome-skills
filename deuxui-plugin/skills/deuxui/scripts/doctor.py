@@ -204,6 +204,30 @@ def diagnose(root: Path) -> list[dict]:
             "report NOT_RUN. scripts/ux_question.py ask serves the choice.")
 
     try:
+        import csp as _csp
+        _c = _csp.scan(root)
+        if not _c["any"]:
+            row("page CSP", OK, "none declared in this project",
+                "Nothing here will block the selection overlay. A policy can still "
+                "arrive from a CDN or reverse proxy; cdp.style_policy measures the "
+                "live page, which is the answer that counts.")
+        elif _c["blocks_overlay"]:
+            _w = next(f for f in _c["policies"] if f["style_inline_allowed"] is False)
+            row("page CSP", WARN,
+                f"{_w['file']}:{_w['line']} forbids inline style",
+                f"`ux_select.py` and `ux_live.py show` will refuse here rather than "
+                f"draw an unstyled overlay. Nothing in this tool changes your policy: "
+                f"allow `style-src 'unsafe-inline'` in your DEV config only, or review "
+                f"through `ux_review.py serve`, which proxies the page and does not "
+                f"inherit it.")
+        else:
+            row("page CSP", OK,
+                f"{len(_c['policies'])} policy declaration(s), none forbidding inline "
+                f"style", "The overlay should render.")
+    except Exception:
+        pass
+
+    try:
         import uxconfig as _uc
         legacy = _uc.legacy_state(root)
         if legacy:

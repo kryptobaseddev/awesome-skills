@@ -273,7 +273,17 @@ def cmd_watch(a) -> int:
     # console rather than to this terminal. See cdp.style_policy.
     pol = cdp.style_policy(ws)
     if pol["styled"] is False:
-        sys.stderr.write(f"\nthe overlay cannot be styled here: {pol['why']}\n\n")
+        sys.stderr.write(f"\nthe overlay cannot be styled here: {pol['why']}\n")
+        # The measurement is authoritative; it just cannot say WHERE the policy came
+        # from, and "your overlay will not be styled" is not actionable without a
+        # filename. A policy can be set in any of half a dozen places depending on the
+        # stack, and somebody who did not write it has no idea which.
+        try:
+            import csp as _csp
+            sys.stderr.write(f"\n{_csp.advice(_csp.scan())}\n")
+        except Exception:
+            pass
+        sys.stderr.write("\n")
         ws.close()
         return 2
     if pol["styled"] is None:

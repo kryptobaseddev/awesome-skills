@@ -525,6 +525,53 @@ def contract_checks():
             fails.append(f"{where} does not say {want!r}"
                          + (f" -- it says {m.group(0)!r}" if m else " at all"))
 
+    # The CSP scanner. What it gets wrong is not "misses a policy" -- it is reading a
+    # policy and reporting the WRONG verdict, which sends somebody to loosen a config
+    # that was never the problem, or tells them nothing is wrong when the overlay
+    # cannot work. Two real bugs lived here: the value pattern excluded single quotes,
+    # so every CSP value came back as `' '` (a CSP value is almost entirely
+    # single-quoted keywords); and directives were scanned FORWARD from the header
+    # mention, while the commonest shape in the wild defines the policy in a template
+    # literal above the `headers()` call that sets it.
+    import csp as _csp                                               # noqa: E402
+    _NEXT = """const csp = `
+  default-src 'self';
+  script-src 'self' 'nonce-abc';
+  style-src 'self'%s;
+`;
+export default { async headers() { return [{ source: "/(.*)",
+  headers: [{ key: "Content-Security-Policy", value: csp }] }]; } };
+"""
+    _csp_cases = [
+        ("", False, "style-src 'self' forbids inline style"),
+        (" 'unsafe-inline'", True, "'unsafe-inline' permits it"),
+        # A nonce or hash beside 'unsafe-inline' makes browsers IGNORE the keyword.
+        (" 'unsafe-inline' 'nonce-xyz'", False,
+         "a nonce beside 'unsafe-inline' voids it"),
+    ]
+    for _extra, _want, _why in _csp_cases:
+        with tempfile.TemporaryDirectory() as _d3:
+            _r3 = Path(_d3)
+            (_r3 / "next.config.mjs").write_text(_NEXT % _extra)
+            _res = _csp.scan(_r3)
+            if not _res["any"]:
+                fails.append(f"csp.scan found no policy in a next.config.mjs that "
+                             f"declares one ({_why})")
+                continue
+            _got = _res["policies"][0]["style_inline_allowed"]
+            if _got is not _want:
+                fails.append(f"csp.scan says style_inline_allowed={_got}, wanted "
+                             f"{_want}: {_why}")
+            if not _res["policies"][0]["directives"].get("style-src"):
+                fails.append(f"csp.scan read the policy but captured no style-src "
+                             f"value ({_why})")
+    with tempfile.TemporaryDirectory() as _d4:
+        _r4 = Path(_d4)
+        (_r4 / "src").mkdir()
+        (_r4 / "src" / "App.tsx").write_text("export default () => <div>hi</div>;\n")
+        if _csp.scan(_r4)["any"]:
+            fails.append("csp.scan invented a policy in a project that declares none")
+
     # A record of ours under a name this version does not use has to be FOUND, and
     # found by its contents. The first version of this check hardcoded the one name the
     # skill used before it was renamed, which identified a record by the least reliable
@@ -536,24 +583,22 @@ def contract_checks():
     import uxconfig as _uc2                                          # noqa: E402
     with tempfile.TemporaryDirectory() as _d:
         _r = Path(_d)
-        # THE ONLY PLACE the pre-rename name appears anywhere in this skill, and it is
-        # test DATA, not a code path: no script, reference, template or config spells it
-        # any more. It is here because that name is on real disks -- a project set up
-        # before the rename has a directory called this -- and the one way to prove the
-        # detector still finds it is to create one and look. Deleting this line would
-        # not make those directories go away; it would only delete the proof that they
-        # are still handled.
-        _PRE_RENAME = ".deluxui"
-        (_r / _PRE_RENAME).mkdir()
-        (_r / _PRE_RENAME / "ux.config.yaml").write_text("x: 1\n")
+        # This case used to create a directory under the skill's own pre-rename name and
+        # assert that it was found. That was the right test of the OLD design, which
+        # matched one hardcoded name, and it is redundant against this one: the detector
+        # reads contents and never looks at the name, so a directory called `.anything`
+        # exercises exactly the same code path. Keeping the old name here proved nothing
+        # the case below does not, while leaving the one string in the tree that the
+        # rename was supposed to remove. Two arbitrary names, neither of them ours:
+        (_r / ".some-old-dir").mkdir()
+        (_r / ".some-old-dir" / "ux.config.yaml").write_text("x: 1\n")
         if _uc2.legacy_state(_r) is None:
-            fails.append(f"legacy_state missed a state directory called "
-                         f"{_PRE_RENAME}/, which is the name on every project set up "
-                         f"before the rename")
-        # A name nothing could have hardcoded. Asserted against `legacy_state`, not
-        # only `state_candidates`: the first version of this case checked the candidate
-        # LIST, which still reads contents, so it passed with `legacy_state` reverted to
-        # a hardcoded name -- the exact design it is here to rule out.
+            fails.append("legacy_state missed a state directory identified by its "
+                         "contents")
+        # Asserted against `legacy_state`, not only `state_candidates`: the first
+        # version of this case checked the candidate LIST, which reads contents either
+        # way, so it passed with `legacy_state` reverted to a hardcoded name -- the
+        # exact design it is here to rule out.
         with tempfile.TemporaryDirectory() as _d2:
             _r2 = Path(_d2)
             (_r2 / ".hand-copied-ux").mkdir()

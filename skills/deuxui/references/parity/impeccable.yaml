@@ -341,17 +341,21 @@ cli:
     evidence: [script:ux_image.py, sub:ux_image.py:verify, detector:S-CONTRACT-COLOR]
 
   - name: detect-csp
-    status: partial
+    status: mapped
     here: >-
-      the live page is measured instead of the project config: `cdp.style_policy`
-      probes whether an injected stylesheet takes effect and says so rather than
-      producing an overlay that is present and invisible, and the review proxy
-      neutralises a `<meta http-equiv>` policy in the framed copy only
-    gap: >-
-      no static scan of the project's CSP configuration ahead of time, so a policy
-      that will block the overlay is discovered when the overlay is injected rather
-      than beforehand. Nothing here disables a page's policy.
-    evidence: [script:cdp.py, script:ux_review.py, script:ux_select.py]
+      both ends. `csp.py` scans the project for where a policy is DECLARED -- Next
+      config and middleware, Nuxt, SvelteKit, Astro, Vite dev headers, vercel.json,
+      netlify.toml, `_headers`, nginx, Caddy, and `<meta http-equiv>` in source -- and
+      says per file whether it permits inline style, including the case where a nonce
+      beside `'unsafe-inline'` makes browsers ignore the keyword. `cdp.style_policy`
+      then measures the live page, which is the authoritative answer; the scan exists
+      to name the file, because "your overlay will not be styled" is not actionable
+      without one. `doctor.py` carries it as a row, `ux_select.py` prints it with its
+      refusal, and `ux_review.py` neutralises a meta policy in the framed copy only.
+      Nothing anywhere disables a page's policy: loosening one is the project's
+      decision, in a file they own, for their dev configuration.
+    evidence: [script:csp.py, script:cdp.py, script:ux_review.py, script:ux_select.py,
+               script:doctor.py]
 
   - name: concept-seed
     status: partial
@@ -576,6 +580,16 @@ additional:
       38 iOS and Android rules with static detectors, and a driver for Simulator and
       emulator evidence that states plainly when a stub is not a phone.
     evidence: [script:ux_native.sh, script:native_conformance.py, op:ios, op:android]
+
+  - name: where a CSP is declared, and what it forbids
+    what: >-
+      `csp.py` reads the policy out of eleven declaration sites and answers one
+      question precisely: will an injected stylesheet apply. It handles the case that
+      catches people out -- a nonce or hash beside `'unsafe-inline'` voids the keyword
+      -- and it refuses to answer when a file declares the same directive twice with
+      different values, because merging them would answer confidently about a policy
+      that is not in force.
+    evidence: [script:csp.py, script:selftest.py]
 
   - name: verified element spans
     what: >-
