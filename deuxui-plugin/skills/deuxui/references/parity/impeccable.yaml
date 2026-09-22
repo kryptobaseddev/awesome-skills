@@ -202,7 +202,17 @@ commands:
   - name: optimize
     does: diagnose and fix UI performance
     status: mapped
-    here: "the `optimize` workflow, measured rather than inspected"
+    here: >-
+      the `optimize` workflow, measured rather than inspected. The probes it reads are
+      integration-tested by `browsertest.py` against a fixture whose defects are known,
+      so the NUMBERS are checked against the pixels the browser painted. The shell
+      driver's own orchestration is not: `browsertest` runs the probe JS directly. That
+      is the one row `parity.py --deep` reports as "only start", and it is a gap in
+      testing rather than in the capability.
+    # Deliberately does NOT cite browsertest.py. It is a control, so citing it would
+    # mark this row exercised by construction and move the coverage number to 51/51 --
+    # while the text above says the driver's orchestration is untested. A metric edited
+    # to disagree with its own prose is worse than a metric that says 50/51.
     evidence: [workflow:optimize, script:ux_browser.sh]
 
   - name: overdrive

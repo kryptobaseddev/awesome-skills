@@ -98,7 +98,22 @@ CLASS_TOKENS = [
 
 
 def classify(name: str) -> str:
-    n = " " + name.lower().strip().strip("'\"") + " "
+    """Which family class a declared face belongs to.
+
+    Two things it got wrong, both reachable from `--pair` and from `pairing()`, which
+    pass whatever the caller typed:
+
+    A STACK is not a face. `ui-sans-serif, system-ui, sans-serif` is one value in every
+    contract this tool reads, and classifying the whole string asked the wrong question.
+    `primary()` already exists for exactly this and was not used here.
+
+    And `sans-serif` contains `serif`. CLASS_TOKENS is ordered with serif before sans,
+    so the commonest generic in CSS classified as a serif -- which then drove pairing
+    advice telling somebody their sans-serif clashed with their sans-serif."""
+    face = primary(name) or name
+    n = " " + face.lower().strip().strip("'\"") + " "
+    if re.search(r"\bsans[- ]serif\b", n):
+        return "sans"
     for cls, pat in CLASS_TOKENS:
         if re.search(pat, n):
             return cls

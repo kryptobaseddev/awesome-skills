@@ -640,6 +640,113 @@ def capabilities():
                     fails.append(f"the generated prototype contains no {must!r} -- it "
                                  f"is advertised as having {why}")
 
+    # 6. fontindex.classify: which family class a declared face belongs to. Two bugs,
+    #    both reachable from `--pair` and from `pairing()`, which classify raw input:
+    #    a STACK is not a face, and `sans-serif` contains `serif` -- with serif ordered
+    #    before sans in the token table, the commonest generic in CSS classified as a
+    #    serif and then drove pairing advice about a clash that did not exist.
+    import fontindex                                                 # noqa: E402
+    for face, want in (("ui-sans-serif, system-ui, sans-serif", "sans"),
+                       ("sans-serif", "sans"),
+                       ("ui-serif, Georgia, serif", "serif"),
+                       ("ui-monospace, SFMono-Regular, Menlo, monospace", "mono"),
+                       ("Inter", "sans"),
+                       ("Playfair Display", "serif"),
+                       # Stacks whose PRIMARY disagrees with what the whole string
+                       # matches. Without these, dropping `primary()` from classify
+                       # changed nothing measurable -- every other case here happens to
+                       # land the same either way, so the control passed with the
+                       # resolution deleted.
+                       ("Inter, Georgia, serif", "sans"),
+                       ("Georgia, Inter, sans-serif", "serif")):
+        got = fontindex.classify(face)
+        if got != want:
+            fails.append(f"fontindex.classify({face[:34]!r}) said {got!r}, wanted "
+                         f"{want!r}")
+
+    # 7. fontindex.analyse: "refuses to treat the build host's own fonts as evidence
+    #    about a visitor". A generic stack needs no file and must not read as missing.
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        (r / "app.css").write_text(
+            "body{font-family:ui-sans-serif,system-ui,sans-serif}\n"
+            "h1{font-family:'Nonexistent Face',serif}\n")
+        a = fontindex.analyse(r, {"type": {"families": {
+            "body": "ui-sans-serif, system-ui, sans-serif",
+            "display": "Nonexistent Face, serif"}}})
+        blob = json.dumps(a)
+        if "Nonexistent Face" not in blob:
+            fails.append("fontindex.analyse did not mention a declared face that is "
+                         "nowhere in the project, so a contract can name a typeface "
+                         "no visitor will ever render")
+
+    # 8. comp_spec.analyse: the measurement comp_diff is built on. A flat single-colour
+    #    image must read as one flat region, not as imagery.
+    import comp_spec, pngread                                        # noqa: E402
+    if (FIX / "provenance.png").exists():
+        s = comp_spec.analyse(pngread.rows(FIX / "provenance.png"))
+        if s["counts"]["plate"]:
+            fails.append("comp_spec called a flat single-colour image photographic, "
+                         "which would ship a solid fill as a raster")
+        if not s.get("canvas"):
+            fails.append("comp_spec reported no canvas colour for an image that is "
+                         "entirely one colour")
+
+    # 9. derive_contract: brownfield's first move. It has to find values that ARE in
+    #    the code and must not invent ones that are not.
+    import derive_contract                                           # noqa: E402
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        (r / "s.css").write_text(
+            ":root{--x:1}\n.a{border-radius:10px;font-size:17px}\n"
+            ".b{border-radius:10px;font-size:27px}\n.c{border-radius:10px}\n")
+        got = json.dumps(derive_contract.build(derive_contract.scan(r)))
+        if "10" not in got:
+            fails.append("derive_contract did not derive a radius that appears three "
+                         "times in the stylesheet it was pointed at")
+
+    # 10. ux_question: with nothing recorded it must SAY so rather than print something
+    #     that reads as a clean pass. The first version of this case asserted it should
+    #     exit non-zero -- wrong, and the tool was right: `check` verifies the decisions
+    #     that exist, and having none to verify is not a failure of the verifier. The
+    #     NOT_RUN belongs to the rules that need an approval, which is doctor's row and
+    #     ux_report's status, so that is what gets asserted.
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        cwd = os.getcwd()
+        try:
+            os.chdir(r)
+            q = subprocess.run([sys.executable, str(HERE / "ux_question.py"), "check"],
+                               capture_output=True, text=True)
+        finally:
+            os.chdir(cwd)
+        said = (q.stdout + q.stderr).lower()
+        if "no decision" not in said:
+            fails.append(f"ux_question check said {said.strip()[:60]!r} in a project "
+                         f"with no decisions; it has to state that there are none, or "
+                         f"its silence reads as everything being in order")
+        doc0 = subprocess.run([sys.executable, str(HERE / "doctor.py"), str(r)],
+                              capture_output=True, text=True)
+        if "GOV-011" not in (doc0.stdout + doc0.stderr):
+            fails.append("doctor did not name the rules that stay NOT_RUN when nobody "
+                         "has approved a direction, so the cost of the gap is invisible")
+
+    # 11. doctor: "names every tier that cannot run, and what it costs in rules". A
+    #     project with no contract must be TOLD that every S-CONTRACT-* rule is NOT_RUN.
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        (r / "app.tsx").write_text("export default () => <div>x</div>;\n")
+        doc = subprocess.run([sys.executable, str(HERE / "doctor.py"), str(r)],
+                             capture_output=True, text=True)
+        out = doc.stdout + doc.stderr
+        if "contract" not in out.lower():
+            fails.append("doctor said nothing about the missing visual contract, so a "
+                         "reader cannot tell that every conformance rule is NOT_RUN")
+        if doc.returncode == 0:
+            fails.append("doctor exited 0 in a project missing its contract and its "
+                         "manual sheet; exit 2 is what stops CI going green on a "
+                         "fraction of the rules")
+
     for f in fails:
         print(f"  FAIL {f}")
     return fails

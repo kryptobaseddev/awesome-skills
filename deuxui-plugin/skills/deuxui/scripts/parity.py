@@ -244,6 +244,12 @@ def exercised(ev: list, blob: str) -> bool:
                 return True
         elif kind in ("script", "sub", "flag"):
             name = rest.split(":", 1)[0]
+            # A row citing a CONTROL is exercised by construction -- `lint_rules.py`
+            # does not import itself, so the mention test could never see it and
+            # reported "the rule registry" as unexercised while the linter that proves
+            # every one of its IDs runs on every commit.
+            if name in CONTROLS:
+                return True
             stem = name.rsplit(".", 1)[0]
             if stem and (f"import {stem}" in blob or f"{stem}." in blob):
                 return True
@@ -360,7 +366,10 @@ def main(argv=None) -> int:
     w(f"  {runnable - len(ux)}/{runnable} runnable mapped row(s) exercised by a "
       f"control; {len(ux)} known only to start\n")
     if ux:
-        w(f"    only start: {', '.join(ux)}\n")
+        w(f"    only start: {', '.join(ux)}\n"
+          f"    (\"only start\" means --deep proved the script runs and no control "
+          f"asserts what it\n     produces. It is a gap in TESTING, not a claim that "
+          f"the capability is absent.)\n")
     w(f"  {len(prose)} mapped row(s) are guidance with nothing to run; lint_rules "
       f"proves the IDs they cite exist\n")
     if r.get("deep"):
