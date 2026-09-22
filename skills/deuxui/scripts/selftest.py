@@ -747,6 +747,74 @@ def capabilities():
                          "manual sheet; exit 2 is what stops CI going green on a "
                          "fraction of the rules")
 
+    # 12. ux_browser.sh -- the runtime driver's ORCHESTRATION, which nothing tested.
+    #     `browsertest.py` runs the probe JS directly against a fixture with known
+    #     defects, so the numbers are checked against real pixels; the shell that reads
+    #     the config, walks the viewports and decides what to write was never exercised.
+    #     What matters about it is not the happy path: it is that when the tier cannot
+    #     run, it says so in a form `ux_report` can read as NOT_RUN. A driver that exits
+    #     quietly leaves a report with no runtime section at all, which reads as though
+    #     the runtime rules were fine.
+    drv = HERE / "ux_browser.sh"
+    if not drv.exists():
+        fails.append("ux_browser.sh is missing; the whole runtime tier has no driver")
+    else:
+        with tempfile.TemporaryDirectory() as d:
+            r = Path(d)
+            cwd = os.getcwd()
+            try:
+                os.chdir(r)
+                # No base URL and no config: must refuse with usage, not proceed.
+                nourl = subprocess.run(["bash", str(drv)], capture_output=True,
+                                       text=True, timeout=120)
+                if nourl.returncode == 0:
+                    fails.append("ux_browser.sh exited 0 with no base URL and no "
+                                 "app.dev_url, so a run that measured nothing would "
+                                 "look like a run that passed")
+                if "usage" not in (nourl.stdout + nourl.stderr).lower():
+                    fails.append("ux_browser.sh refused without a base URL but did not "
+                                 "say how to give it one")
+                # A browser that is not installed: must WRITE the unavailable record
+                # and exit 3, the documented "runtime tier unavailable".
+                # PATH with agent-browser's directory removed, rather than a bogus
+                # PATH: the script needs bash, python3 and coreutils to reach the check
+                # at all, and emptying PATH just made it fail to start, which proved
+                # nothing about the branch under test.
+                ab = shutil.which("agent-browser")
+                keep = [x for x in os.environ.get("PATH", "").split(os.pathsep)
+                        if x and (not ab or not ab.startswith(x.rstrip("/") + "/"))]
+                env = dict(os.environ, PATH=os.pathsep.join(keep))
+                gone = subprocess.run(
+                    ["bash", str(drv), "http://127.0.0.1:1", "--out", "rt"],
+                    capture_output=True, text=True, env=env, timeout=120)
+                rec = r / "rt" / "runtime.json"
+                if gone.returncode != 3:
+                    fails.append(f"ux_browser.sh exited {gone.returncode} with no "
+                                 f"agent-browser on PATH; 3 is the documented code for "
+                                 f"an unavailable runtime tier and the callers branch "
+                                 f"on it")
+                if not rec.exists():
+                    fails.append("ux_browser.sh wrote no runtime.json when the browser "
+                                 "was unavailable, so the merged report has no runtime "
+                                 "section at all -- which reads as the runtime rules "
+                                 "being fine rather than unrun")
+                else:
+                    try:
+                        got = json.loads(rec.read_text())
+                    except ValueError as e:
+                        got = {}
+                        fails.append(f"ux_browser.sh wrote unreadable runtime.json: {e}")
+                    if got.get("available") is not False:
+                        fails.append("runtime.json does not say `available: false` when "
+                                     "the browser is missing, so nothing downstream can "
+                                     "tell an unavailable tier from an empty one")
+                    if not str(got.get("reason") or "").strip():
+                        fails.append("runtime.json records no reason for the tier being "
+                                     "unavailable, so the report can say NOT_RUN but not "
+                                     "why")
+            finally:
+                os.chdir(cwd)
+
     for f in fails:
         print(f"  FAIL {f}")
     return fails
