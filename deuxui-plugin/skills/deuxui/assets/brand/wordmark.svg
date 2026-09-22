@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" width="260" height="64"
+     role="img" aria-label="DeuxUI — design system rules for AI agents">
+  <!-- One lockup: the mark, then the name set in the declared grotesque at the 34px
+       rung. The x of Deux and the U of UI carry the rhythm, so the two words are set
+       tight and the weight change does the separating rather than a space or a rule.
+       Text is real text, not paths: it scales with the reading size, it can be
+       selected, and a screen reader reads it. A rasterised wordmark fails A11Y-007
+       the moment anyone checks. -->
+  <title>DeuxUI</title>
+  <rect width="260" height="64" rx="10" fill="#f7f6f3"/>
+  <g transform="translate(8 8) scale(0.75)">
+    <rect width="64" height="64" rx="13" fill="#ffffff"/>
+    <rect x="0.5" y="0.5" width="63" height="63" rx="12.5" fill="none"
+          stroke="#cfccc4" stroke-width="1.33"/>
+    <path d="M18 24 A14 14 0 0 1 46 24 C46 33 38 38 18 48" fill="none"
+          stroke="#16181c" stroke-width="8" stroke-linecap="butt"
+          stroke-linejoin="miter"/>
+    <rect x="18" y="45" width="28" height="8" fill="#1f5eff"/>
+  </g>
+  <text x="70" y="41" font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="27" letter-spacing="-0.6">
+    <tspan fill="#16181c" font-weight="600">Deux</tspan><tspan fill="#1f5eff"
+        font-weight="600">UI</tspan>
+  </text>
+  <text x="70" y="55" font-family="Inter, ui-sans-serif, system-ui, sans-serif"
+        font-size="12" fill="#5b6069" letter-spacing="0.2">Design system rules for AI agents</text>
+</svg>

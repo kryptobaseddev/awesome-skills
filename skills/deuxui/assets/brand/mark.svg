@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="DeuxUI">
+  <!-- The 2: two disciplines, and a version marker, in one glyph. Geometric, drawn
+       from the same hairline the depth metaphor uses. Flat: no gradient and no
+       filter, so it survives forced-colors mode, where a gradient mark disappears
+       entirely. Two colours plus the ground, legible at 16px. -->
+  <title>DeuxUI</title>
+  <rect width="64" height="64" rx="10" fill="#f7f6f3"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="9.5" fill="none"
+        stroke="#cfccc4" stroke-width="1"/>
+  <!-- Stroke width 6 on a 64 grid: the 2 stays a 2 at 16px, where a hairline glyph
+       would break up. Butt caps and mitred joins, because a rounded terminal reads
+       as friendly and this is a rules engine. -->
+  <g fill="none" stroke="#16181c" stroke-width="6" stroke-linecap="butt"
+     stroke-linejoin="miter">
+    <path d="M18 24 A14 14 0 0 1 46 24 C46 33 38 38 18 48"/>
+  </g>
+  <!-- The single accent, once: the baseline the 2 rests on. One chromatic mark on
+       the page, and it is the line under the verdict. -->
+  <rect x="18" y="45" width="28" height="6" fill="#1f5eff"/>
+</svg>

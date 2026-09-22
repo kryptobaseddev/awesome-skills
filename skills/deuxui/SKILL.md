@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.1.0"
-  last_updated: "2026-09-22 03:15:00"
+  version: "5.2.0"
+  last_updated: "2026-09-22 03:55:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -19,7 +19,13 @@ allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 # DeuxUI — UX engineering with a verdict
 
 **Deux is French for two — UX and UI.** Design system rules for AI agents: strict
-UX/UI practice, enforced at the token level.
+UX/UI best practices, enforced at the token level. Say it *deuce*.
+
+DeuxUI keeps its own contract, in the same format it asks every project for —
+`assets/brand/brand.contract.yaml` — and `selftest.py` measures the pages this skill
+serves against it with the same detectors. That found twelve findings on its own
+review page, and two defects in the detectors. A tool that asks for a declaration and
+does not keep one has an argument it does not believe. See `references/brand.md`.
 
 Most interfaces an agent produces look right in the one state the agent looked at.
 They fail in the states nobody opens: the empty list, the request that 500s, the
@@ -279,6 +285,7 @@ Each reference is self-contained. Read the one you need.
 | Task | Reference |
 |---|---|
 | The full execution loop, step by step | `references/loop.md` |
+| The name, the tagline, the voice, and the contract we hold ourselves to | `references/brand.md` |
 | Pick it on screen, compare in place, accept it into the source | `references/ops/live.md` |
 | The record: what the design is, and how it got that way | `references/ops/ledger.md` |
 | What the visitor came to do, and what it changes | `references/design/visitor-modes.md` |

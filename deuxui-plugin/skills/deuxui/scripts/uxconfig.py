@@ -226,6 +226,30 @@ def legacy_state(root: Path | None = None) -> Path | None:
     return old if old.is_dir() and not new.is_dir() else None
 
 
+BRAND = Path(__file__).resolve().parent.parent / "assets" / "brand" / "brand.contract.yaml"
+
+
+def brand_contract() -> dict:
+    """DeuxUI's own declared system, for DeuxUI's own chrome.
+
+    Deliberately NOT the project's contract. A review page themed from the product it
+    is reviewing makes it impossible to tell which pixels are the tool and which are
+    the thing being judged -- and a person comparing two variants is doing exactly
+    that comparison. So the frame is always DeuxUI and the framed content is always
+    theirs.
+
+    Also not hardcoded hex, which is what it was: `ux_question.py` carried four
+    literal colours while this skill's own S-TOKEN-HEX calls a literal in a rule a
+    token that escaped. A tool that asks for a declaration and does not keep one has
+    an argument it does not believe."""
+    if not BRAND.exists():
+        return {}
+    try:
+        return clean_contract(yaml.safe_load(BRAND.read_text()) or {})
+    except yaml.YAMLError:
+        return {}
+
+
 def clean_contract(doc: dict) -> dict:
     """Strip every `UNKNOWN` and empty branch from a contract document.
 

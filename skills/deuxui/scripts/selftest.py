@@ -307,6 +307,47 @@ def contract_checks():
             fails.append("S-CONTRACT-RAMP fired on a colour ON the declared ramp, so "
                          "it reports conformance as a violation")
 
+    # DeuxUI's own surfaces, measured against DeuxUI's own contract, with the same
+    # detectors it points at everybody else. A tool that asks every project to declare
+    # its system before building, and then themes its own pages from hardcoded hex, has
+    # an argument it does not believe -- and it did: this found 12 findings on the
+    # review page, including three literal warm greys in the dark block, two font sizes
+    # off the ladder, four repeated family literals and two colours off the ramp.
+    #
+    # It also found two defects in the DETECTORS, which is the part worth keeping the
+    # test for: S-CONTRACT-FONT-AVAIL read a declared stack as one opaque face name, so
+    # `ui-sans-serif, system-ui, sans-serif` was reported as a missing typeface; and the
+    # composed dark theme was mixed rather than taken off the declared ramp.
+    brand = HERE.parent / "assets" / "brand" / "brand.contract.yaml"
+    if brand.exists():
+        with tempfile.TemporaryDirectory() as td:
+            proj = Path(td)
+            (proj / ".deuxui").mkdir()
+            shutil.copy(brand, proj / ".deuxui" / "design.contract.yaml")
+            here = Path.cwd()
+            try:
+                os.chdir(proj)
+                sys.path.insert(0, str(HERE))
+                import ux_review
+                for n in ("a", "b"):
+                    (proj / f"{n}.html").write_text(
+                        "<!doctype html><html lang=en><title>x</title>"
+                        "<body><main><h1>x</h1></main>")
+                rv = ux_review.Review(
+                    {"one": {"kind": "file", "target": str(proj / "a.html")},
+                     "two": {"kind": "file", "target": str(proj / "b.html")}},
+                    "Which layout carries the total?", "checkout")
+                (proj / "review.html").write_text(ux_review.page(rv, ux_review.theme()))
+            finally:
+                os.chdir(here)
+            hits = _scan(proj / "review.html").get("findings", [])
+            own = [h for h in hits if str(h.get("detector", "")).startswith(
+                ("S-CONTRACT-", "S-TOKEN-", "S-CONTRAST-", "S-SLOP-"))]
+            for h in own:
+                fails.append(f"deuxui's own review page violates deuxui's own contract: "
+                             f"{h.get('detector')} at line {h.get('line')} "
+                             f"({str(h.get('snippet'))[:40]})")
+
     # ux_live's accept gate. The bug this is here for: it graded blocking findings by
     # reading `finding["severity"]`, and a finding has no severity -- severity is a
     # property of the RULE, in the registry. So `blocking` was empty every time and the

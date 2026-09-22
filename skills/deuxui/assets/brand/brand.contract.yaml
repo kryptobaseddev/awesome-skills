@@ -1,0 +1,106 @@
+# DeuxUI's own visual contract.
+#
+# This file exists because a tool that asks every project to declare its system
+# before building, and then themes its own pages from hardcoded hex, has an argument
+# it does not believe. `ux_question.py` carried four literal colours; the surfaces
+# this skill serves are now generated from this declaration, and `selftest.py`
+# measures them against it with the same detectors it points at everybody else.
+#
+# It is deliberately the same format as `assets/templates/design.contract.yaml`.
+# A brand that cannot be expressed as a contract is not a system, it is a mood board
+# -- and this is the one place where that claim is testable on ourselves.
+#
+# The brand is read by DeuxUI's own chrome ONLY. A review page must not theme itself
+# from the product it is reviewing: a reviewer comparing two variants needs to know
+# instantly which pixels are the tool and which are the thing being judged, and a
+# tool wearing the product's colours makes that impossible.
+
+visitor_mode: read        # Somebody is reading a verdict and deciding what to do.
+                          # Not persuade: nothing here is being sold. Not operate:
+                          # the work is elsewhere. Read sets the whole page -- long
+                          # measure, high contrast, quiet surfaces, no motion that
+                          # competes with a table of results.
+
+world: >-
+  Off-white paper ground at #f7f6f3, near-black ink at #16181c, one electric blue
+  accent at #1f5eff and nothing else chromatic, a single grotesque at both ends of
+  the ladder, hairline borders instead of shadows, corners at 6 and 10px. The
+  reference face is Inter; the declared stack is the system grotesque, because a
+  skill cannot ship a webfont and declaring one it does not provide is a promise
+  S-CONTRACT-FONT-AVAIL correctly refuses.
+
+# --- Type ---------------------------------------------------------------------
+# One family at both ends of the ladder, on purpose. Two families is the default
+# advice and it is the wrong advice here: a rules engine reads as more precise with
+# one voice held at different sizes than with a display face doing personality over
+# a body face doing work. The mono is not decoration -- rule IDs, hashes, file paths
+# and measured numbers are data, and data in a proportional face is harder to scan.
+type:
+  families:
+    # The system grotesque, not Inter. DeuxUI's pages are served from a script with
+    # no build step and no asset pipeline, so it cannot ship a webfont -- and
+    # declaring a face the project does not provide is exactly what
+    # S-CONTRACT-FONT-AVAIL reports. It reported it here, against this contract, on
+    # this skill's own review page. Inter is the reference the ladder was drawn
+    # against; ui-sans-serif resolves to its nearest local equivalent everywhere.
+    display: "ui-sans-serif, system-ui, sans-serif"
+    body: "ui-sans-serif, system-ui, sans-serif"
+    mono: "ui-monospace, SFMono-Regular, Menlo, monospace"
+  scale_px: [12, 14, 17, 21, 27, 34, 44]
+  measure_ch: [58, 74]
+  display_max_rem: 2.75
+
+# --- Colour -------------------------------------------------------------------
+# One accent. The rainbow-gradient AI-tool palette is the single loudest tell that a
+# thing was made by a model, and this tool's whole job is to catch that tell.
+#
+# The accent is blue and not green or red because both of those are already carrying
+# meaning here: green is a PASS and red is a FAIL, on every page this skill serves.
+# An accent sharing a hue with a verdict would make the verdict decorative.
+color:
+  space: oklch
+  roles:
+    canvas: "#f7f6f3"
+    surface: "#ffffff"
+    ink: "#16181c"
+    muted: "#5b6069"
+    interactive: "#1f5eff"
+    focus: "#1f5eff"
+    success: "#0f7a44"
+    warning: "#8a5a00"
+    danger: "#c0281c"
+  ramp_steps: [0.976, 0.93, 0.78, 0.62, 0.47, 0.32, 0.19]
+  dark_mode: composed
+
+# --- Depth --------------------------------------------------------------------
+# Borders. A rules engine draws lines; it does not float cards above a page. A
+# hairline also survives forced-colors mode, which a shadow does not -- Chrome drops
+# box-shadow entirely there, and every surface built from shadow alone disappears.
+depth:
+  metaphor: border
+  elevations:
+    - "1px solid #e3e1db"
+    - "1px solid #cfccc4"
+
+# --- Spacing and shape --------------------------------------------------------
+spacing:
+  base_px: 4
+  scale: [4, 8, 12, 16, 24, 32, 48, 64]
+radius:
+  control_px: 6
+  card_px: 10
+
+# --- Composition --------------------------------------------------------------
+grid:
+  columns: 12
+  gutter_px: 24
+  container_max_px: 1040
+
+# --- Motion -------------------------------------------------------------------
+# Short and few. A page whose job is to be read does not need to introduce itself.
+motion:
+  duration_ms: [120, 180]
+  easing: "cubic-bezier(0.2, 0, 0, 1)"
+  authored_moments: 1
+
+departures: []

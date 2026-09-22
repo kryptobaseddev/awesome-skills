@@ -66,6 +66,7 @@ be checked, which means it changes nothing.
 
 | File | What it is |
 |---|---|
+| `brand.md` | DeuxUI's own identity — name, tagline, sub-line, pronunciation, voice, the mark — and the contract it holds itself to. `assets/brand/brand.contract.yaml` is the machine half, measured by `selftest.py` against this skill's own served pages |
 | `design/visitor-modes.md` | What the person came to do — persuade, experience, operate, read, native. The layer where UX decides UI |
 | `design/craft-floor.md` | Every craft number and the detector that decides it. Also defines "optical", which this skill used for a long time without saying what it meant |
 | `workflows/design.md` | Greenfield: originate a world and a contract, then build |

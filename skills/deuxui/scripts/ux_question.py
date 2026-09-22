@@ -119,13 +119,91 @@ def options_sha(q: dict) -> str:
 
 
 # -------------------------------------------------------------------- the page
+def _at_step(base: str, lightness: float) -> str | None:
+    """`base`'s hue and chroma held, its lightness moved to a declared ramp step.
+
+    This is what a ramp is FOR, and the composed dark theme was not using it: mixing
+    ink into canvas produced #26282b at lightness 0.224, which S-CONTRACT-RAMP
+    correctly reported as a step the contract does not declare. A value between two
+    rungs reads as a tier the system does not have -- and a dark theme built entirely
+    out of such values is a second, undeclared palette.
+
+    Hue and chroma come from the base so the dark ground stays the same colour family
+    as the light one; only lightness moves, which is the axis the ramp fixes."""
+    try:
+        from checks._util import hex_to_rgb, rgb_to_oklch, _oklch_to_rgb
+    except ImportError:
+        return None
+    rgb = hex_to_rgb(base)
+    if not rgb:
+        return None
+    _l, c, h = rgb_to_oklch(rgb)
+    out = _oklch_to_rgb(float(lightness), c, h)
+    if not out:
+        return None
+    return "#" + "".join(f"{max(0, min(255, round(v))):02x}" for v in out)
+
+
+def _dark(c) -> dict:
+    """A composed dark ground, off the declared ramp where one exists.
+
+    Composed, never inverted: the ground takes a low step and the ink a high one, so
+    contrast comes DOWN from the light theme rather than being flipped. Inversion is
+    what causes glare, and it is also what makes a muted grey chosen against paper
+    land at 2.5:1 on a dark card -- the commonest way a dark mode fails a check its
+    light twin passes.
+
+    With no ramp declared it falls back to mixing and says nothing it cannot support:
+    the values are then simply undeclared, and S-CONTRACT-RAMP is NOT_RUN because
+    there is no ladder for them to be off."""
+    ink, canvas = c.roles["ink"], c.roles["canvas"]
+    steps = sorted(float(s) for s in (c.raw.get("color") or {}).get("ramp_steps") or []
+                   if isinstance(s, (int, float)))
+    if len(steps) >= 3:
+        ground, sur, text = steps[0], steps[1], steps[-2]
+        got = {"d_canvas": _at_step(canvas, ground), "d_surface": _at_step(canvas, sur),
+               "d_ink": _at_step(ink, text)}
+        if all(got.values()):
+            return got
+    return {"d_canvas": _mix(ink, canvas, 0.93),
+            "d_surface": _mix(ink, canvas, 0.86),
+            "d_ink": _mix(canvas, ink, 0.93)}
+
+
+def _mix(a: str, b: str, pct: float) -> str:
+    """`pct` of a, the rest of b, in sRGB. The fallback when no ramp is declared."""
+    def rgb(h):
+        h = h.lstrip("#")
+        if len(h) == 3:
+            h = "".join(ch * 2 for ch in h)
+        try:
+            return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+        except (ValueError, IndexError):
+            return None
+    x, y = rgb(a), rgb(b)
+    if not x or not y:
+        return a
+    return "#" + "".join(f"{round(p * pct + q * (1 - pct)):02x}" for p, q in zip(x, y))
+
+
 def theme() -> dict:
     c = ux_image.load_contract(None)
-    return {"canvas": c.roles["canvas"], "surface": c.roles["surface"],
-            "ink": c.roles["ink"], "muted": c.roles["muted"],
+    ink, canvas = c.roles["ink"], c.roles["canvas"]
+    return {"canvas": canvas, "surface": c.roles["surface"],
+            "ink": ink, "muted": c.roles["muted"],
             "accent": c.roles["interactive"], "danger": c.roles["danger"],
             "display": c.families["display"], "body": c.families["body"],
             "mono": c.families["mono"], "r_card": c.r_card, "r_ctl": c.r_control,
+            # Composed from the project's OWN ink and canvas, not from four literal
+            # warm greys. Those literals were drift of exactly the kind S-TOKEN-HEX
+            # reports -- a value in a rule that no declaration accounts for, in the
+            # one tool whose job is to find them. They also meant a project with a
+            # cool palette got a warm dark mode nobody chose.
+            #
+            # Composed, never inverted: the ground goes most of the way to the ink
+            # and the ink most of the way to the canvas, so contrast comes DOWN from
+            # the light theme rather than being flipped, which is what causes glare.
+            **_dark(c),
             "undeclared": c.undeclared}
 
 
@@ -203,11 +281,11 @@ button:hover{filter:brightness(1.08)}
    on a dark card, which is the most common way a dark mode fails a contrast check
    that its light twin passes. */
 @media (prefers-color-scheme:dark){
-  :root{--canvas:#14120e;--surface:#1e1b16;--ink:#f4f0e7;
-        --muted:color-mix(in oklab,#f4f0e7 72%%,#14120e);
-        --accent:color-mix(in oklab,%(accent)s 78%%,#ffffff);
-        --line:color-mix(in oklab,#f4f0e7 22%%,#14120e)}
-  button{color:#14120e}
+  :root{--canvas:%(d_canvas)s;--surface:%(d_surface)s;--ink:%(d_ink)s;
+        --muted:color-mix(in oklab,var(--ink) 72%%,var(--canvas));
+        --accent:color-mix(in oklab,%(accent)s 78%%,%(surface)s);
+        --line:color-mix(in oklab,var(--ink) 22%%,var(--canvas))}
+  button{color:var(--canvas)}
 }
 """
 

@@ -306,8 +306,22 @@ def platforms_of(fam: str) -> set:
     return SYSTEM_FACES.get(norm(fam), set())
 
 
+def primary(fam: str) -> str:
+    """The face a declared value actually asks for: the first entry in the stack.
+
+    A contract may legitimately declare a stack rather than a bare name --
+    `ui-sans-serif, system-ui, sans-serif` is a complete and honest declaration for a
+    product that ships no webfont. Treated as one opaque name it matched nothing in
+    the generic list and nothing in the project, so it was reported as a missing
+    face; the fix is to read it as CSS reads it. If the first entry is generic the
+    whole stack always renders, and there is no availability question to answer."""
+    first = str(fam or "").split(",")[0].strip().strip("'\"")
+    return first or str(fam or "")
+
+
 def resolve(fam: str, provided: dict) -> tuple[str, str]:
-    """(verdict, why) for one family name. Four outcomes, deliberately distinct."""
+    """(verdict, why) for one declared value. Four outcomes, deliberately distinct."""
+    fam = primary(fam)
     k = norm(fam)
     if k in GENERIC:
         return ("generic", "A generic family. Always renders, and names no face -- "
@@ -369,7 +383,7 @@ def analyse(root: Path, contract: dict | None = None) -> dict:
             continue
         verdict, why = resolve(name, provided)
         declared[role] = {"family": name, "verdict": verdict, "why": why,
-                          "class": classify(name),
+                          "class": classify(primary(name)),
                           "named_in": [s["file"] for s in stacks.get(norm(name), [])][:5]}
         if verdict == "missing":
             findings.append({

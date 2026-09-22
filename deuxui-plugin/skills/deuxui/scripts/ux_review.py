@@ -57,6 +57,8 @@ sys.path.insert(0, str(HERE))
 import yaml                                                        # noqa: E402
 import ux_image                                                    # noqa: E402
 import ux_ledger                                                   # noqa: E402
+import uxconfig                                                    # noqa: E402
+import ux_question                                                 # noqa: E402
 
 DECISIONS = Path(".deuxui/decisions")
 REQUESTS = Path(".deuxui/requests")
@@ -447,17 +449,35 @@ def inject_into(body: bytes, variant: str) -> bytes:
 
 # --------------------------------------------------------------------- page
 def theme() -> dict:
-    c = ux_image.load_contract(None)
-    return {"canvas": c.roles["canvas"], "surface": c.roles["surface"],
-            "ink": c.roles["ink"], "muted": c.roles["muted"],
+    """DeuxUI's own contract, not the reviewed project's.
+
+    This read the project's contract, so the review chrome wore the colours of the
+    thing being reviewed -- and the entire job of this page is a person deciding
+    between two variants of that thing. When the frame and the content are the same
+    palette, "is that the tool or the product?" has no answer, and a reviewer ends up
+    judging DeuxUI's buttons.
+
+    The framed variants keep their own theming. Only the frame changes."""
+    c = ux_image.Contract(uxconfig.brand_contract()) if uxconfig.brand_contract() \
+        else ux_image.load_contract(None)
+    ink, canvas = c.roles["ink"], c.roles["canvas"]
+    return {"canvas": canvas, "surface": c.roles["surface"],
+            "ink": ink, "muted": c.roles["muted"],
             "accent": c.roles["interactive"], "danger": c.roles["danger"],
             "display": c.families["display"], "body": c.families["body"],
-            "mono": c.families["mono"], "r_ctl": c.r_control, "r_card": c.r_card}
+            "mono": c.families["mono"], "r_ctl": c.r_control, "r_card": c.r_card,
+            # Composed from this contract's own ink and canvas. Three warm literals
+            # used to live in the dark block, which is the drift S-TOKEN-HEX and
+            # S-CONTRACT-RAMP exist to catch -- and they caught it here.
+            **ux_question._dark(c)}
 
 
 CSS = """
 :root{--canvas:%(canvas)s;--surface:%(surface)s;--ink:%(ink)s;--muted:%(muted)s;
   --accent:%(accent)s;--danger:%(danger)s;
+  /* Declared once, referenced everywhere. A family repeated as a literal in eight
+     rules is what S-CONTRACT-FAMILY reports, and it reported it on this page. */
+  --font-display:%(display)s;--font-body:%(body)s;--font-mono:%(mono)s;
   --line:color-mix(in oklab,var(--ink) 16%%,var(--canvas));
   --hdr:64px;
   caret-color:var(--accent);accent-color:var(--accent);
@@ -466,7 +486,7 @@ CSS = """
 a{color:var(--accent);text-underline-offset:0.18em}
 *,*::before,*::after{box-sizing:border-box}
 html{color-scheme:light dark;scroll-padding-top:calc(var(--hdr) + 8px)}
-body{margin:0;background:var(--canvas);color:var(--ink);font-family:%(body)s;
+body{margin:0;background:var(--canvas);color:var(--ink);font-family:var(--font-body);
   font-size:17px;line-height:1.5;padding-inline:16px}
 
 /* The header was a sticky bar taking a quarter of a phone screen -- measured, not
@@ -477,7 +497,7 @@ header{padding:14px 0 0;background:var(--canvas)}
    never scrolled (SC 2.4.11, measured by R-STICKY-OBSTRUCTION). */
 .bar{position:sticky;top:0;z-index:5;background:var(--canvas);
   border-bottom:1px solid var(--line);padding:8px 0 10px}
-h1{font-family:%(display)s;font-size:clamp(22px,2.4vw,27px);line-height:1.2;
+h1{font-family:var(--font-display);font-size:clamp(21px,2.4vw,27px);line-height:1.2;
   margin:0 0 2px;font-weight:650;text-wrap:balance;max-width:34ch}
 .sub{margin:0;color:var(--muted);max-width:62ch;text-wrap:pretty;font-size:17px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
@@ -503,7 +523,7 @@ main{display:grid;grid-template-columns:1fr;gap:0}
    keeps its width and scrolls inside its own box; the page never scrolls
    sideways, which is the thing that makes a comparison unusable. */
 .vport{max-width:100%%;overflow-x:auto;overscroll-behavior-x:contain}
-.vwrap h2{font-family:%(display)s;font-size:22px;margin:0;font-weight:650}
+.vwrap h2{font-family:var(--font-display);font-size:21px;margin:0;font-weight:650}
 .vwrap .t{font:13px %(mono)s;color:var(--muted);margin:0;word-break:break-all}
 iframe{border:1px solid var(--line);border-radius:%(r_card)spx;background:#fff;
   height:min(72dvh,780px);width:100%%;max-width:100%%;display:block}
@@ -519,7 +539,7 @@ aside{padding:14px 0 72px;border-top:1px solid var(--line)}
   aside{border-top:0;border-left:1px solid var(--line);padding:14px 0 24px 16px;
     position:sticky;top:var(--hdr);max-height:calc(100dvh - var(--hdr));
     overflow:auto}}
-aside h2{font-family:%(display)s;font-size:22px;margin:0;font-weight:650}
+aside h2{font-family:var(--font-display);font-size:21px;margin:0;font-weight:650}
 .panelhead{display:flex;align-items:center;justify-content:space-between;gap:8px;
   margin:0 0 8px}
 .linkish{font:13px system-ui;background:none;border:0;color:var(--accent);
@@ -555,7 +575,7 @@ aside h2{font-family:%(display)s;font-size:22px;margin:0;font-weight:650}
 
 form{border-top:1px solid var(--line);margin-top:14px;padding-top:13px}
 fieldset{border:0;padding:0;margin:0 0 8px}
-legend{font-family:%(display)s;font-size:22px;font-weight:650;padding:0;margin:0 0 6px}
+legend{font-family:var(--font-display);font-size:21px;font-weight:650;padding:0;margin:0 0 6px}
 .opt{display:flex;gap:9px;align-items:flex-start;padding:9px 10px;min-height:48px;
   border:1px solid var(--line);border-radius:%(r_ctl)spx;margin:0 0 6px;cursor:pointer;
   background:var(--surface)}
@@ -563,15 +583,15 @@ legend{font-family:%(display)s;font-size:22px;font-weight:650;padding:0;margin:0
 .opt:has(input:checked){background:color-mix(in oklab,var(--accent) 14%%,var(--surface));
   border-color:var(--accent);outline:2px solid var(--accent);outline-offset:-2px}
 .opt span.h{font-weight:600;display:block}
-.opt span.d{font-size:13px;color:var(--muted);display:block;text-wrap:pretty}
+.opt span.d{font-size:14px;color:var(--muted);display:block;text-wrap:pretty}
 .opt.primary span.h::before{content:"✓ ";color:var(--accent);
   font-weight:700}
 .divider{font:13px %(mono)s;color:var(--muted);margin:10px 0 6px;
   display:flex;align-items:center;gap:8px}
 .divider::after{content:"";flex:1;height:1px;background:var(--line)}
 label.f{display:block;font-weight:600;margin:13px 0 4px}
-label.f .opt-tag{font-weight:400;color:var(--muted);font-size:13px}
-.hint{display:block;font-weight:400;font-size:13px;color:var(--muted);margin:2px 0 6px;
+label.f .opt-tag{font-weight:400;color:var(--muted);font-size:14px}
+.hint{display:block;font-weight:400;font-size:14px;color:var(--muted);margin:2px 0 6px;
   text-wrap:pretty;max-width:52ch}
 input[type=text],textarea{width:100%%;font:inherit;padding:10px 13px;min-height:46px;
   border:1px solid color-mix(in oklab,var(--ink) 32%%,var(--canvas));
@@ -583,8 +603,8 @@ button.send{width:100%%;margin-top:13px;font:650 17px system-ui;min-height:48px;
 .err{background:color-mix(in oklab,var(--danger) 12%%,var(--canvas));
   border:1px solid var(--danger);border-radius:%(r_ctl)spx;padding:10px 13px;margin:10px 0}
 .err ul{margin:4px 0 0;padding-left:18px}
-.fielderr{color:var(--danger);font-size:13px;margin:4px 0 0;display:block}
-.state{display:block;font-size:13px;margin:4px 0 0;color:var(--muted);
+.fielderr{color:var(--danger);font-size:14px;margin:4px 0 0;display:block}
+.state{display:block;font-size:14px;margin:4px 0 0;color:var(--muted);
   text-wrap:pretty;max-width:52ch}
 .state[data-ok=yes]{color:var(--success)}
 .state[data-ok=yes]::before{content:"✓ "}
@@ -594,12 +614,12 @@ button.send{width:100%%;margin-top:13px;font:650 17px system-ui;min-height:48px;
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 @media (prefers-color-scheme:dark){
-  :root{--canvas:#14120e;--surface:#1e1b16;--ink:#f4f0e7;
-    --muted:color-mix(in oklab,#f4f0e7 72%%,#14120e);
+  :root{--canvas:%(d_canvas)s;--surface:%(d_surface)s;--ink:%(d_ink)s;
+    --muted:color-mix(in oklab,var(--ink) 72%%,var(--canvas));
     --accent:color-mix(in oklab,%(accent)s 78%%,#ffffff);
-    --line:color-mix(in oklab,#f4f0e7 22%%,#14120e)}
+    --line:color-mix(in oklab,var(--ink) 22%%,var(--canvas))}
   button.send,.seg button[aria-pressed=true],.tog[aria-pressed=true],
-  .note .num{color:#14120e}}
+  .note .num{color:var(--canvas)}}
 """
 
 WIDTHS = [("320", 320), ("390", 390), ("768", 768), ("1024", 1024), ("full", 0)]
