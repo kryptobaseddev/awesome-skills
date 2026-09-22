@@ -216,10 +216,12 @@ def diagnose(root: Path) -> list[dict]:
             row("page CSP", WARN,
                 f"{_w['file']}:{_w['line']} forbids inline style",
                 f"`ux_select.py` and `ux_live.py show` will refuse here rather than "
-                f"draw an unstyled overlay. Nothing in this tool changes your policy: "
-                f"allow `style-src 'unsafe-inline'` in your DEV config only, or review "
+                f"draw an unstyled overlay. Nothing changes your policy unless you ask: "
+                f"allow `style-src 'unsafe-inline'` in your DEV config only, review "
                 f"through `ux_review.py serve`, which proxies the page and does not "
-                f"inherit it.")
+                f"inherit it, or pass `--bypass-csp` to stand enforcement down for that "
+                f"tab for one run -- restored on exit, and named in every record made "
+                f"while it was off.")
         else:
             row("page CSP", OK,
                 f"{len(_c['policies'])} policy declaration(s), none forbidding inline "

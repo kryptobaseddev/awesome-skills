@@ -354,10 +354,87 @@ def style_policy(ws: WS) -> dict:
     return {"styled": False,
             "why": ("this page's Content-Security-Policy refuses an injected "
                     "<style> element, so an overlay appends but renders unstyled. "
-                    "Nothing here disables that policy. To use the overlay, allow "
-                    "`style-src 'unsafe-inline'` in your DEV config only, or review "
+                    "Nothing here disables that policy on its own. Allow "
+                    "`style-src 'unsafe-inline'` in your DEV config only, review "
                     "through `ux_review.py serve`, which proxies the page and does "
-                    "not inherit its policy.")}
+                    "not inherit its policy, or pass `--bypass-csp` to turn "
+                    "enforcement off for this tab for the length of the run.")}
+
+
+def bypass_csp(ws: WS, enabled: bool) -> dict:
+    """Turn this tab's Content-Security-Policy enforcement off, or back on.
+
+    Never called unless the operator passed `--bypass-csp`. The default is that a
+    tool does not switch off a page's security control to make its own overlay
+    prettier -- the operator can grant `style-src 'unsafe-inline'` in a dev config
+    they own, which is a decision recorded in their repository rather than one made
+    for them by a program they ran once.
+
+    Why the flag exists anyway: on a strict production-shaped policy, the
+    alternatives are editing the app's config to review it (which changes the
+    artifact under test) or reviewing through the proxy (which is a copy of the page
+    and loses whatever state the reviewer had built up). Neither is available to
+    somebody debugging a specific screen in a specific state, and the answer to that
+    was previously "you cannot use this here".
+
+    Two things make it safe enough to offer, and both are the caller's duty:
+    `overlay_policy` MEASURES after the call rather than trusting it, and
+    `restore_csp` puts enforcement back before the tool exits. A tab left with CSP
+    off after a program ended is a browser quietly weakened by a tool nobody is
+    still running.
+
+    Scope: this CDP domain flag affects the attached tab only, lasts until it is
+    disabled or the tab closes, and reaches no other tab, profile or origin."""
+    try:
+        ws.call("Page.enable")
+        ws.call("Page.setBypassCSP", {"enabled": bool(enabled)})
+        return {"ok": True, "why": ("enforcement off for this tab" if enabled
+                                    else "enforcement restored")}
+    except Exception as e:
+        return {"ok": False, "why": f"the browser refused ({type(e).__name__}: {e})"}
+
+
+def overlay_policy(ws: WS, allow_bypass: bool = False) -> dict:
+    """`style_policy`, plus the opt-in bypass -- measured, never assumed.
+
+    Returns what `style_policy` returns with a `bypassed` key added. `styled` is
+    True only when an injected stylesheet was OBSERVED to take effect, which is the
+    same standard as before the flag existed: a request to bypass is not evidence
+    that the bypass worked, and a tool that reported `styled` because it asked for a
+    bypass would be laundering an intention into a result.
+
+    If the bypass is accepted and styling STILL does not apply, enforcement is put
+    back immediately and the reason says so -- whatever is refusing the stylesheet is
+    then not the page's CSP, and leaving it off would have weakened the page for
+    nothing."""
+    pol = style_policy(ws)
+    pol["bypassed"] = False
+    if pol.get("styled") is not False or not allow_bypass:
+        return pol
+    r = bypass_csp(ws, True)
+    if not r["ok"]:
+        pol["why"] = f"{pol['why']} --bypass-csp was passed and {r['why']}."
+        return pol
+    after = style_policy(ws)
+    if after.get("styled") is not True:
+        bypass_csp(ws, False)
+        return {"styled": after.get("styled"), "bypassed": False,
+                "why": ("--bypass-csp was passed, the browser accepted it, and an "
+                        "injected stylesheet still does not take effect -- so what "
+                        "refuses it is not this page's CSP. Enforcement has been put "
+                        "back. Original measurement: " + pol["why"])}
+    after["bypassed"] = True
+    after["why"] = ("this page's CSP refuses an injected <style>, and `--bypass-csp` "
+                    "turned enforcement OFF for this tab. Measured after the change, "
+                    "not assumed. It is restored when this run ends, and every record "
+                    "written during it says the page was not enforcing its policy.")
+    return after
+
+
+def restore_csp(ws: WS, pol: dict) -> None:
+    """Put enforcement back, if this run turned it off. Safe to call always."""
+    if isinstance(pol, dict) and pol.get("bypassed"):
+        bypass_csp(ws, False)
 
 
 def set_media(ws: WS, features: list[tuple[str, str]], media: str = ""):

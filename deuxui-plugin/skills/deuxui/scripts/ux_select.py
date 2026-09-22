@@ -248,13 +248,21 @@ def next_id() -> str:
     return f"REQ-{n + 1:03d}"
 
 
-def write(rec: dict) -> Path:
+def write(rec: dict, bypassed: bool = False) -> Path:
     rid = next_id()
     out = dict(rec)
     out["id"] = rid
     out["recorded_at"] = now()
     out["recorded_by"] = ("deuxui/scripts/ux_select.py -- a person pointed at this "
                           "element in the running app")
+    if bypassed:
+        # Only written when true, and its presence is the claim. Somebody reading this
+        # record later needs to know the page was not enforcing its own CSP while it
+        # was captured: an overlay drawn over a page whose policy is suspended is not
+        # quite the page users get, and a measurement is only as good as the state it
+        # was taken in.
+        out["page_csp"] = ("NOT enforced -- --bypass-csp was passed, so this element "
+                           "was measured on a page with CSP enforcement suspended")
     p = REQUESTS / f"{rid}.yaml"
     p.write_text(yaml.safe_dump(out, sort_keys=False, allow_unicode=True, width=92))
     return p
@@ -271,7 +279,7 @@ def cmd_watch(a) -> int:
     # Measured before anything is appended. A page whose `style-src` forbids inline
     # style renders this overlay invisibly, and the refusal goes to the page's own
     # console rather than to this terminal. See cdp.style_policy.
-    pol = cdp.style_policy(ws)
+    pol = cdp.overlay_policy(ws, getattr(a, "bypass_csp", False))
     if pol["styled"] is False:
         sys.stderr.write(f"\nthe overlay cannot be styled here: {pol['why']}\n")
         # The measurement is authoritative; it just cannot say WHERE the policy came
@@ -289,6 +297,8 @@ def cmd_watch(a) -> int:
     if pol["styled"] is None:
         sys.stderr.write(f"note: {pol['why']}; continuing. If the overlay appears "
                          f"unstyled, check the page console for a CSP refusal.\n")
+    if pol.get("bypassed"):
+        sys.stderr.write(f"\n  CSP BYPASSED  {pol['why']}\n")
     js = OVERLAY.replace("__ACTIONS__", json.dumps(ACTIONS)).replace("__PICK_JS__", PICK_JS)
     try:
         state = cdp.evaluate(ws, js)
@@ -331,7 +341,7 @@ def cmd_watch(a) -> int:
                 continue
             items = q.get("q") or []
             for rec in items[seen:]:
-                p = write(rec)
+                p = write(rec, bypassed=bool(pol.get("bypassed")))
                 made.append((p, rec))
                 sys.stderr.write(f"  {p.stem}  {rec['action']:<9} {rec['selector'][:60]}\n")
             seen = len(items)
@@ -344,6 +354,9 @@ def cmd_watch(a) -> int:
             cdp.evaluate(ws, "window.__uxSelect && (window.__uxSelect.active=false)")
         except Exception:
             pass
+        # Before the socket goes, not after: a tab left with CSP enforcement off by a
+        # program that has already exited is a browser weakened by nobody.
+        cdp.restore_csp(ws, pol)
         ws.close()
 
     if not made:
@@ -398,6 +411,12 @@ def main(argv=None) -> int:
                                  "into whichever tab is first, which is wrong the "
                                  "moment two are open.")
     w.add_argument("--out", default=str(REQUESTS))
+    w.add_argument("--bypass-csp", action="store_true",
+                   help="if this page's CSP refuses the overlay's stylesheet, suspend "
+                        "enforcement for THIS TAB for the length of this run, and "
+                        "restore it on exit. Off by default, measured after the "
+                        "change rather than assumed, and recorded in every request "
+                        "captured while it was off.")
     w.set_defaults(fn=cmd_watch)
     for nm, fn in (("list", cmd_list), ("clear", cmd_clear)):
         s = sub.add_parser(nm)

@@ -377,10 +377,14 @@ cli:
       to name the file, because "your overlay will not be styled" is not actionable
       without one. `doctor.py` carries it as a row, `ux_select.py` prints it with its
       refusal, and `ux_review.py` neutralises a meta policy in the framed copy only.
-      Nothing anywhere disables a page's policy: loosening one is the project's
-      decision, in a file they own, for their dev configuration.
+      Nothing stands a page's policy down on its own initiative. `--bypass-csp` does,
+      for one tab for the length of one run, and only because the alternatives -- edit
+      the app's own config, or review a proxied copy -- either change the artifact under
+      test or lose the state that made the screen worth looking at. It is off by
+      default, it is measured AFTER the change rather than assumed to have worked, it is
+      put back on exit, and every request captured while it was off says so.
     evidence: [script:csp.py, script:cdp.py, script:ux_review.py, script:ux_select.py,
-               script:doctor.py]
+               script:doctor.py, flag:ux_select.py:--bypass-csp]
 
   - name: concept-seed
     status: partial

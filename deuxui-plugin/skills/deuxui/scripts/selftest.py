@@ -341,6 +341,74 @@ def overlay_policy():
     if cdp.style_policy(_Fake(1, "0px"))["styled"] is not False:
         fails.append("style_policy trusts the rule count without measuring the effect")
 
+    # --- the opt-in suspension: asked for, measured, and put back ----------
+    #
+    # This flag stands a page's Content-Security-Policy down, so the controls are
+    # about restraint rather than capability: that it is never used unasked, that
+    # asking for it is never mistaken for it having worked, and that enforcement is
+    # always put back before the run ends.
+    REFUSED, APPLIED = {"rules": 0, "width": "0px"}, {"rules": 1, "width": "123px"}
+
+    class _Ws:
+        """A page that answers the style probe, and records what was asked of it."""
+
+        def __init__(self, *answers):
+            self.answers, self.calls = list(answers), []
+
+        def call(self, method, params=None):
+            self.calls.append((method, (params or {}).get("enabled")))
+            if method == "Runtime.evaluate":
+                a = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+                return {"result": {"value": json.dumps(a)}}
+            return {}
+
+        def close(self):
+            pass
+
+        def asked(self):
+            return [en for m, en in self.calls if m == "Page.setBypassCSP"]
+
+    ws = _Ws(REFUSED)
+    pol = cdp.overlay_policy(ws, False)
+    if ws.asked():
+        fails.append("overlay_policy stood a page's CSP down without being asked")
+    if pol["styled"] is not False or pol["bypassed"]:
+        fails.append("overlay_policy without the flag changed the measured answer")
+
+    ws = _Ws(APPLIED)
+    cdp.overlay_policy(ws, True)
+    if ws.asked():
+        fails.append("overlay_policy touched the policy of a page that was already "
+                     "permitting the stylesheet -- nothing needed standing down")
+
+    ws = _Ws(REFUSED, APPLIED)
+    pol = cdp.overlay_policy(ws, True)
+    if pol["styled"] is not True or not pol["bypassed"]:
+        fails.append("overlay_policy did not report a suspension that demonstrably "
+                     "worked")
+    if ws.asked() != [True]:
+        fails.append(f"a working suspension made the wrong calls: {ws.asked()}")
+    ws2 = _Ws(REFUSED, APPLIED)
+    cdp.restore_csp(ws2, cdp.overlay_policy(ws2, True))
+    if ws2.asked() != [True, False]:
+        fails.append(f"enforcement was not restored after the run: {ws2.asked()}")
+
+    # Asking is not evidence that it worked. If styling still fails, something other
+    # than this page's CSP is refusing the stylesheet, and leaving enforcement off
+    # would have weakened the page for nothing.
+    ws = _Ws(REFUSED, REFUSED)
+    pol = cdp.overlay_policy(ws, True)
+    if pol["styled"] is True or pol["bypassed"]:
+        fails.append("overlay_policy reported styled because the flag was PASSED, "
+                     "not because a stylesheet was observed to apply")
+    if ws.asked() != [True, False]:
+        fails.append(f"a suspension that did not help was left in place: {ws.asked()}")
+
+    ws = _Ws(APPLIED)
+    cdp.restore_csp(ws, {"styled": True, "bypassed": False})
+    if ws.asked():
+        fails.append("restore_csp touched the policy of a page this run never changed")
+
     for f in fails:
         print(f"  FAIL {f}")
     return fails

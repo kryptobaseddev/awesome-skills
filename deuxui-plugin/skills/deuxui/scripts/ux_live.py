@@ -466,7 +466,7 @@ OVERLAY = r"""
 """
 
 
-def inject(rec: dict, variants: list, rid: str) -> dict:
+def inject(rec: dict, variants: list, rid: str, bypass: bool = False) -> dict:
     # `connect_page` returns (ws, info-or-reason). This unpacked it as a single value,
     # so `ws` was the tuple: always truthy, so the "no page is open" guard never fired,
     # and the next line raised AttributeError instead. `show` could not work at all,
@@ -476,8 +476,9 @@ def inject(rec: dict, variants: list, rid: str) -> dict:
         return {"ok": False, "why": str(why)}
     # A variant switcher is an overlay, and an overlay's <style> is inline style.
     # Under a strict `style-src` it appends and renders unstyled, which reads as
-    # "the variants did not appear". Measured, never bypassed -- see cdp.style_policy.
-    pol = cdp.style_policy(ws)
+    # "the variants did not appear". Always measured -- and suspended only when the
+    # operator asked for that, never on our own initiative. See cdp.overlay_policy.
+    pol = cdp.overlay_policy(ws, bypass)
     if pol["styled"] is False:
         try:
             ws.close()
@@ -491,6 +492,7 @@ def inject(rec: dict, variants: list, rid: str) -> dict:
         res = cdp.evaluate(ws, js)
     finally:
         try:
+            cdp.restore_csp(ws, pol)
             ws.close()
         except Exception:
             pass
@@ -768,7 +770,8 @@ def cmd_pick(a) -> int:
     if getattr(a, "describe", None):
         return _pick_described(a)
     r = subprocess.run([sys.executable, str(HERE / "ux_select.py"), "watch",
-                        *(["--timeout", str(a.timeout)] if a.timeout else [])])
+                        *(["--timeout", str(a.timeout)] if a.timeout else []),
+                        *(["--bypass-csp"] if getattr(a, "bypass_csp", False) else [])])
     if r.returncode not in (0, 2):
         return r.returncode
     reqs = sorted(REQUESTS.glob("REQ-*.yaml")) if REQUESTS.exists() else []
@@ -886,7 +889,8 @@ def cmd_show(a) -> int:
     if not st.get("variants"):
         w(f"\n{a.id} has no variants yet. `ux_live.py vary {a.id}` first.\n\n")
         return 2
-    res = inject(st["element"], st["variants"], a.id)
+    res = inject(st["element"], st["variants"], a.id,
+                 bypass=getattr(a, "bypass_csp", False))
     if not res.get("ok"):
         w(f"\nNot shown: {res.get('why')}\n\n")
         return 2
@@ -1632,11 +1636,13 @@ def _edits_watch(a) -> int:
     if ws is None:
         w(f"\n{why}\n\n  Open the page first: agent-browser open <url>\n\n")
         return 2
-    pol = cdp.style_policy(ws)
+    pol = cdp.overlay_policy(ws, getattr(a, "bypass_csp", False))
     if pol["styled"] is False:
         w(f"\nThe editing overlay cannot be styled here: {pol['why']}\n\n")
         ws.close()
         return 2
+    if pol.get("bypassed"):
+        w(f"\n  CSP BYPASSED  {pol['why']}\n")
     try:
         state = cdp.evaluate(ws, EDIT_OVERLAY.replace("__PICK_JS__", ux_select.PICK_JS))
     except RuntimeError as e:
@@ -1693,6 +1699,7 @@ def _edits_watch(a) -> int:
         pass
     finally:
         try:
+            cdp.restore_csp(ws, pol)
             ws.close()
         except Exception:
             pass
@@ -1965,6 +1972,7 @@ def main(argv=None) -> int:
                         "its class. Resolves to exactly one element or refuses with "
                         "the candidates.")
     s.add_argument("--timeout", type=int)
+    s.add_argument("--bypass-csp", action="store_true", help="if the page's CSP refuses the overlay's stylesheet, suspend enforcement for THIS TAB for this run and restore it on exit. Off by default; measured after the change, not assumed")
     s.set_defaults(fn=cmd_pick)
 
     s = sub.add_parser("vary", help="variants, every value taken from the contract")
@@ -1976,6 +1984,7 @@ def main(argv=None) -> int:
 
     s = sub.add_parser("show", help="all of them in the real page, with a switcher")
     s.add_argument("id")
+    s.add_argument("--bypass-csp", action="store_true", help="if the page's CSP refuses the overlay's stylesheet, suspend enforcement for THIS TAB for this run and restore it on exit. Off by default; measured after the change, not assumed")
     s.set_defaults(fn=cmd_show)
 
     s = sub.add_parser("accept", help="check it, write it, record it")
@@ -2034,6 +2043,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("edits", help="rewrite copy in the page, then apply the batch")
     s.add_argument("what", choices=["watch", "list", "apply", "discard"])
     s.add_argument("--url", help="the page under test")
+    s.add_argument("--bypass-csp", action="store_true", help="if the page's CSP refuses the overlay's stylesheet, suspend enforcement for THIS TAB for this run and restore it on exit. Off by default; measured after the change, not assumed")
     s.add_argument("--timeout", type=int, default=1800)
     s.add_argument("--who", help="the person deciding, by name")
     s.add_argument("--why")

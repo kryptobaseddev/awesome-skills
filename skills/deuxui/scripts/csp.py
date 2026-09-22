@@ -171,10 +171,13 @@ def advice(r: dict) -> str:
                 f"{k} {v}" for k, v in sorted(f["directives"].items()) if v))
     tail = ("\n\nAt least one policy forbids inline style, so `ux_select.py` and "
             "`ux_live.py show` will refuse rather than draw an unstyled overlay. "
-            "Nothing here changes that for you: add `'unsafe-inline'` to `style-src` in "
-            "your DEV configuration only if you want the overlay, or review through "
-            "`ux_review.py serve`, which proxies the page and does not inherit its "
-            "policy." if r["blocks_overlay"] else
+            "Three ways past it, in the order worth trying: add `'unsafe-inline'` to "
+            "`style-src` in your DEV configuration only, which is a decision recorded in "
+            "a file you own; review through `ux_review.py serve`, which proxies the page "
+            "and does not inherit its policy; or pass `--bypass-csp`, which stands "
+            "enforcement down for that one tab for the length of one run and restores it "
+            "on exit. Nothing changes your policy unless you ask for it."
+            if r["blocks_overlay"] else
             "\n\nNothing found here forbids inline style, so the overlay should render. "
             "`cdp.style_policy` measures it on the live page, which is the answer that "
             "counts -- a policy can also arrive from a CDN or a reverse proxy that no "

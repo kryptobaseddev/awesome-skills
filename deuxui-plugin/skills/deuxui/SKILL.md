@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.20.1"
-  last_updated: "2026-09-22 04:55:00"
+  version: "5.21.0"
+  last_updated: "2026-09-22 07:11:30"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -343,7 +343,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/browsertest.py` | **Integration test for the runtime tier.** Serves a fixture with known defects and requires each probe's numbers to match the pixels the browser painted. |
 | `scripts/uxconfig.py` | The only reader of `.deuxui/ux.config.yaml`. Merges overridable thresholds, refuses standards, and answers `--get app.dev_url` for the shell driver. |
 | `scripts/selftest.py` | Asserts every check fires on bad fixtures and stays quiet on good ones, **and** that every config key changes something — each with a positive control. |
-| `scripts/csp.py` | **Where the policy is, and what it forbids.** An overlay's `<style>` is inline style whatever created it, so under `style-src 'self'` it appends and renders with nothing applied — and the browser logs that to the *page's* console, not your terminal. `cdp.style_policy` measures the live page; this names the file, across eleven declaration sites, because "your overlay will not be styled" is not actionable without one. It never edits a policy: loosening one is your decision, in your dev config. |
+| `scripts/csp.py` | **Where the policy is, and what it forbids.** An overlay's `<style>` is inline style whatever created it, so under `style-src 'self'` it appends and renders with nothing applied — and the browser logs that to the *page's* console, not your terminal. `cdp.style_policy` measures the live page; this names the file, across eleven declaration sites, because "your overlay will not be styled" is not actionable without one. It never edits a policy, and nothing here stands one down on its own: `--bypass-csp` is yours to pass, suspends enforcement for one tab for one run, is measured after the change rather than assumed to have worked, is restored on exit, and is named in every record captured while it was off. |
 | `scripts/jsxspan.py` | **Where an element begins and ends, or a refusal.** Structural edits need boundaries, and scanning for `<` and `>` does not survive real code: `onClick={() => x}`, `{a > b}`, `title="a > b"`, `useState<Row[]>`, `{/* <Legacy /> */}` and `// <Old />` are all angle brackets that are not tag boundaries. A state machine that knows strings, template literals, both comment forms and brace depth — then the span is **verified** (same tag at both ends, the anchor exactly once inside, balanced within, and the tag agreeing with what the browser reported) before any caller is allowed to write. |
 | `scripts/parity.py` | **The coverage claim, made falsifiable.** `references/parity/impeccable.yaml` records what impeccable does row by row and what this skill does about it; this resolves every piece of evidence in it and refuses a `partial` or `absent` that does not say what is missing. "We have everything they have" is the same shape of unfalsifiable sentence as "looks good", so it is checked rather than asserted. `--deep` also RUNS every cited script, because a script that is present and broken satisfies a claim it cannot support — and it prints how many mapped rows an automated control actually exercises, separately from those that only start. That second number is the honest answer to "wired *and working*" and it is printed whatever it says. |
 | `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
