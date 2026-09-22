@@ -1249,6 +1249,15 @@ def _structural(a, st: dict, span: dict, new_text: str, what: str, detail: dict)
 
     delta = check_delta(Path.cwd(), f, new_text)
     w(f"\n{a.id}  {what} at {rel}:{span['line']}  <{span['name']}>\n")
+    rep = span.get("repeated")
+    if rep:
+        # Not a refusal: editing a template is usually exactly what somebody means. But
+        # it is not a local change, and applying it without saying so has quietly edited
+        # every row of a table. This is also the one thing a per-framework AST adapter
+        # would tell you that a textual resolver otherwise cannot.
+        w(f"  REPEATED  this markup is inside {rep['kind']} at {rel}:{rep['line']}, so "
+          f"it is authored\n            once and rendered once PER ITEM. This edit "
+          f"changes every one of them.\n")
     if delta.get("ran"):
         w(f"  checks   {delta['before']} finding(s) before, {delta['after']} after\n")
         if not delta.get("graded"):

@@ -162,6 +162,90 @@ def spans(text: str) -> list:
     return out
 
 
+# A repeated element is authored once and rendered N times. Editing it is legitimate --
+# it is often exactly what somebody means -- but it is not a local change, and a tool
+# that applies it without saying so has quietly edited every row of a table.
+REPEATERS = [
+    (re.compile(r"\.\s*(map|flatMap|forEach)\s*\("), ")", "a .{0}() callback"),
+    (re.compile(r"\{\s*#each\b"), "{/each}", "a Svelte {#each} block"),
+    (re.compile(r"\{\s*#for\b"), "{/for}", "an {#for} block"),
+]
+# `\b` before `*ngFor` never matches: the character before `*` is a space, and two
+# non-word characters have no boundary between them, so Angular's form was silently
+# never detected. A negative lookbehind works for every spelling and still refuses to
+# match inside a longer attribute like `data-v-for`.
+_ATTR_REPEAT = re.compile(r"(?<![\w-])(v-for|x-for|\*ngFor|ng-repeat)\s*=", re.I)
+
+
+def _closes(text: str, open_at: int, opener: str, closer: str) -> int:
+    """Where the construct starting at `open_at` ends, by balancing its delimiters."""
+    if len(closer) > 1:                      # a literal terminator like {/each}
+        j = text.find(closer, open_at)
+        return j + len(closer) if j != -1 else -1
+    depth, i, n = 0, open_at, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'`":                       # skip strings; a paren inside one is text
+            q, i = c, i + 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2
+                    continue
+                if text[i] == q:
+                    break
+                i += 1
+        elif c == opener:
+            depth += 1
+        elif c == closer:
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return -1
+
+
+def repeated(text: str, start: int, end: int) -> dict | None:
+    """Is this span inside something that renders it more than once, and where.
+
+    This is the honest half of what a framework adapter buys. An adapter would know the
+    component graph; this knows only the file. But the question that actually decides
+    whether a structural edit is safe -- "does this markup run once, or once per row?"
+    -- is answerable from the text, and answering it turns "wrapped the element" into
+    "wrapped every row of the table", which is the difference between a change somebody
+    asked for and one they have to find later."""
+    best = None
+    for pat, closer, what in REPEATERS:
+        for m in pat.finditer(text, 0, start):
+            opener = "(" if closer == ")" else ""
+            at = text.find("(", m.end() - 1) if closer == ")" else m.start()
+            if closer == ")":
+                stop = _closes(text, at, "(", ")")
+            else:
+                stop = _closes(text, m.start(), "", closer)
+            if stop != -1 and m.start() < start and end <= stop:
+                if best is None or m.start() > best["at"]:
+                    # Name the method that is actually there. Reporting `forEach` as
+                    # ".map()" is a small lie about somebody's code, and this text is
+                    # read by a person deciding whether an edit is safe.
+                    label = (what.format(m.group(1)) if "{0}" in what and m.groups()
+                             else what)
+                    best = {"at": m.start(), "kind": label,
+                            "line": text[:m.start()].count("\n") + 1}
+    # An attribute-based repeat sits on an ANCESTOR tag, so look at every open tag that
+    # encloses the span rather than at text before it.
+    # Includes the span ITSELF, not only its ancestors: `v-for` sits on the element
+    # being repeated, so the element somebody picks IS the one carrying the attribute.
+    # Requiring a strict ancestor missed every Vue and Alpine case.
+    for s in spans(text):
+        if s["start"] <= start and end <= s["end"]:
+            head = text[s["start"]:s["open_end"]]
+            m = _ATTR_REPEAT.search(head)
+            if m and (best is None or s["start"] > best["at"]):
+                best = {"at": s["start"], "kind": f"a {m.group(1)} on <{s['name']}>",
+                        "line": text[:s["start"]].count("\n") + 1}
+    return best
+
+
 def verify(text: str, s: dict, anchor: str) -> tuple[bool, str]:
     """Is this span safe to edit? Three checks, each one a way the scan could be wrong."""
     body = text[s["start"]:s["end"]]
@@ -222,6 +306,7 @@ def find(text: str, anchor: str, want_tag: str | None = None) -> dict:
             return {"found": True, "name": s["name"], "start": s["start"],
                     "end": s["end"], "open_end": s["open_end"], "self": s["self"],
                     "line": line, "indent": indent,
+                    "repeated": repeated(text, s["start"], s["end"]),
                     "source": text[s["start"]:s["end"]], "rejected": rejected}
         rejected.append({"name": s["name"], "line": text[:s["start"]].count("\n") + 1,
                          "why": why})
@@ -254,8 +339,12 @@ def main(argv=None) -> int:
             sys.stderr.write(f"  <{x['name']}> at line {x['line']}: {x['why']}\n")
         sys.stderr.write("\n")
         return 2
+    rep = r.get("repeated")
+    note = (f"  inside {rep['kind']} at line {rep['line']} -- this markup renders once "
+            f"PER ITEM\n" if rep else "")
     sys.stderr.write(f"\n<{r['name']}> at {a.file}:{r['line']}"
                      f"{' (self-closing)' if r['self'] else ''}\n"
+                     f"{note}"
                      f"  {len(r['source'])} char(s), indent {len(r['indent'])}\n\n"
                      f"{r['source'][:600]}\n\n")
     return 0

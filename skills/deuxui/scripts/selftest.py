@@ -427,6 +427,50 @@ def element_spans():
         elif src[r["start"]:r["end"]] != r["source"]:
             fails.append(f"span offsets do not match its own source ({label})")
 
+    # Repeated markup. A structural edit inside a `.map()` is authored once and renders
+    # once per row, so "wrapped the element" is really "wrapped every row of the table".
+    # This is the one thing a per-framework AST adapter buys that a textual resolver
+    # otherwise cannot answer -- and the question that actually decides whether the edit
+    # is safe is answerable from the file alone.
+    repeats = [
+        ("react map", '<ul>{rows.map(r => <li className="row">Row copy</li>)}</ul>',
+         "Row copy", True),
+        ("forEach", '<div>{rows.forEach(r => <li>Row copy</li>)}</div>', "Row copy", True),
+        ("svelte each", '{#each rows as r}\n  <li>Row copy</li>\n{/each}',
+         "Row copy", True),
+        ("vue v-for", '<ul><li v-for="r in rows">Row copy</li></ul>', "Row copy", True),
+        # `\b` before `*ngFor` can never match -- the character before `*` is a space,
+        # and two non-word characters have no boundary between them. Angular's form was
+        # silently undetectable until the pattern used a lookbehind.
+        ("angular ngFor", '<ul><li *ngFor="let r of rows">Row copy</li></ul>',
+         "Row copy", True),
+        ("alpine x-for", '<template x-for="r in rows"><li>Row copy</li></template>',
+         "Row copy", True),
+        # Negatives: each one is a way to claim a repeat that is not there.
+        ("plain markup", '<ul><li className="row">Row copy</li></ul>', "Row copy", False),
+        ("a map named in prose", '<p>call rows.map yourself</p><b>Row copy</b>',
+         "Row copy", False),
+        ("a map that closes first", '<div>{a.map(x => <i>{x}</i>)}</div><b>Row copy</b>',
+         "Row copy", False),
+        ("a look-alike attribute", '<li data-v-format="x">Row copy</li>',
+         "Row copy", False),
+    ]
+    for label, src, anchor_, want in repeats:
+        r = jsxspan.find(src, anchor_)
+        if not r["found"]:
+            fails.append(f"span not resolved for the repeat case ({label})")
+            continue
+        got = bool(r.get("repeated"))
+        if got != want:
+            fails.append(f"jsxspan repeat detection said {got}, wanted {want} "
+                         f"({label}) -- a missed repeat edits every row without "
+                         f"saying so, and a false one warns about code that runs once")
+    _fe = jsxspan.find('<div>{rows.forEach(r => <li>Row copy</li>)}</div>', "Row copy")
+    if "forEach" not in (_fe.get("repeated") or {}).get("kind", ""):
+        fails.append("jsxspan reported a .forEach() as a .map(), which is a small lie "
+                     "about somebody's code in text they read to decide if an edit is "
+                     "safe")
+
     refusals = [
         ("the anchor appears twice", '<p>Repeat</p><p>Repeat</p>', "Repeat", None),
         ("the anchor is absent", '<p>Something</p>', "Absent text", None),

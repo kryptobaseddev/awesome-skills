@@ -490,11 +490,17 @@ live:
       The span is verified before anything is written, and the DOM tag the browser
       reported has to agree with the tag found in source.
     gap: >-
-      resolved textually, with no framework adapter and no AST. It refuses rather than
-      guesses: an element located by its class instead of its text, a span whose tag
-      disagrees with what was picked on screen, unbalanced boundaries, or an anchor
-      appearing more than once each produce a refusal and no write. Markup inside a
-      conditional or a `.map()` callback resolves only when the anchor is unique.
+      resolved textually, with no framework adapter and no AST, so it cannot follow a
+      component boundary: an element rendered by `<Card title=.../>` resolves to the
+      usage, never into `Card`'s own definition. It refuses rather than guesses -- an
+      element located by its class instead of its text, a span whose tag disagrees with
+      what was picked on screen, unbalanced boundaries, or an anchor appearing more than
+      once each produce a refusal and no write.
+      It does answer the question the adapter is usually wanted FOR: whether the markup
+      runs once or once per row. `jsxspan.repeated` detects `.map()`, `.forEach()`,
+      `.flatMap()`, a Svelte `{#each}`, and `v-for` / `*ngFor` / `x-for` /
+      `ng-repeat`, and says so before the edit -- "wrapped the element" and "wrapped
+      every row of the table" are different changes.
     evidence: [sub:ux_live.py:wrap, flag:ux_live.py:--with, script:jsxspan.py]
 
   - name: live-insert
@@ -507,7 +513,8 @@ live:
       written and refused on a new P0 or P1 -- a clickable `div` is a finding whether
       this skill generated it or an agent typed it.
     gap: >-
-      the same span-resolution limits as `live-wrap`. It also does not check HTML
+      the same span-resolution limits as `live-wrap`, including the repeat notice.
+      It also does not check HTML
       nesting validity: a `<p>` placed inside an `<h1>` lands where asked and no
       detector currently objects.
     evidence: [sub:ux_live.py:insert, flag:ux_live.py:--markup, script:jsxspan.py]
