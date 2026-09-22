@@ -2,6 +2,7 @@
 from __future__ import annotations
 import re
 from . import check, finding
+from ._util import strip_comments
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro")
 CSS = (".css", ".scss", ".sass", ".less")
@@ -28,29 +29,53 @@ SOLVED = ("dialog", "modal", "dropdown", "popover", "tooltip", "select", "combob
           "hovercard", "progress", "scrollarea", "toggle", "avatar", "alertdialog")
 
 
+# Only 3, 4, 6 and 8 hex digits are colours; {3,8} admitted 5 and 7, which no
+# colour has. `(?<!&)` keeps HTML entities (`&#8212;`) out.
+_HEX = re.compile(r"(?<![&\w])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})"
+                  r"\b(?![\w-])|rgba?\([^)]*\)|oklch\([^)]*\)|hsla?\([^)]*\)")
+# Where a colour literal is written: a CSS value, a prop, an arbitrary Tailwind
+# value, an argument, a string. An all-digit hex anywhere else is a PR number,
+# an issue, an invoice -- "Fixed in #856", "mailbox #4784".
+_COLOUR_POS = re.compile(r"[:=(\[,'\"`]\s*$")
+# Renderers with no cascade: literal colours are the only colours they have, so
+# a literal there is not a token that escaped. react-pdf pages, HTML email and QR
+# builders (whose colours must stay literal or scanners fail).
+_NO_CASCADE = re.compile(r"""from\s+['"](?:@react-pdf/renderer|@react-email/[\w-]+|react-email|"""
+                         r"""mjml(?:-react)?|qrcode(?:\.react)?|react-qr-code|qr-code-styling)['"]""")
+
+
 @check("S-TOKEN-HEX", requires=lambda p: bool(p.cssvars))
 def raw_colors(f, p):
     """A literal colour in a component is a token that escaped. It will not
-    follow the theme, will not flip in dark mode, and nobody will find it."""
+    follow the theme, will not flip in dark mode, and nobody will find it.
+
+    A field report found this rule firing on 26 pull-request numbers in comments
+    and prose, and on a file with no colour in it at all. Comments are blanked
+    before matching, and an all-digit hex has to sit where a colour is written."""
     out = []
     if f.ext in CSS and re.search(r"@theme|:root", f.text):
         return out                      # this file is where colours are allowed to live
-    pat = r"#[0-9a-fA-F]{3,8}\b(?![\w-])|rgba?\([^)]*\)|oklch\([^)]*\)|hsla?\([^)]*\)"
+    if _NO_CASCADE.search(f.text):
+        return out
+    text = strip_comments(f.text)
     seen = set()
-    for m in re.finditer(pat, f.text):
+    for m in _HEX.finditer(text):
         val = m.group(0)
         if val.lower() in ("#fff", "#ffffff", "#000", "#000000") or val in seen:
             continue
-        ctx = f.text[max(0, m.start() - 60):m.start()]
+        if val.startswith("#") and val[1:].isdigit() and not _COLOUR_POS.search(
+                text[max(0, m.start() - 24):m.start()]):
+            continue
+        ctx = text[max(0, m.start() - 60):m.start()]
         if "--" in ctx or "stopColor" in ctx or "currentColor" in ctx:
             continue
         seen.add(val)
-        line = f.text[:m.start()].count("\n") + 1
+        line = text[:m.start()].count("\n") + 1
         out.append(finding("S-TOKEN-HEX", f, line, val,
                            "Hardcoded colour in a project that defines theme variables. Use "
                            "the semantic token so it follows the theme and dark mode "
                            "(VIS-001).", "high"))
-    return out[:12]
+    return out
 
 
 @check("S-TOKEN-ARBITRARY", exts=SRC, requires=lambda p: p.has_tailwind)
@@ -76,7 +101,7 @@ def arbitrary_values(f, p):
                            "system turns back into a pile of magic numbers -- snap to the "
                            "scale, or add a named step if the scale is genuinely missing one "
                            "(VIS-001, NUM-017).", "high"))
-    return out[:12]
+    return out
 
 
 @check("S-DS-REINVENT", exts=SRC,

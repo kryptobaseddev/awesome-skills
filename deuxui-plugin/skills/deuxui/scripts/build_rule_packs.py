@@ -103,7 +103,11 @@ PACKS = {
 }
 
 
-def main() -> int:
+def render() -> dict:
+    """{pack filename: (text, rule count)}. Separate from writing so lint_rules can
+    compare the packs on disk against what the registry says they should be: they
+    drifted once already -- GOV-015 was absent from 00-governance.md for a whole
+    series of releases, because regenerating was a step somebody had to remember."""
     reg = yaml.safe_load((RULES / "registry.yaml").read_text())
     det = yaml.safe_load((RULES / "detectors.yaml").read_text())["detectors"]
     by_rule = {}
@@ -111,7 +115,7 @@ def main() -> int:
         for rid in d["rules"]:
             by_rule.setdefault(rid, []).append(did)
 
-    written = []
+    packs = {}
     for prefixes, (fname, title, intro) in PACKS.items():
         rows = [r for r in reg["rules"] if r["id"].split("-")[0] in prefixes]
         if not rows:
@@ -137,9 +141,15 @@ def main() -> int:
             out.append(f"| {sid} | {s.get('publisher','')} — {s.get('title','')} | "
                        f"{s.get('type','')} |")
         out.append("")
-        (RULES / fname).write_text("\n".join(out))
-        written.append((fname, len(rows)))
+        packs[fname] = ("\n".join(out), len(rows))
+    return packs
 
+
+def main() -> int:
+    written = []
+    for fname, (text, n) in render().items():
+        (RULES / fname).write_text(text)
+        written.append((fname, n))
     for f, n in written:
         print(f"  {f:<28} {n:>3} rules")
     print(f"{len(written)} packs, {sum(n for _f, n in written)} rules total")

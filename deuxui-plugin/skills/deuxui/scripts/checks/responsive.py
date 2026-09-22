@@ -2,6 +2,7 @@
 from __future__ import annotations
 import re
 from . import check, finding
+from ._util import ancestors
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 CSS = (".css", ".scss", ".sass", ".less")
@@ -54,22 +55,100 @@ def overflow_masking(f, p):
     return out
 
 
+# A horizontal scroll box and a card layout are not equivalent answers to a
+# table that does not fit. Cards move the data somewhere the user will find it;
+# a scroll box moves it somewhere they will not -- sideways scrolling inside a
+# vertically scrolling page is a gesture people do not discover, and it hides
+# whatever is rightmost. In a data table that is the row actions. The old check
+# accepted any `overflow-auto` (and any class containing "scroll") on the direct
+# parent as a remedy, and scored exactly that table PASS in a field report.
+_SCROLL = re.compile(r"(?<![\w-])overflow(?:-x)?-(?:auto|scroll)(?![\w-])|"
+                     r"overflow-?[xX]?\s*:\s*['\"]?(?:auto|scroll)|<ScrollArea\b")
+_CARDS = re.compile(r"(?<![\w-])hidden\s+(?:[\w-]+:)*(?:sm|md|lg|xl|2xl):(?:table|block)(?![\w-])|"
+                    r"(?<![\w-])(?:max-)?(?:sm|md|lg|xl|2xl):hidden(?![\w-])|@container|"
+                    r"(?<![\w-])@(?:sm|md|lg|xl):|@media[^{]*\bmax-width")
+_STICKY_END = re.compile(r"(?<![\w-])sticky(?![\w-])[^>]*?(?<![\w-])(?:right|end)-0(?![\w-])|"
+                         r"(?<![\w-])(?:right|end)-0(?![\w-])[^>]*?(?<![\w-])sticky(?![\w-])|"
+                         r"position\s*:\s*['\"]?sticky")
+_ACTION_HEAD = re.compile(r"^(?:actions?|edit|manage|options|more|menu|controls?)$", re.I)
+_ACTION_COMPONENT = re.compile(r"(?:Button|Menu|Link|Action|Dropdown|Kebab)", re.I)
+
+
+def _descendants(t):
+    for c in t.children:
+        yield c
+        yield from _descendants(c)
+
+
+def _text(tag):
+    return " ".join(re.sub(r"<[^>]*>|\{[^{}]*\}", " ", tag.inner or "").split())
+
+
+def _table_shape(table):
+    """(column count, last header text, last column interactive, last column
+    pinned) read from the markup. Rows built with .map() exist once in source,
+    which is all this needs: the columns are the same on every row."""
+    heads = [d for d in _descendants(table) if d.name.lower() == "th"
+             and any(a.name.lower() == "thead" for a in _ancestors_until(d, table))]
+    rows = [d for d in _descendants(table) if d.name.lower() == "tr"]
+    if not heads and rows:
+        heads = [c for c in rows[0].children if c.name.lower() in ("th", "td")]
+    last_head = heads[-1] if heads else None
+    last_cells = [cells[-1] for r in rows
+                  if (cells := [c for c in r.children if c.name.lower() in ("td", "th")])]
+    interactive = any(
+        d.is_interactive() or _ACTION_COMPONENT.search(d.name) and d.name[:1].isupper()
+        for cell in last_cells for d in _descendants(cell))
+    label = _text(last_head) if last_head is not None else ""
+    if _ACTION_HEAD.match(label):
+        interactive = True
+    pinned = any(_STICKY_END.search(c.raw) for c in ([last_head] if last_head else []) + last_cells)
+    return len(heads), label, interactive, pinned
+
+
+def _ancestors_until(t, stop):
+    p = t.parent
+    while p is not None and p is not stop:
+        yield p
+        p = p.parent
+
+
 @check("S-RESP-TABLE", exts=SRC)
 def table_narrow(f, p):
     out = []
+    max_cols = p.num("responsive", "table_scroll_max_columns", 6)
+    act_cols = p.num("responsive", "table_actions_min_columns", 4)
     for t in f.tags:
         if t.name.lower() != "table":
             continue
-        scope = (t.parent.raw if t.parent else "") + " ".join(t.classes())
-        if re.search(r"overflow-x-auto|overflow-auto|scroll|@container|hidden\s+\w+:table|"
-                     r"md:table|sm:hidden", scope):
+        up = [a for _i, a in zip(range(4), ancestors(t))]
+        near = [t] + up + ([s for s in t.parent.children if s is not t] if t.parent else [])
+        wrap = " ".join(x.raw for x in [t] + up)
+        cards = any(_CARDS.search(x.raw) for x in near)
+        scroll = bool(_SCROLL.search(wrap))
+        if cards:
             continue
-        line = t.line
-        out.append(finding("S-RESP-TABLE", f, line, t.raw,
-                           "A table with no narrow-viewport strategy. Either let it scroll "
-                           "inside a labelled scroll region, or switch to a card layout at "
-                           "narrow widths -- but keep every label, unit and row action "
-                           "(LAY-006).", "low"))
+        if not scroll:
+            out.append(finding("S-RESP-TABLE", f, t.line, t.raw,
+                               "A table with no narrow-viewport strategy. Switch to a card "
+                               "or stacked layout at narrow widths, keeping every label, unit "
+                               "and row action (LAY-006). A scroll region is only enough for "
+                               "a small table with no actions.", "medium"))
+            continue
+        ncols, label, interactive, pinned = _table_shape(t)
+        if pinned or not (interactive and ncols >= act_cols or ncols > max_cols):
+            continue
+        last = f' ("{label}")' if label else ""
+        why = ("its last column holds row actions" if interactive and ncols >= act_cols
+               else f"{ncols} columns is more than {max_cols}")
+        out.append(finding("S-RESP-TABLE", f, t.line, t.raw,
+                           f"A {ncols or 'multi'}-column data table whose only narrow-width "
+                           f"strategy is a horizontal scroll box, and {why}. Sideways "
+                           "scrolling inside a page people scroll vertically is rarely "
+                           f"discovered, so the rightmost column{last} is effectively "
+                           "hidden (LAY-006). Switch to a card or stacked layout below a "
+                           "breakpoint, or pin the last column with `sticky right-0` so "
+                           "the actions stay in view.", "medium"))
     return out
 
 

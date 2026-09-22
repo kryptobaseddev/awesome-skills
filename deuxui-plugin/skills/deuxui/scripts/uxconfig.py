@@ -126,6 +126,68 @@ def app(cfg: dict) -> dict:
             if a.get(k) is not None}
 
 
+EXCEPTIONS_REL = Path(".deuxui") / "exceptions.yaml"
+# references/verification/evidence.md: APPROVED_EXCEPTION is "only for
+# PROJECT-class rules, with a written record". A standard is not the owner's to
+# waive, a platform rule is the platform's, and a heuristic has nothing to waive.
+EXCEPTABLE_CLASSES = ("PROJECT",)
+
+
+def exceptions(cfg: dict, root: Path | None = None, today: str | None = None) -> list[dict]:
+    """Every exception record the project holds, each marked `active` or not.
+
+    The docs, the template and the ledger all named `.deuxui/exceptions.yaml`, and
+    the report read an `exceptions:` key in ux.config.yaml instead -- so a record
+    written where the docs said changed nothing, and APPROVED_EXCEPTION was never
+    assigned to any rule. Both places are read now. The file may hold one record,
+    a list of them, or a mapping with an `exceptions:` list.
+
+    A record is active only if it is APPROVED, names a rule, and its review date
+    has not passed. Inactive records are returned with the reason, because an
+    expired exception silently lapsing back to FAIL is the right verdict and a
+    confusing one to receive unexplained. Rule class is checked by the caller,
+    which holds the registry."""
+    import datetime as _dt
+    today = today or _dt.date.today().isoformat()
+    raw = []
+    base = root
+    if base is None and cfg.get("_path"):
+        base = Path(cfg["_path"]).parent.parent
+    if base is not None and (base / EXCEPTIONS_REL).exists():
+        p = base / EXCEPTIONS_REL
+        try:
+            doc = yaml.safe_load(p.read_text())
+        except yaml.YAMLError as e:
+            sys.stderr.write(f"deuxui: {p} is not valid YAML ({e}); no exception in it "
+                             f"applies.\n")
+            doc = None
+        if isinstance(doc, dict) and isinstance(doc.get("exceptions"), list):
+            doc = doc["exceptions"]
+        raw += [dict(r, _source=str(p)) for r in (doc if isinstance(doc, list) else [doc])
+                if isinstance(r, dict)]
+    legacy = cfg.get("exceptions")
+    if isinstance(legacy, dict):         # the old shape: {RULE-ID: record}
+        legacy = [dict(v if isinstance(v, dict) else {}, rule_id=k)
+                  for k, v in legacy.items()]
+    if isinstance(legacy, list):
+        raw += [dict(r, _source=cfg.get("_path") or "ux.config.yaml")
+                for r in legacy if isinstance(r, dict)]
+    out = []
+    for r in raw:
+        rid = r.get("rule_id") or r.get("rule")
+        status = str(r.get("status") or "").upper()
+        until = str(r.get("expires_or_review_on") or "")
+        why = None
+        if not rid:
+            why = "names no rule_id"
+        elif status != "APPROVED":
+            why = f"status is {status or 'missing'}, not APPROVED"
+        elif until and until[:10] < today:
+            why = f"review date {until[:10]} has passed"
+        out.append(dict(r, rule_id=rid, active=why is None, inactive_reason=why))
+    return out
+
+
 def get(cfg: dict, dotted: str):
     """`app.dev_url` -> value, for the shell entry point."""
     cur = cfg

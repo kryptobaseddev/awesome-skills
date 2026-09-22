@@ -150,7 +150,7 @@ def focus_moved_in_background(f, p):
                            "Focus or scroll moved from a timer. A background update must not "
                            "take the cursor away from someone mid-sentence (NAV-010, "
                            "A11Y-006).", "medium"))
-    return out[:5]
+    return out
 
 
 # ------------------------------------------------------------------ async races
@@ -216,7 +216,7 @@ def critical_info_in_tooltip(f, p):
                                "A requirement or error carried only in a title tooltip. "
                                "Touch users never see it and it is not announced reliably. "
                                "Keep instructions and errors visible (COMP-012).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-ZERO-VS-MISSING", exts=SRC)
@@ -236,7 +236,7 @@ def zero_conflated_with_missing(f, p):
                            f"`{m.group(0)}` renders a missing value as zero. Missing, zero "
                            "and stale are three different facts and a reader cannot tell "
                            "them apart once they all render as 0 (COMP-016).", "low"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-PAGINATION", exts=SRC)
@@ -321,7 +321,7 @@ def redundant_entry(f, p):
                            f"`{n}` is collected more than once in the same form. Reuse what "
                            "the user already gave you, or say why it must differ (FORM-011, "
                            "WCAG SC 3.3.7).", "low"))
-    return out[:5]
+    return out
 
 
 @check("S-FORM-EXCESSIVE", exts=SRC)
@@ -342,7 +342,7 @@ def excessive_fields(f, p):
                               ", none marked optional")
                            + ". Each one is a reason to abandon; ask for what this step "
                            "needs and defer the rest (FORM-001).", "low"))
-    return out[:4]
+    return out
 
 
 # ------------------------------------------------------------------ performance
@@ -364,7 +364,7 @@ def skeleton_announced(f, p):
                            "A loading skeleton with no aria-hidden and no aria-busy. Screen "
                            "readers announce the placeholder text as if it were the content "
                            "(PERF-008, A11Y-006).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-PERF-LONG-LIST", exts=SRC)

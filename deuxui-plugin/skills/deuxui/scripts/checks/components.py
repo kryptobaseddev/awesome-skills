@@ -41,7 +41,7 @@ def vague_button_label(f, p):
                            "the operation on the control -- speech users activate by the "
                            "visible word, and everyone else reads it as the consequence "
                            "(COMP-003).", "medium"))
-    return out[:8]
+    return out
 
 
 @check("S-COMP-DISABLED-MUTE", exts=SRC)
@@ -75,7 +75,7 @@ def unexplained_disabled(f, p):
                            "A disabled control with nothing nearby saying why. Say what "
                            "would enable it, or leave it live and explain on activation "
                            "(COMP-004, FORM-007).", "low"))
-    return out[:8]
+    return out
 
 
 @check("S-COMP-KEYBOARD-PATTERN", exts=SRC)
@@ -107,7 +107,7 @@ def handrolled_widget_keyboard(f, p):
                            "The APG pattern for this widget is not optional -- without it "
                            "the control cannot be operated from a keyboard (COMP-005).",
                            "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-ACCORDION", exts=SRC)
@@ -130,7 +130,7 @@ def accordion_state(f, p):
                            "An expander with no aria-expanded and no aria-controls. Use "
                            "<details>/<summary>, or wire both attributes (COMP-013).",
                            "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-TABLE-SEMANTICS", exts=SRC)
@@ -155,7 +155,7 @@ def table_semantics(f, p):
                            + ". Screen-reader users navigate a table by its headers; "
                            "without them every cell is an orphan value (COMP-014).",
                            "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-UPLOAD", exts=SRC)
@@ -180,7 +180,7 @@ def upload_contract(f, p):
                            "File input with no " + ", no ".join(missing)
                            + " shown before selection. State the constraints up front "
                            "(COMP-021).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-COMP-TOAST-ONLY", exts=SRC)
@@ -247,7 +247,7 @@ def current_destination(f, p):
                            "The active destination is marked visually but carries no "
                            'aria-current="page". The accessibility tree and the visible '
                            "selection should name the same item (NAV-007).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-NAV-TITLE", exts=SRC)
@@ -302,7 +302,7 @@ def error_association(f, p):
                            "A field with an error rendered nearby but no aria-describedby "
                            "or aria-invalid connecting them. The error exists visually and "
                            "nowhere else (FORM-006).", "medium"))
-    return out[:8]
+    return out
 
 
 @check("S-FORM-LOST-INPUT", exts=SRC)
@@ -319,7 +319,7 @@ def input_lost_on_error(f, p):
                            body.strip()[:60],
                            "The form is reset inside an error handler. A server failure now "
                            "costs the user everything they typed (FORM-004).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-FORM-PASTE-BLOCK", exts=SRC)
@@ -341,7 +341,7 @@ def composition_and_paste(f, p):
                            "Enter is intercepted to submit without checking isComposing. In "
                            "Japanese, Chinese and Korean input this submits mid-word, every "
                            "time (FORM-015).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-UX-FAKE-INTERACTIVE", exts=SRC)
@@ -362,4 +362,4 @@ def fake_interactive(f, p):
         out.append(finding("S-UX-FAKE-INTERACTIVE", f, t.line, cls[:70],
                            "cursor-pointer on an element with no handler, role or tab stop. "
                            "It looks clickable and is not (UX-011).", "low"))
-    return out[:8]
+    return out

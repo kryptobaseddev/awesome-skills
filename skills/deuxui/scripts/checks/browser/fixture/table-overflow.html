@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R-TABLE-HIDDEN fixture</title>
+<!-- Every box here is narrower than its table, so every box scrolls sideways and
+     none of them makes the PAGE scroll: R-REFLOW passes all three, which is the
+     point. Only the first hides row actions. -->
+<style>
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+  .box { overflow-x: auto; width: 300px; margin: 16px; border: 1px solid #888; }
+  table { border-collapse: collapse; }
+  th, td { padding: 4px 12px; white-space: nowrap; text-align: left; }
+  #queue table { width: 900px; }
+  #terms table { width: 500px; }
+  #pinned table { width: 700px; }
+  #pinned .end { position: sticky; right: 0; background: #fff; }
+</style>
+</head>
+<body>
+  <!-- known positive: the field report's queue, Action column off to the right -->
+  <div class="box" id="queue">
+    <table>
+      <thead><tr><th>Rush</th><th>Sample</th><th>Product</th><th>Target</th><th>Customer</th>
+        <th>Testing</th><th>Vials</th><th>Intake</th><th>Facility</th><th>Waiting</th>
+        <th>Certificate</th><th>Action</th></tr></thead>
+      <tbody><tr><td>Yes</td><td>AX-1</td><td>P</td><td>T</td><td>C</td><td>T</td><td>2</td>
+        <td>Mon</td><td>F</td><td>3d</td><td>-</td><td><button>Open</button></td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- known negative: a three-column prose table; scrolling it hides no action -->
+  <div class="box" id="terms">
+    <table>
+      <thead><tr><th>Term</th><th>Meaning</th><th>Since</th></tr></thead>
+      <tbody><tr><td>Lot</td><td>A batch of samples received together</td><td>2024</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- known negative: a data table whose actions column is pinned in view -->
+  <div class="box" id="pinned">
+    <table>
+      <thead><tr><th>Sample</th><th>Product</th><th>Customer</th><th>Facility</th>
+        <th class="end">Actions</th></tr></thead>
+      <tbody><tr><td>AX-2</td><td>P</td><td>C</td><td>F</td>
+        <td class="end"><button>Open</button></td></tr></tbody>
+    </table>
+  </div>
+</body>
+</html>

@@ -88,7 +88,7 @@ detectors:
   S-RESP-FIXEDPX:    {engine: source,  rules: [LAY-002, NUM-009], confidence: medium}
   S-RESP-VH:         {engine: source,  rules: [LAY-005], confidence: high}
   S-RESP-OVERFLOW:   {engine: source,  rules: [LAY-002], confidence: low}
-  S-RESP-TABLE:      {engine: element, rules: [LAY-006], confidence: low}
+  S-RESP-TABLE:      {engine: element, rules: [LAY-006], confidence: medium}
   S-RESP-TRUNCATE:   {engine: source,  rules: [LAY-007], confidence: low}
   S-MOTION-REDUCE:   {engine: source,  rules: [LAY-010, A11Y-010, NUM-018], confidence: high, laws: [LAW-07]}
   S-HOVER-ONLY:      {engine: source,  rules: [VIS-005, COMP-011], confidence: medium}
@@ -192,6 +192,7 @@ detectors:
   # missed was a local default -- exactly the overclaiming this skill exists to stop.
   R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high, laws: [LAW-02]}
   R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high, laws: [LAW-12]}
+  R-TABLE-HIDDEN:    {engine: computed, rules: [LAY-006], confidence: high}
   R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
   R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
   R-FOCUS-WALK:      {engine: computed, rules: [A11Y-002, A11Y-003, A11Y-004, NUM-011,

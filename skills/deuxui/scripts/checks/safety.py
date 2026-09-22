@@ -40,7 +40,7 @@ def secrets_in_url(f, p):
                                "sent in the Referer header, and logged by every proxy in the "
                                "path. Put it in a POST body or a server session (NAV-009).",
                                "high"))
-    return out[:10]
+    return out
 
 
 # ------------------------------------------------------------------ TRUST-005 / FORM-012
@@ -69,7 +69,7 @@ def secrets_in_logs(f, p):
                            "at the call site -- once it is in an aggregator you cannot take it "
                            "back, and it will outlive the incident (TRUST-005, FORM-012).",
                            "high"))
-    return out[:10]
+    return out
 
 
 @check("S-PASSWORD-HANDLING", exts=SRC)
@@ -103,7 +103,7 @@ def password_handling(f, p):
             out.append(finding("S-PASSWORD-HANDLING", f, t.line, t.raw,
                                'A password field without type="password" renders in plain text '
                                "and is offered to the wrong autofill entry (FORM-012).", "high"))
-    return out[:10]
+    return out
 
 
 # ------------------------------------------------------------------ TRUST-003
@@ -130,7 +130,7 @@ def permission_on_mount(f, p):
                            "Permission requested on mount rather than at the point of need. "
                            "Ask when the user does the thing that requires it, explain why "
                            "first, and keep working when they decline (TRUST-003).", "medium"))
-    return out[:6]
+    return out
 
 
 # ------------------------------------------------------------------ TRUST-002
@@ -182,7 +182,7 @@ def dark_patterns(f, p):
                            "Scarcity copy not backed by a real quantity. If the number is real, "
                            "read it from inventory; if it is not, remove it (TRUST-002).",
                            "medium"))
-    return out[:10]
+    return out
 
 
 # ------------------------------------------------------------------ CONTENT-010
@@ -208,7 +208,7 @@ def invented_numbers(f, p):
                                f"Hardcoded {what} in the source. If it is real it belongs in "
                                "content with a source; if it is placeholder it must not ship "
                                "(CONTENT-010, TRUST-002).", "medium"))
-    return out[:8]
+    return out
 
 
 # ------------------------------------------------------------------ STATE-002
@@ -236,7 +236,7 @@ def premature_success(f, p):
                            "nothing awaited between them. Confirm the durable acknowledgement "
                            "first -- an unconfirmed success is a lie the user acts on "
                            "(STATE-002).", "medium"))
-    return out[:8]
+    return out
 
 
 # ------------------------------------------------------------------ STATE-009
@@ -266,7 +266,7 @@ def draft_boundaries(f, p):
                                "This file stores a draft and handles sign-out but never "
                                "clears it. The next account on this browser inherits the "
                                "previous one's unsent work (STATE-009).", "medium"))
-    return out[:8]
+    return out
 
 
 # ------------------------------------------------------------------ STATE-010 / STATE-011

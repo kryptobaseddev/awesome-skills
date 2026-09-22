@@ -103,7 +103,7 @@ def safe_area(f, p):
                            "inset in this file. On a device with a home indicator this "
                            "lands underneath it. Use `useSafeAreaInsets()` or wrap in "
                            "`SafeAreaView` (IOS-001).", "low"))
-    return out[:4]
+    return out
 
 
 @check("S-IOS-NAVSTRUCTURE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -157,7 +157,7 @@ def edge_swipe(f, p):
                                "rather than removing the way out (IOS-003).",
                                "high" if "interactivePop" in pat or "gestureEnabled" in pat
                                else "low"))
-    return out[:4]
+    return out
 
 
 _IOS_SIZE = re.compile(r"""(?:\.system\s*\(\s*size:\s*|UIFont\.(?:systemFont|boldSystemFont)"""
@@ -199,7 +199,7 @@ def dynamic_type(f, p):
                                "Pinning textScaleFactor to 1 ignores the system reading "
                                "size. Use `MediaQuery.textScalerOf(context)` and let the "
                                "layout adapt (IOS-005).", "high"))
-    return out[:5]
+    return out
 
 
 @check("S-IOS-MINSIZE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -219,7 +219,7 @@ def min_text_size(f, p):
                            f"this is genuinely decorative, make it decorative -- text a "
                            f"user is expected to read cannot be this small (IOS-007).",
                            "high"))
-    return out[:5]
+    return out
 
 
 @check("S-IOS-TARGET44", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -258,7 +258,7 @@ def target_44pt(f, p):
                                " ".join(blob.split())[:70],
                                f"A touchable sized under {minpt:g} pt with no `hitSlop`. "
                                f"Add hitSlop or pad the control (NUM-006).", "low"))
-    return out[:5]
+    return out
 
 
 @check("S-IOS-SEMANTICCOLOR", exts=IOS_ONLY, requires=on_ios, surfaces=("native",))
@@ -285,7 +285,7 @@ def semantic_color(f, p):
                                "(`Color(.label)`, `Color(.secondarySystemBackground)`, "
                                "`Color(.separator)`) or an asset-catalog colour with both "
                                "appearances defined (IOS-008).", "medium"))
-    return out[:5]
+    return out
 
 
 @check("S-IOS-DARKMODE", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -303,7 +303,7 @@ def dark_mode(f, p):
         out.append(finding("S-IOS-DARKMODE", f, _line(t, m.start()), m.group(0),
                            f"Overriding the interface style to {m.group(1)} ignores the "
                            f"user's setting (IOS-009).", "high"))
-    return out[:4]
+    return out
 
 
 @check("S-IOS-TINT", scope="project", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -353,7 +353,7 @@ def system_materials(f, p):
                            "Use `.background(.ultraThinMaterial)` or "
                            "`.thinMaterial`: they adapt to appearance and to Reduce "
                            "Transparency, which this does not (IOS-011).", "low"))
-    return out[:3]
+    return out
 
 
 @check("S-IOS-NATIVECONTROLS", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -374,7 +374,7 @@ def native_controls(f, p):
                            f"Reduce Motion behaviour this will not. If the look is the "
                            f"reason, restyle it -- `ToggleStyle`, `ButtonStyle` -- rather "
                            f"than rebuilding it (IOS-012).", "medium"))
-    return out[:4]
+    return out
 
 
 _WEB_ICON_LIBS = re.compile(r"""from\s+["'](?:react-icons|lucide-react|@heroicons|"""
@@ -392,7 +392,7 @@ def sf_symbols(f, p):
                            "the baseline, scale with Dynamic Type and come in matching "
                            "weights; these do none of that. Use `Image(systemName:)` or "
                            "react-native-sfsymbols (IOS-013).", "medium"))
-    return out[:3]
+    return out
 
 
 @check("S-IOS-MODALITY", exts=IOS_ONLY, requires=on_ios, surfaces=("native",))
@@ -411,7 +411,7 @@ def modality(f, p):
                            "the sheet has one exit and the user has to find it. Either "
                            "allow the gesture, or intercept it with a confirmation that "
                            "explains what would be lost (IOS-014).", "medium"))
-    return out[:3]
+    return out
 
 
 @check("S-IOS-GROUPEDLIST", exts=IOS_ONLY, requires=on_ios, surfaces=("native",))
@@ -453,7 +453,7 @@ def system_transitions(f, p):
                            "slide is what the edge-swipe back reverses; replacing it "
                            "makes the gesture and the animation disagree (IOS-016).",
                            "low"))
-    return out[:3]
+    return out
 
 
 @check("S-IOS-REDUCEMOTION", exts=IOS_EXTS, requires=on_ios, surfaces=("native",))
@@ -532,7 +532,7 @@ def system_back(f, p):
                            "`onBackPressed` overridden without calling super or "
                            "navigating, which traps the user on this screen (AND-002).",
                            "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-AND-INSETS", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -574,7 +574,7 @@ def top_app_bar(f, p):
                            "actions, `TopAppBar` gives you the scroll behaviour, the "
                            "overflow menu and the insets handling that a hand-built header "
                            "does not (AND-004).", "low"))
-    return out[:3]
+    return out
 
 
 @check("S-AND-TYPESCALE", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -591,7 +591,7 @@ def type_scale(f, p):
                            f"`MaterialTheme.typography.bodyLarge`, `titleMedium`, "
                            f"`labelSmall` -- so the type system is one decision instead of "
                            f"one per call site (AND-005).", "high"))
-    return out[:5]
+    return out
 
 
 @check("S-AND-SYSTEMFONT", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -610,7 +610,7 @@ def android_font(f, p):
                            "theme. Put the brand face in the `Typography` you pass to "
                            "`MaterialTheme` once, so every role stays consistent "
                            "(AND-006).", "low"))
-    return out[:4]
+    return out
 
 
 @check("S-AND-SP", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -632,7 +632,7 @@ def scalable_sp(f, p):
         out.append(finding("S-AND-SP", f, _line(t, m.start()), m.group(0),
                            "`textSize` in dp or px ignores the user's font-size setting. "
                            "Use sp (AND-007).", "high"))
-    return out[:5]
+    return out
 
 
 @check("S-AND-ROLETOKENS", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -667,7 +667,7 @@ def role_tokens(f, p):
                            "the dark and high-contrast schemes cannot resolve it. Use "
                            "`MaterialTheme.colorScheme.<role>` and define the literal once "
                            "in the colour scheme (AND-008).", "high"))
-    return out[:5]
+    return out
 
 
 @check("S-AND-DYNAMICCOLOR", scope="project", exts=AND_EXTS, requires=on_android,
@@ -746,7 +746,7 @@ def tonal_elevation(f, p):
                            f"elevation as surface tone: use `Surface(tonalElevation = "
                            f"{v:g}.dp)` or `ElevatedCard`, which give the tonal shift and "
                            f"the shadow the spec pairs with it (AND-011).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-AND-MATERIAL", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -766,7 +766,7 @@ def material_components(f, p):
                            "The framework `Switch` rather than "
                            "`com.google.android.material.switchmaterial.SwitchMaterial`, "
                            "so it will not take the Material theme (AND-012).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-AND-FAB", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -783,7 +783,7 @@ def single_fab(f, p):
                                f"{n} FABs on one screen. The FAB is the screen's single "
                                f"primary action -- promote one and move the rest into the "
                                f"app bar or the content (AND-013).", "medium"))
-    return out[:3]
+    return out
 
 
 @check("S-AND-TOAST", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -798,7 +798,7 @@ def snackbar_not_toast(f, p):
                            "undoes what just happened, is announced to accessibility "
                            "services and respects the insets. Use `SnackbarHostState."
                            "showSnackbar()` (AND-014).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-AND-REDUCEMOTION", exts=AND_EXTS, requires=on_android, surfaces=("native",))
@@ -855,7 +855,7 @@ def target_48dp(f, p):
             out.append(finding("S-AND-TARGET48", f, _line(t, m.start()), m.group(0),
                                f"{m.group(1)}dp on a control, under the {mindp:g} dp "
                                f"minimum (NUM-007).", "medium"))
-    return out[:5]
+    return out
 
 
 @check("S-IOS-SYSTEMFONT", exts=IOS_ONLY, requires=on_ios, surfaces=("native",))
@@ -875,7 +875,7 @@ def ios_system_font(f, p):
                            f"size; a custom one is not. Keep the brand face for display "
                            f"roles, and if it must be used here, pair it with "
                            f"`relativeTo:` so it still scales (IOS-006).", "low"))
-    return out[:4]
+    return out
 
 
 @check("S-IOS-LARGETITLE", exts=IOS_ONLY, requires=on_ios, surfaces=("native",))
@@ -901,4 +901,4 @@ def large_titles(f, p):
                            "Top-level screens take a large title that collapses on "
                            "scroll; inline belongs on pushed detail screens (IOS-004).",
                            "low"))
-    return out[:3]
+    return out

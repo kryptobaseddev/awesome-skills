@@ -60,6 +60,10 @@ class Project:
     # carrying forty rows nobody can act on.
     platforms: set = field(default_factory=set)
     tailwind_major: int = 0    # 3 or 4; utilities changed meaning between them
+    # detector -> {"matched": n, "listed": m}. What each detector found against
+    # what the report lists. Filled by ux_check.run; a count printed without the
+    # other half reads as a total when it is a floor.
+    counts: dict = field(default_factory=dict)
 
 
 @dataclass

@@ -209,11 +209,12 @@ def run(scope: Path, root: Path | None = None, only=None, cfg=None):
                 break
         else:
             hits, extra = _cap(hits)
+            project.counts[did] = {"matched": len(hits) + extra, "listed": len(hits)}
             status[did] = ("FAIL" if hits else "PASS",
                            (f"project-level check over {len(pool)} files"
                             if chk.scope == "project" else f"{len(pool)} files examined")
-                           + (f"; {extra} further findings of this kind not listed"
-                              if extra else ""))
+                           + (f"; {len(hits) + extra} matched, {len(hits)} listed "
+                              f"(at most {PER_FILE_CAP} per file)" if extra else ""))
             findings.extend(hits)
     return project, reg, detectors, findings, status
 
@@ -245,7 +246,7 @@ SINGLE_FILE_NOTE = ("Single-file scope. One file cannot establish that a "
                     "product-wide rule holds -- only its findings are evidence.")
 
 
-def rollup(reg, detectors, status, single_file=False):
+def rollup(reg, detectors, status, single_file=False, exceptions=()):
     """Per-rule status. A rule nobody can test is NOT_RUN, never PASS.
 
     In single-file scope every PASS becomes NOT_RUN. A detector that read one
@@ -256,12 +257,20 @@ def rollup(reg, detectors, status, single_file=False):
     for did, (st, _why) in status.items():
         for rid in detectors.get(did, {}).get("rules", []):
             by_rule.setdefault(rid, []).append((did, st))
+    excepted = {e["rule_id"]: e for e in exceptions if e.get("active")}
     out = {}
     for r in reg["rules"]:
         rid = r["id"]
         sts = [s for _d, s in by_rule.get(rid, [])]
         if not sts:
             out[rid] = ("NOT_RUN", "No automated detector. Needs manual verification.")
+        elif "FAIL" in sts and rid in excepted and r.get("class") in uxconfig.EXCEPTABLE_CLASSES:
+            e = excepted[rid]
+            out[rid] = ("APPROVED_EXCEPTION",
+                        f"{e.get('exception_id') or 'exception'} (owner "
+                        f"{e.get('owner') or 'unnamed'}, review "
+                        f"{e.get('expires_or_review_on') or 'no date'}). Still measured "
+                        "as failing; the owner has ruled on it.")
         elif "FAIL" in sts:
             out[rid] = ("FAIL", "")
         elif "PASS" in sts:
@@ -287,45 +296,112 @@ def severity_of(reg, detectors):
     return worst
 
 
+# Strictest first. A detector bound to a STANDARD and a PROJECT rule is reported
+# under the standard: the floor is what decides whether it can be ruled away.
+CLASS_ORDER = ("STANDARD", "PLATFORM", "PROJECT", "HEURISTIC")
+CLASS_HEADINGS = {
+    "STANDARD": "Floors -- STANDARD rules. Not overridable; a failure here is a "
+                "failure against a published standard.",
+    "PLATFORM": "Platform requirements -- PLATFORM rules. The platform's to set, "
+                "not the project's.",
+    "PROJECT": "Project defaults -- PROJECT rules. A trade-off the product owner "
+               "decides (density, house style). Rule on one in "
+               ".deuxui/exceptions.yaml and it reports APPROVED_EXCEPTION.",
+    "HEURISTIC": "Heuristics -- HEURISTIC rules. Research-backed tendencies; judge "
+                 "each in context.",
+}
+
+
+def class_of(reg, detectors):
+    cls = {r["id"]: r.get("class") or "PROJECT" for r in reg["rules"]}
+
+    def strictest(f):
+        got = {cls.get(r, "PROJECT") for r in detectors.get(f.detector, {}).get("rules", [])}
+        return next((c for c in CLASS_ORDER if c in got), "PROJECT")
+    return strictest
+
+
+def tally(project, findings):
+    """(matched, listed). `matched` is what the detectors found; `listed` is what
+    survived the per-file cap. The headline used to be `listed`, printed as the
+    total -- a floor, wrong by an unknown factor per rule and per file, and quoted
+    back to a field-report author as a work estimate."""
+    counts = getattr(project, "counts", {}) or {}
+    matched = sum(c["matched"] for c in counts.values()) if counts else len(findings)
+    return matched, len(findings)
+
+
 def human(project, reg, detectors, findings, status, rules, limit=40, single_file=False):
+    """The rule matrix leads. A finding count from a heuristic source scan is raw
+    hits, unranked, with false positives in it; a rule row is a verdict with a
+    citation. Leading with the count made 3,790 the number people quoted and hid
+    the 24 failing rules that were the actual worklist."""
     w = sys.stderr.write
     worst = severity_of(reg, detectors)
-
-    ordered = sorted(findings, key=lambda f: (worst(f), f.file, f.line))
-    shown = ordered[:limit]
-    by_file = {}
-    for f in shown:
-        by_file.setdefault(f.file, []).append(f)
-    for fname in sorted(by_file):
-        w(f"\n{fname}\n")
-        for f in sorted(by_file[fname], key=lambda x: x.line):
-            w(f"  {f.line:>5}  {worst(f)} [{f.detector}] {f.snippet}\n")
-            w(f"         -> {f.fix}\n")
-    if len(ordered) > limit:
-        w(f"\n... {len(ordered) - limit} more findings. Use --json for all of them, "
-          f"or --max N to show more here.\n")
+    klass = class_of(reg, detectors)
+    conf = {d: (m or {}).get("confidence") for d, m in detectors.items()}
+    matched, listed = tally(project, findings)
 
     counts = {k: sum(1 for v in rules.values() if v[0] == k)
-              for k in ("PASS", "FAIL", "NOT_RUN", "NOT_APPLICABLE")}
-    sevc = {s: sum(1 for f in ordered if worst(f) == s) for s in ("P0", "P1", "P2")}
+              for k in ("FAIL", "APPROVED_EXCEPTION", "NOT_RUN", "PASS", "NOT_APPLICABLE")}
+    rclass = {r["id"]: r.get("class") or "PROJECT" for r in reg["rules"]}
+    if not single_file:
+        w("\n" + "-" * 70 + "\n")
+        w(f"rules      FAIL {counts['FAIL']}   APPROVED_EXCEPTION "
+          f"{counts['APPROVED_EXCEPTION']}   NOT_RUN {counts['NOT_RUN']}   PASS "
+          f"{counts['PASS']}   NOT_APPLICABLE {counts['NOT_APPLICABLE']}   of {len(rules)}\n")
+        if counts["FAIL"]:
+            by = {c: sum(1 for rid, v in rules.items()
+                         if v[0] == "FAIL" and rclass.get(rid) == c) for c in CLASS_ORDER}
+            w("  failing  " + "   ".join(f"{c} {n}" for c, n in by.items() if n) + "\n")
+            fails = sorted(rid for rid, v in rules.items() if v[0] == "FAIL")
+            w("  rules    " + ", ".join(fails[:24])
+              + (f", +{len(fails) - 24} more" if len(fails) > 24 else "") + "\n")
+        w("\nThe rule matrix is the result. NOT_RUN is the count of rules nothing has\n"
+          "checked yet, and it is not a pass. This is the static tier -- it reads source\n"
+          "text heuristically and cannot see computed styles, real hit areas, focus order\n"
+          "or any state the app only reaches at runtime. Run scripts/ux_browser.sh against\n"
+          "a running app to convert those rows into real results.\n")
+
+    sevc = {s: sum(1 for f in findings if worst(f) == s) for s in ("P0", "P1", "P2")}
     w("\n" + "-" * 70 + "\n")
-    w(f"findings   P0 {sevc['P0']}   P1 {sevc['P1']}   P2 {sevc['P2']}"
-      f"   (total {len(ordered)})\n")
+    w(f"findings   raw heuristic hits, unranked, may include false positives. The\n"
+      f"           [detector, confidence] tag is the detector's declared confidence,\n"
+      f"           not a measured precision.\n"
+      f"           {matched} matched, {listed} listed (at most {PER_FILE_CAP} per file per "
+      f"detector)   P0 {sevc['P0']}   P1 {sevc['P1']}   P2 {sevc['P2']} of those listed\n")
     if single_file:
         w(f"\nOne file was read, so there is no rule matrix to report. {SINGLE_FILE_NOTE}\n"
           f"Point this at the project directory for a rule-by-rule result.\n")
-        return
-    w(f"rules      NOT_RUN {counts['NOT_RUN']}   FAIL {counts['FAIL']}   "
-      f"PASS {counts['PASS']}   NOT_APPLICABLE {counts['NOT_APPLICABLE']}"
-      f"   of {len(rules)}\n")
-    w("\nNOT_RUN is listed first on purpose: it is the count of rules nothing has\n"
-      "checked yet, and it is not a pass. This is the static tier -- it reads source\n"
-      "text heuristically and cannot see computed styles, real hit areas, focus order\n"
-      "or any state the app only reaches at runtime. Run scripts/ux_browser.sh against\n"
-      "a running app to convert those rows into real results.\n")
+
+    rank = {c: i for i, c in enumerate(CLASS_ORDER)}
+    ordered = sorted(findings, key=lambda f: (rank[klass(f)], worst(f), f.file, f.line))
+    shown = ordered[:limit]
+    for c in CLASS_ORDER:
+        group = [f for f in shown if klass(f) == c]
+        if not group:
+            continue
+        total = sum(1 for f in findings if klass(f) == c)
+        w(f"\n== {CLASS_HEADINGS[c]}  [{total} listed]\n")
+        by_file = {}
+        for f in group:
+            by_file.setdefault(f.file, []).append(f)
+        for fname in sorted(by_file):
+            w(f"\n{fname}\n")
+            for f in sorted(by_file[fname], key=lambda x: x.line):
+                ruled = ""
+                for rid in detectors.get(f.detector, {}).get("rules", []):
+                    if rules.get(rid, ("",))[0] == "APPROVED_EXCEPTION":
+                        ruled = f"  (ruled: {rid} under an approved exception)"
+                w(f"  {f.line:>5}  {worst(f)} [{f.detector}, "
+                  f"{conf.get(f.detector) or f.confidence}] {f.snippet}{ruled}\n")
+                w(f"         -> {f.fix}\n")
+    if len(ordered) > limit:
+        w(f"\n... {len(ordered) - limit} more listed findings. Use --json for all of them, "
+          f"or --max N to show more here.\n")
 
 
-def hook_report(reg, detectors, findings, limit=10):
+def hook_report(reg, detectors, findings, limit=10, matched=None):
     """The PostToolUse contract: JSON on stdout, exit 0, and nothing whatsoever
     when the file is clean.
 
@@ -348,9 +424,10 @@ def hook_report(reg, detectors, findings, limit=10):
     for f in urgent:
         lines.append(f"  {worst(f)} line {f.line} [{f.detector}] {f.snippet.strip()[:100]}")
         lines.append(f"     {f.fix}")
-    if deferred:
-        lines.append(f"  ...and {deferred} further finding(s) not listed. Run "
-                     f"ux_check.py on the file to see them all.")
+    unlisted = (matched or len(ordered)) - len(ordered)
+    if deferred or unlisted > 0:
+        lines.append(f"  ...{len(urgent)} shown of {matched or len(ordered)} matched. Run "
+                     f"ux_check.py on the file to see the rest.")
     lines.append("Fix these in the file you just wrote rather than noting them for later. "
                  "This is one file read statically, so it is not a pass for anything else.")
     print(json.dumps({"hookSpecificOutput": {
@@ -421,10 +498,12 @@ def main(argv=None):
     single_file = scope.is_file()
     project, reg, detectors, findings, status = run(
         scope, root=root, only=set(a.detector or []) or None, cfg=cfg)
-    rules = rollup(reg, detectors, status, single_file=single_file)
+    rules = rollup(reg, detectors, status, single_file=single_file,
+                   exceptions=uxconfig.exceptions(cfg, root=root))
 
     if a.stdin:
-        return hook_report(reg, detectors, findings, limit=a.max)
+        return hook_report(reg, detectors, findings, limit=a.max,
+                           matched=tally(project, findings)[0])
 
     if a.json:
         print(json.dumps({
@@ -438,7 +517,11 @@ def main(argv=None):
                         # applicable because the tree says so, not because
                         # somebody remembered to declare them.
                         "platforms": sorted(project.platforms)},
-            "detectors": {k: {"status": v[0], "note": v[1]} for k, v in status.items()},
+            "detectors": {k: {"status": v[0], "note": v[1],
+                              **project.counts.get(k, {})} for k, v in status.items()},
+            # `listed` is what `findings` holds; `matched` is what the detectors
+            # found. Aggregate the first and you are counting a display choice.
+            "counts": dict(zip(("matched", "listed"), tally(project, findings))),
             "rules": {k: {"status": v[0], "note": v[1]} for k, v in rules.items()},
             "findings": [f.__dict__ for f in findings],
             "scope": "file" if single_file else "directory",

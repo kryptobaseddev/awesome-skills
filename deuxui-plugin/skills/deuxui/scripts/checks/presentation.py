@@ -45,7 +45,7 @@ def physical_properties(f, p):
                                "text-start) mirror in RTL; these do not (CONTENT-007).",
                                "low"))
             break
-    return out[:4]
+    return out
 
 
 @check("S-CHART-TRUTH", exts=SRC,
@@ -72,7 +72,7 @@ def chart_honesty(f, p):
                            "A chart with axes but no unit, axis label or text summary. The "
                            "numbers are unreadable without seeing the picture, and unusable "
                            "with a screen reader (CONTENT-009, COMP-015).", "medium"))
-    return out[:5]
+    return out
 
 
 @check("S-AI-UNCERTAINTY", exts=SRC,
@@ -107,7 +107,7 @@ def ai_uncertainty_and_control(f, p):
                            "Source-backed output rendered with no link back to the source. "
                            "A summary the reader cannot check is indistinguishable from one "
                            "that was invented (AI-006).", "low"))
-    return out[:4]
+    return out
 
 
 @check("S-AI-STREAM-A11Y", exts=SRC,
@@ -208,4 +208,4 @@ def control_direction_mismatch(f, p):
                                    "The control's label and its effect point in opposite "
                                    "directions (UX-013).", "low"))
                 break
-    return out[:4]
+    return out

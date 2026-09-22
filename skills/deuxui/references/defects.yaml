@@ -24,8 +24,9 @@
 #        eight more -- and they sum to 22:
 #          git log --format='%b' skills/deuxui | grep -inE \
 #            '\b(a|one|two|three|four) (real |more )?(defect|bug|mistake)s?\b'
-#   32   the product defects enumerated below.
-#   50   with the control defects, which no release note ever counted.
+#   32   the product defects enumerated below, as of 5.24.4.
+#   50   with the control defects, which no release note ever counted. Both have
+#        grown since; `python3 scripts/defects.py` prints the current figures.
 #
 # So "sixteen" was not a subset anyone can name, and it was not even consistent with
 # the notes' own headlines. It was a number maintained by hand in prose, which is the
@@ -1302,5 +1303,438 @@ defects:
     guard:
       - file: scripts/selftest.py
         text: makes the two indistinguishable
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  # --- 5.25.0: a field report against 5.24.4. An agent ran the tool on a ~4,700-file
+  # Next.js lab portal because the owner had reported a broken data table; the tool
+  # scored that table PASS at both tiers while reporting 3,790 raw findings, about
+  # two-thirds of them detector defects. Every row below was reproduced before it was
+  # fixed, and every control was run against the reverted fix and seen to fail.
+
+  - id: DEF-51
+    title: S-RESP-TABLE accepted a horizontal scroll box as a narrow-width strategy for a data table
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/responsive.py
+    symptom: >-
+      Any `overflow-auto`, `overflow-x-auto`, or class containing the bare word
+      `scroll` on the table's direct parent skipped the table. A 12-column queue in
+      `<div className="overflow-auto">` whose last column is Action returned PASS.
+    consequence: >-
+      The one table the owner had filed twice ("cut off on the right"; 445px of 1563px
+      hidden, including the Action column) was the one thing the tool blessed. LAY-006's
+      own acceptance says the narrow representation keeps actions, and a scroll box
+      is not a representation -- sideways scrolling in a vertically scrolling page is
+      rarely discovered, and rightmost is where row actions live.
+    fix: >-
+      Data tables are told apart by what the markup already shows: an interactive (or
+      Action-headed) last column from `table_actions_min_columns`, or more columns than
+      `table_scroll_max_columns` -- both project thresholds. A data table whose only
+      strategy is scrolling fails and names its last column; a card layout below a
+      breakpoint or a `sticky right-0` last column passes. Wrappers are read up four
+      ancestors, and `scroll` must be an overflow utility.
+    guard:
+      - file: scripts/checks/responsive.py
+        text: a scroll box moves it somewhere they will not
+      - file: references/rules/thresholds.yaml
+        text: "table_scroll_max_columns: 6"
+    control:
+      - file: scripts/selftest.py
+        text: the owner filed twice as cut off on the right
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-52
+    title: no fixture anywhere contained a scroll wrapper, so DEF-51 could not fail the selftest
+    class: undetectable
+    kind: control
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      `fixtures/bad.tsx` held the only `<table>` in the corpus and it was bare, and no
+      file under `checks/fixtures/` used `overflow` at all. The corpus proved the
+      detector fires on a table with no strategy and never asked the question DEF-51
+      turns on. `SELFTEST PASS` on the defective detector.
+    consequence: >-
+      "fired on bad: 125, false positives on good: none" was true and uninformative.
+      A fixture a maintainer expects to pass is the cheapest place for an assumption
+      to hide.
+    fix: >-
+      `bad-table.tsx` is the report's queue verbatim; `good-table.tsx` holds one table
+      per legitimate strategy, plus commented-out markup. Asserted per file in both
+      directions, beside per-file cases for S-TOKEN-HEX and S-TYPE-TINY, because the
+      corpus only learns that a detector fired somewhere.
+    guard:
+      - file: scripts/selftest.py
+        text: Field report against 5.24.4. Each case is asserted per FILE
+      - file: scripts/checks/fixtures/bad-table.tsx
+        text: S-RESP-TABLE scored it PASS because the wrapper says overflow-auto
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-53
+    title: no runtime check could see a table hiding columns inside its own scroll box
+    class: undetectable
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/ux_report.py
+    symptom: >-
+      layout.js did measure the table past the viewport edge, but `_reflow` only reads
+      offenders when the whole page scrolls sideways, and a scroll box stops that. A
+      table that overflows a narrower box while staying inside the window was never
+      measured at all. R-REFLOW: PASS.
+    consequence: >-
+      Neither tier could see the most common responsive defect in admin software. The
+      report's own diagnosis (the rect is clipped by the scroll container) was wrong --
+      it is not -- but the verdict it complained of was real.
+    fix: >-
+      R-REFLOW stays a page check, since SC 1.4.10 exempts data tables. layout.js now
+      records every scroll box whose content is wider than the box -- hidden px, column
+      count, last header, whether the last column is interactive or pinned -- and a new
+      R-TABLE-HIDDEN, bound to LAY-006, fails the data tables among them: "669px of
+      900px hidden sideways, last column Action".
+    guard:
+      - file: scripts/ux_report.py
+        text: def _table_hidden
+      - file: scripts/checks/browser/layout.js
+        text: scrollWidth against clientWidth on the box
+    control:
+      - file: scripts/browsertest.py
+        text: no scroll box recorded for the table
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-54
+    title: layout.js listed tables inside their own scroll boxes as page offenders
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/browser/layout.js
+    symptom: >-
+      Every element past the viewport edge was an offender, including the table, thead,
+      tr and each th of a table its own scroll box already makes reachable. The comment
+      said "Collapse to outermost offenders"; the code kept the first 25.
+    consequence: >-
+      On a page that does scroll sideways, the element to fix was buried under every
+      scrolled table's cells, and the 25-row cut decided which ones anybody saw.
+    fix: >-
+      Descendants of a horizontal scroll box are skipped, offenders are collapsed to the
+      outermost one as the comment claimed, and the full count is returned beside the
+      listed 25.
+    guard:
+      - file: scripts/checks/browser/layout.js
+        text: if (inScrollBox(el)) continue;
+    control:
+      - file: scripts/browsertest.py
+        text: listed tables inside their own scroll boxes
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-55
+    title: the tag scanner read markup inside comments as real tags
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/_util.py
+    symptom: >-
+      `scan_tags` did not skip comments, so `{/* <table>...</table> */}` or a `//` line
+      holding markup produced a real Tag. Found while testing DEF-51: a commented-out
+      table drew S-COMP-TABLE-SEMANTICS "no header cells".
+    consequence: >-
+      Every element-walking check could fail -- or pass -- on markup nobody renders,
+      and the cheapest way to silence one was to delete an explanatory comment.
+    fix: >-
+      Block, HTML and whole-line `//` comments are skipped. A `//` that starts mid-line
+      is left alone, because in JSX text it is prose and the links after it are real.
+    guard:
+      - file: scripts/checks/_util.py
+        text: Markup inside a comment is not on the page
+    control:
+      - file: scripts/selftest.py
+        text: S-RESP-TABLE fired on a glossary
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-56
+    title: S-TOKEN-HEX reported PR numbers, HTML entities and invoice numbers as colours
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/designsystem.py
+    symptom: >-
+      `#[0-9a-fA-F]{3,8}` over raw text, comments included. Decimal digits are hex
+      digits, and 5 and 7 digits were admitted though no colour has them. A file with
+      no colour in it -- "Fixed in #856 after #840", `&#8212;`, "invoice #2026" --
+      reported five P1 findings.
+    consequence: >-
+      26 findings on pull-request numbers in one tree; about two-thirds of the
+      report's 589 high-confidence static findings were detector defects of this shape.
+    fix: >-
+      Only 3, 4, 6 and 8 digits; not after `&`; comments blanked before matching; and
+      an all-digit hex counts only in a colour position (after `:`, `=`, `(`, `,`, `[`
+      or a quote) -- rejecting every all-decimal match would also throw away `#333`.
+      Files importing a renderer with no cascade (react-pdf, react-email, mjml, QR
+      builders) are skipped, since a literal is the only colour they can have.
+    guard:
+      - file: scripts/checks/designsystem.py
+        text: _COLOUR_POS = re.compile
+    control:
+      - file: scripts/selftest.py
+        text: on a file that contains no colour at all
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-57
+    title: a capped finding list was reported as the finding count
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/ux_check.py
+    symptom: >-
+      99 checks truncated their own output (`return out[:12]`, `[:8]`, ...) before
+      anything counted it, then `_cap` kept five per file per detector, and the summary
+      printed what survived as `(total N)`. Ten colours in one file: "total 5".
+    consequence: >-
+      Every aggregate built on it was wrong by an unknown factor per rule and per file,
+      and the number was quoted back to the report's author as a work estimate.
+    fix: >-
+      Checks return everything; the one cap is `_cap`, which now counts. Each detector
+      carries `matched` and `listed`, the JSON carries both totals, the human report
+      and the hook print "N matched, M listed".
+    guard:
+      - file: scripts/ux_check.py
+        text: def tally
+    control:
+      - file: scripts/selftest.py
+        text: a capped finding list was reported as the total
+      - file: scripts/selftest.py
+        text: a check truncates its own findings
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-58
+    title: S-TYPE-TINY measured print stylesheets against the screen floor
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/typography.py
+    symptom: >-
+      Rules inside `@media print` were read like any other; the five NUM-015 findings
+      left after a sweep were all in the print sheet of a PDF certificate.
+    consequence: >-
+      A CSS pixel on paper at 300dpi is not a screen pixel at arm's length. The floor
+      NUM-015 states is a screen floor.
+    fix: >-
+      Print-only `@media` blocks, print-named stylesheets and react-pdf documents are
+      not measured.
+    guard:
+      - file: scripts/checks/typography.py
+        text: def _print_spans
+    control:
+      - file: scripts/selftest.py
+        text: measured a print stylesheet against the screen floor
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-59
+    title: S-TYPE-TINY never read the Tailwind classes of a component with a style block
+    class: undetectable
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/typography.py
+    symptom: >-
+      When a file carried any CSS of its own the check returned after reading it, so
+      every `text-[10px]` in the same component was skipped. Found while fixing DEF-58.
+    consequence: >-
+      Adding one `<style>` block to a component silenced the check on everything else
+      in it.
+    fix: >-
+      The Tailwind pass runs for every source file, after the CSS pass.
+    guard:
+      - file: scripts/checks/typography.py
+        text: Tailwind classes are checked even when the component also has a <style>
+    control:
+      - file: scripts/selftest.py
+        text: skipped the Tailwind classes of a component
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-60
+    title: S-TYPE-TINY put a style-block finding on the line of the extracted CSS
+    class: wrong-result
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/typography.py
+    symptom: >-
+      Line numbers were computed inside the concatenated CSS extract, so a rule on
+      line 6 of a component was reported at line 1.
+    consequence: >-
+      The finding pointed at the wrong code, which is the difference between a finding
+      somebody fixes and one they dismiss as a false positive.
+    fix: >-
+      The declaration is located in the file itself before the line is computed.
+    guard:
+      - file: scripts/checks/typography.py
+        text: or the line number points nowhere
+    control:
+      - file: scripts/selftest.py
+        text: S-TYPE-TINY reported a <style> rule at the line of the
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-61
+    title: the NUM-015 floor was a literal the project's density decision could not reach
+    class: never-worked
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/checks/typography.py
+    symptom: >-
+      NUM-015 is PROJECT-class and `typography` is declared overridable, but the 12px
+      floor was written into the check. No config value changed it.
+    consequence: >-
+      A staff tool's legitimate density choice (862 of 928 findings in the field) could
+      only be swept or ignored, not recorded.
+    fix: >-
+      `typography.min_text_px` (default 12) is read through the merged thresholds, so a
+      lowered floor goes through GOV-008 like every other override.
+    guard:
+      - file: scripts/checks/typography.py
+        text: p.num("typography", "min_text_px", 12)
+    control:
+      - file: scripts/selftest.py
+        text: typography.min_text_px does not reach S-TYPE-TINY
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-62
+    title: a PROJECT default was presented exactly like a STANDARD floor
+    class: dead-end
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/ux_check.py
+    symptom: >-
+      Rule class was in the registry and the merged YAML and nowhere in the human
+      report. NUM-015 (12px text, PROJECT) arrived in the same list, in the same shape,
+      as NUM-004 (target size, STANDARD).
+    consequence: >-
+      The report gave no help separating 60 indefensible sites from 862 legitimate
+      density choices, and raising them all widens every table -- fighting LAY-006 from
+      the same tool in the same report.
+    fix: >-
+      Findings are grouped under their strictest rule class with the trade-off named,
+      the rule matrix breaks FAIL down by class, and a PROJECT finding points at
+      `.deuxui/exceptions.yaml`.
+    guard:
+      - file: scripts/ux_check.py
+        text: CLASS_HEADINGS = {
+    control:
+      - file: scripts/selftest.py
+        text: findings are not grouped by rule class
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-63
+    title: an approved exception changed nothing, because the report never read the exceptions file
+    class: never-worked
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/ux_report.py
+    symptom: >-
+      The docs, the template and `ux_ledger.EXCEPTIONS` all named
+      `.deuxui/exceptions.yaml`; `ux_report` read an `exceptions:` key in ux.config.yaml
+      and only to audit it. APPROVED_EXCEPTION was counted and never assigned. Found
+      while tracing the report's request for owner rulings.
+    consequence: >-
+      A field team that recorded their exceptions -- and said they appreciated being
+      able to -- had recorded them nowhere the verdict looks. An owner's written ruling
+      on a PROJECT rule still blocked the release like an unexamined defect.
+    fix: >-
+      `uxconfig.exceptions` reads the file (and the legacy key). An APPROVED, unexpired
+      record against a failing PROJECT rule makes it APPROVED_EXCEPTION in both
+      `ux_check` and `ux_report --merge`, carrying owner and review date, and not
+      blocking. STANDARD claims still fail A-EXCEPTIONS-VALID and change nothing; an
+      expired one lapses to FAIL with the reason. The ledger now lists rulings.
+    guard:
+      - file: scripts/ux_report.py
+        text: owner rulings. A FAIL on a PROJECT-class rule
+      - file: scripts/uxconfig.py
+        text: EXCEPTIONS_REL = Path
+      - file: scripts/ux_ledger.py
+        text: EXCEPTIONS was declared here and never read
+    control:
+      - file: scripts/selftest.py
+        text: an approved exception in .deuxui/exceptions.yaml did not make
+      - file: scripts/selftest.py
+        text: an exception past its review date still waived its rule
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-64
+    title: the raw finding count led the report and the rule matrix sat under it
+    class: dead-end
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/ux_check.py
+    symptom: >-
+      Findings printed first, then a `(total N)` line, then the rule matrix. Nothing
+      said the count was heuristic hits, and nothing said a finding's confidence was
+      declared rather than measured.
+    consequence: >-
+      3,790 was the number people quoted; the 24 failing rules that were the actual
+      worklist -- 22 of them P0 or P1 -- were what the report's authors worked from, and
+      the count actively obscured them.
+    fix: >-
+      The rule matrix comes first with FAIL broken down by class; the finding count
+      follows, labelled as raw heuristic hits with matched and listed, and each finding
+      carries its detector's declared confidence, named as such. No precision figure is
+      printed: there is no measured one, and A-NO-INVENTED-METRICS applies here too.
+    guard:
+      - file: scripts/ux_check.py
+        text: The rule matrix leads.
+    control:
+      - file: scripts/selftest.py
+        text: the finding count leads the report again
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-65
+    title: the readable rule packs had drifted from the registry and nothing noticed
+    class: drift
+    kind: product
+    found_in: "5.24.4"
+    fixed_in: "5.25.0"
+    surface: scripts/build_rule_packs.py
+    symptom: >-
+      `00-governance.md` said 19 rules and omitted GOV-015; VIS-001 did not list
+      S-CONTRACT-RAMP. Regenerating was a step somebody had to remember. Found when
+      adding R-TABLE-HIDDEN.
+    consequence: >-
+      A reader of the packs was told a rule did not exist and that a detector tested
+      nothing.
+    fix: >-
+      `render()` is separate from writing, and lint_rules fails when any pack on disk
+      differs from what the registry produces.
+    guard:
+      - file: scripts/build_rule_packs.py
+        text: def render() -> dict
+    control:
+      - file: scripts/lint_rules.py
+        text: is stale against registry.yaml
     verified_by_revert: true
     revert_reverified: "2026-09-22"

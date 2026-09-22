@@ -61,6 +61,41 @@ def _reflow(raws, out):
     return ("FAIL", f"Page scrolls sideways from {worst}px down.", hits)
 
 
+def _table_hidden(raws, out):
+    """LAY-006 at runtime. R-REFLOW asks whether the page scrolls sideways, and a
+    table in its own scroll box never makes it: the offenders were measured and
+    then discarded because page_overflows was false. This reads the scroll boxes
+    layout.js now records and fails the data tables among them -- the ones whose
+    hidden right edge holds row actions or more columns than fit."""
+    hits, seen, measured = [], set(), False
+    for name, d in raws.items():
+        if "__layout_" not in name or "containers" not in d:
+            continue
+        measured = True
+        suffix = name.rsplit("_", 1)[-1].removesuffix(".json")
+        route = name.split("__layout_")[0]
+        for c in d["containers"]:
+            if not c.get("dataTable") or c.get("pinned"):
+                continue
+            key = (route, c.get("cls"), c.get("lastColumn"))
+            if key in seen:
+                continue
+            seen.add(key)
+            last = f', last column "{c["lastColumn"]}"' if c.get("lastColumn") else ""
+            hits.append(f"{route} @ {suffix}: {c['columns']}-column table in "
+                        f"<{c['tag']} class=\"{c['cls']}\"> -- {c['hiddenPx']}px of "
+                        f"{c['contentPx']}px hidden sideways{last}")
+    if not measured:
+        return ("NOT_RUN", "No layout capture recorded scroll boxes (layout.js predates "
+                           "this check, or the layout probe did not run).", [])
+    if not hits:
+        return ("PASS", "No data table hides columns inside a horizontal scroll box at "
+                        "any tested viewport.", [])
+    return ("FAIL", f"{len(hits)} data table(s) hide their right edge inside a scroll "
+                    "box. Rightmost is where row actions live; a card layout or a "
+                    "pinned last column keeps them in view (LAY-006).", hits)
+
+
 def _targets(raws, out):
     hits = []
     for name, d in raws.items():
@@ -703,6 +738,7 @@ def _native(platform: str, want_pairs: bool):
 # it reports NOT_RUN with that reason rather than quietly vanishing.
 RUNTIME = {
     "R-REFLOW": _reflow,
+    "R-TABLE-HIDDEN": _table_hidden,
     "R-TARGET": _targets,
     "R-TARGET-COARSE": _target_coarse,
     "R-CONTRAST": _contrast,
@@ -986,20 +1022,27 @@ def self_audit(results, dstat, static, runtime, config, release, manual=None,
             "research or a project default, and names its source.")
 
     # --- GOV-007: an exception may lower a PROJECT rule, never a STANDARD
-    exc = config.get("exceptions") or {}
+    exc = config.get("_exceptions")
+    if exc is None:
+        exc = uxconfig.exceptions(config)
     bad_exc = []
     by_id = {r["rule_id"]: r for r in results}
-    for rid in exc:
-        rec = by_id.get(rid)
+    for e in exc:
+        rec = by_id.get(e["rule_id"])
         if rec and rec.get("class") == "STANDARD":
-            bad_exc.append(rid)
+            bad_exc.append(e["rule_id"])
+    applied = sum(1 for r in results if r["status"] == "APPROVED_EXCEPTION")
+    lapsed = [f"{e.get('exception_id') or e['rule_id']} ({e['inactive_reason']})"
+              for e in exc if not e["active"]]
     if bad_exc:
         out["A-EXCEPTIONS-VALID"] = ("FAIL",
             "Exceptions claimed against STANDARD-class rules, which cannot be "
             "waived by project policy: " + ", ".join(bad_exc))
     else:
         out["A-EXCEPTIONS-VALID"] = ("PASS",
-            f"{len(exc)} recorded exception(s), none against a standard."
+            (f"{len(exc)} recorded exception(s), none against a standard; "
+             f"{applied} applied as APPROVED_EXCEPTION"
+             + (f"; not applied: {', '.join(lapsed[:4])}" if lapsed else "") + ".")
             if exc else "No exceptions claimed.")
 
     # --- CTX-002/003/004: the product's own facts were declared, not assumed
@@ -1089,6 +1132,14 @@ def vet_attestation(did: str, rec: dict) -> tuple[str, str, bool]:
                 f"check earns PASS by someone having done it and said who, when and "
                 f"how -- otherwise it stays unrun, which is what it is.", False)
     return ("PASS", f"Attested by {who} on {date}: {ev[:200]}", True)
+
+
+def _project_root(config: dict) -> Path:
+    """The project a report is about: the directory holding .deuxui/, found from
+    the config file when there is one, else the working directory."""
+    if config.get("_path"):
+        return Path(config["_path"]).resolve().parent.parent
+    return Path.cwd()
 
 
 def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
@@ -1189,6 +1240,30 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         counts[status] += 1
         results.append({"rule_id": rid, "severity": r["severity"], "class": r["class"],
                         "basis": r["basis"], "status": status, "reason": reason})
+
+    # --- owner rulings. A FAIL on a PROJECT-class rule with an approved, unexpired
+    # exception becomes APPROVED_EXCEPTION: not a pass, not blocking, and carrying
+    # who decided and until when. This bucket existed in `counts` and was never
+    # filled, so a density decision the owner had made and written down still
+    # blocked the release like a defect nobody had looked at.
+    exc = uxconfig.exceptions(config, root=_project_root(config))
+    config["_exceptions"] = exc
+    by_rid = {}
+    for e in exc:
+        if e["active"]:
+            by_rid.setdefault(e["rule_id"], e)
+    for r in results:
+        e = by_rid.get(r["rule_id"])
+        if not e or r["status"] != "FAIL" or r["class"] not in uxconfig.EXCEPTABLE_CLASSES:
+            continue
+        counts["FAIL"] -= 1
+        counts["APPROVED_EXCEPTION"] += 1
+        r["status"] = "APPROVED_EXCEPTION"
+        r["reason"] = (f"{e.get('exception_id') or 'exception'}: owner "
+                       f"{e.get('owner') or '(unnamed)'}, approved by "
+                       f"{e.get('approved_by') or '(unnamed)'}, review "
+                       f"{e.get('expires_or_review_on') or '(no date)'}. Measured: "
+                       + r["reason"])[:400]
 
     # --- the 20 UX laws, rolled up from the detectors indexed to them.
     # They were carried as data and consumed by nothing, so a report could cite
@@ -1294,10 +1369,18 @@ def merge(static_json: Path, runtime_json: Path, manual_yaml: Path,
         "rule_results": results,
     }
     print(yaml.safe_dump(report, sort_keys=False, allow_unicode=True, width=100))
+    by_class = {}
+    for x in results:
+        if x["status"] == "FAIL":
+            by_class[x["class"]] = by_class.get(x["class"], 0) + 1
     sys.stderr.write(
         f"\nNOT_RUN {counts['NOT_RUN']}   FAIL {counts['FAIL']}   PASS {counts['PASS']}"
+        f"   APPROVED_EXCEPTION {counts['APPROVED_EXCEPTION']}"
         f"   NOT_APPLICABLE {counts['NOT_APPLICABLE']}\n"
-        f"release_decision: {decision} -- {why}\n")
+        + (f"failing by class: " + "   ".join(
+            f"{c} {by_class[c]}" for c in ("STANDARD", "PLATFORM", "PROJECT", "HEURISTIC")
+            if by_class.get(c)) + "\n" if by_class else "")
+        + f"release_decision: {decision} -- {why}\n")
     return 2 if decision == "BLOCKED" else 0
 
 

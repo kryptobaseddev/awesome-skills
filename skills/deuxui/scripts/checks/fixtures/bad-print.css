@@ -1,0 +1,2 @@
+/* A screen rule under the 12px floor: this is text people read on a monitor. */
+.legal { font-size: 10px; }

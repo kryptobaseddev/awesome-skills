@@ -15,7 +15,7 @@ called `parity.audit(deep=True)`, each run spawned a run which spawned a run. Th
 front door of a test suite has to be answerable without running the suite.
 """
 from __future__ import annotations
-import argparse, os, shutil, subprocess, sys, tempfile, json, io, contextlib
+import argparse, os, re, shutil, subprocess, sys, tempfile, json, io, contextlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -126,7 +126,13 @@ def run(tmp: Path, which: str) -> set[str]:
                         (f"{which}-craft.tsx", "landing.tsx"),
                         (f"{which}-craft.css", "landing.css"),
                         (f"{which}-craftfloor.tsx", "hero.tsx"),
-                        (f"{which}-craftfloor.css", "hero.css")):
+                        (f"{which}-craftfloor.css", "hero.css"),
+                        # The 5.25.0 field report: a table the tool blessed, a file of
+                        # PR numbers it called colours, and a print sheet it read as
+                        # screen text. Named so no print-file rule can skip them.
+                        (f"{which}-table.tsx", "queue.tsx"),
+                        (f"{which}-hex.tsx", "lot.tsx"),
+                        (f"{which}-print.css", "certificate.css")):
         src = FIX / extra
         if src.exists():
             shutil.copy(src, tmp / dest)
@@ -235,6 +241,53 @@ def config_wiring():
         if sorted(doc.get("declared_features") or []) != ["charts", "forms"]:
             fails.append("features in the config do not reach the applicability gate "
                          f"(got {doc.get('declared_features')!r})")
+
+        # --- an owner's ruling must change the verdict, and only where it may.
+        # `.deuxui/exceptions.yaml` is where the docs, the template and the ledger
+        # all said exceptions live, and the report read a config key instead: a
+        # record written where the docs said changed nothing, and
+        # APPROVED_EXCEPTION was never assigned to any rule.
+        write("features: [tables]\n")
+        (proj / ".deuxui" / "exceptions.yaml").write_text(
+            "- {exception_id: EXC-001, rule_id: LAY-006, rule_class: PROJECT,\n"
+            "   owner: ops lead, approved_by: product owner, approved_at: '2026-09-01',\n"
+            "   expires_or_review_on: '2999-01-01', status: APPROVED}\n"
+            "- {exception_id: EXC-002, rule_id: A11Y-003, rule_class: STANDARD,\n"
+            "   approved_at: '2026-09-01', expires_or_review_on: '2999-01-01',\n"
+            "   status: APPROVED}\n"
+            "- {exception_id: EXC-003, rule_id: NAV-008, rule_class: PROJECT,\n"
+            "   approved_at: '2020-01-01', expires_or_review_on: '2020-06-01',\n"
+            "   status: APPROVED}\n")
+        static = proj / "static-exc.json"
+        static.write_text(json.dumps({"detectors": {
+            "S-RESP-TABLE": {"status": "FAIL", "note": "a scrolled data table"},
+            "S-A11Y-TABINDEX": {"status": "FAIL", "note": "tabindex=5"},
+            "S-NAV-ERROR-ROUTE": {"status": "FAIL", "note": "no error route"}},
+            "project": {"platforms": []}}))
+        rep = subprocess.run(
+            [sys.executable, str(HERE / "ux_report.py"), "--merge",
+             "--static", str(static), "--config", str(cfg)],
+            capture_output=True, text=True, cwd=str(proj))
+        doc = yaml.safe_load(rep.stdout) if rep.stdout.strip() else {}
+        rr = {r["rule_id"]: r for r in doc.get("rule_results") or []}
+        blocking = set(doc.get("blocking_rules") or [])
+        if (rr.get("LAY-006") or {}).get("status") != "APPROVED_EXCEPTION" \
+                or "LAY-006" in blocking \
+                or (doc.get("counts") or {}).get("approved_exception") != 1:
+            fails.append("an approved exception in .deuxui/exceptions.yaml did not make "
+                         "its failing PROJECT rule APPROVED_EXCEPTION -- the owner's "
+                         f"ruling changed nothing (LAY-006 is "
+                         f"{(rr.get('LAY-006') or {}).get('status')})")
+        if (rr.get("A11Y-003") or {}).get("status") != "FAIL" or "A11Y-003" not in blocking:
+            fails.append("an exception waived a STANDARD rule; a standard is not the "
+                         "project's to waive")
+        if (doc.get("report_self_audit") or {}).get("A-EXCEPTIONS-VALID", {}).get(
+                "status") != "FAIL":
+            fails.append("A-EXCEPTIONS-VALID passed an exception claimed against a "
+                         "STANDARD rule")
+        if (rr.get("NAV-008") or {}).get("status") != "FAIL":
+            fails.append("an exception past its review date still waived its rule")
+        (proj / ".deuxui" / "exceptions.yaml").unlink()
 
         # --- app.* must reach the runtime driver
         write("app:\n  dev_url: http://127.0.0.1:9/\n  api_pattern: '**/x/**'\n"
@@ -2025,6 +2078,126 @@ export default { async headers() { return [{ source: "/(.*)",
             if not want and hits:
                 fails.append("S-COMMIT-REVIEW fired on a commitment that shows a real "
                              "review step in the interface")
+
+    # Field report against 5.24.4. Each case is asserted per FILE, both ways: the
+    # corpus test only learns that a detector fired somewhere, and every one of
+    # these detectors also fires on bad.tsx -- so "it fired" stayed true while the
+    # case the owner filed a bug about went silent. theme.css goes in each project
+    # because S-TOKEN-HEX needs theme variables, and without them it reports
+    # NOT_RUN and the assertion would prove nothing.
+    for det, stem, dest, why_bad, why_good in (
+            ("S-RESP-TABLE", "table", "queue.tsx",
+             "S-RESP-TABLE passed a 12-column data table whose only narrow-width "
+             "strategy is overflow-auto and whose last column is Action -- the table "
+             "the owner filed twice as cut off on the right",
+             "S-RESP-TABLE fired on a glossary, a pinned-actions table or a card "
+             "layout, each of which keeps every column reachable"),
+            ("S-TOKEN-HEX", "hex", "lot.tsx",
+             "S-TOKEN-HEX missed a literal colour in a colour position, so the "
+             "hex fix threw real colours away with the PR numbers",
+             "S-TOKEN-HEX called a PR number, an HTML entity or an invoice number a "
+             "colour, on a file that contains no colour at all"),
+            ("S-TYPE-TINY", "print", "certificate.css",
+             "S-TYPE-TINY missed a 10px screen rule",
+             "S-TYPE-TINY measured a print stylesheet against the screen floor")):
+        for which, want in (("bad", True), ("good", False)):
+            with tempfile.TemporaryDirectory() as td:
+                proj = Path(td)
+                for name in ("package.json", "theme.css"):
+                    shutil.copy(FIX / name, proj / name)
+                shutil.copy(FIX / f"{which}-{stem}{Path(dest).suffix}", proj / dest)
+                res = _scan(proj, extra=("--detector", det))
+                st = (res.get("detectors", {}).get(det) or {}).get("status")
+                hits = [h for h in res.get("findings", []) if h["file"].endswith(dest)]
+                if st not in ("PASS", "FAIL"):
+                    fails.append(f"{det} did not run on the field-report fixture "
+                                 f"({st}), so this case proves nothing")
+                elif want and not hits:
+                    fails.append(why_bad)
+                elif not want and hits:
+                    fails.append(f"{why_good}: {hits[0]['snippet'][:60]}")
+
+    # S-TYPE-TINY, three ways it misread a file. (1) A component with a <style>
+    # block returned after reading the CSS, so its text-[10px] classes were never
+    # checked. (2) A finding in that <style> block carried the line number of the
+    # extracted CSS, not of the file, and pointed at the wrong code. (3) The floor
+    # was a literal 12 while typography.* is declared overridable, so a dense tool's
+    # recorded density decision could not reach the check.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        shutil.copy(FIX / "package.json", proj / "package.json")
+        (proj / "Queue.tsx").write_text(
+            "export function Queue() {\n  return (\n    <div>\n"
+            "      <p className=\"text-[10px]\">AX-1042</p>\n"
+            "      <style>{`\n        .meta { font-size: 9px; }\n      `}</style>\n"
+            "      <p className=\"text-[11px]\">Mon 09:14</p>\n    </div>\n  );\n}\n")
+        hits = [h for h in _scan(proj, extra=("--detector", "S-TYPE-TINY")).get("findings", [])]
+        snippets = " ".join(h["snippet"] for h in hits)
+        if "text-[10px]" not in snippets:
+            fails.append("S-TYPE-TINY skipped the Tailwind classes of a component that "
+                         "also has a <style> block")
+        css_hit = [h for h in hits if "9px" in h["snippet"]]
+        if not css_hit or css_hit[0]["line"] != 6:
+            fails.append("S-TYPE-TINY reported a <style> rule at the line of the "
+                         "extracted CSS rather than the file "
+                         f"(got {css_hit[0]['line'] if css_hit else None}, want 6)")
+    # Its own project and a plain stylesheet: in the component above, the old code
+    # never read the 10-11px classes at all, so "not flagged under a 10px floor"
+    # would have passed for the wrong reason.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        shutil.copy(FIX / "package.json", proj / "package.json")
+        (proj / "dense.css").write_text(".meta { font-size: 11px; }\n"
+                                        ".stamp { font-size: 9px; }\n")
+        base = _scan(proj, extra=("--detector", "S-TYPE-TINY")).get("findings", [])
+        (proj / ".deuxui").mkdir()
+        (proj / ".deuxui" / "ux.config.yaml").write_text(
+            "thresholds:\n  typography:\n    min_text_px: 10\n")
+        dense = _scan(proj, extra=("--detector", "S-TYPE-TINY")).get("findings", [])
+        if not any("11px" in h["snippet"] for h in base) \
+                or any("11px" in h["snippet"] for h in dense) \
+                or not any("9px" in h["snippet"] for h in dense):
+            fails.append("typography.min_text_px does not reach S-TYPE-TINY: a project "
+                         "floor of 10px still flagged 10-11px text, or stopped flagging 9px")
+
+    # A count is a count. Ten real colours in one file: the report lists five (the
+    # per-file cap) and must say ten were matched. Before, `(total 5)` was printed
+    # as though it were the total, and a detector's own `out[:12]` threw findings
+    # away before even the cap could count them.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        for name in ("package.json", "theme.css"):
+            shutil.copy(FIX / name, proj / name)
+        spans = "\n".join(f'      <i style={{{{ color: "#a{i}b{i}c{i}" }}}}>{i}</i>'
+                          for i in range(10))
+        (proj / "Ten.tsx").write_text("export function Ten() {\n  return (\n    <p>\n"
+                                      + spans + "\n    </p>\n  );\n}\n")
+        res = _scan(proj, extra=("--detector", "S-TOKEN-HEX"))
+        d = (res.get("detectors") or {}).get("S-TOKEN-HEX") or {}
+        if (d.get("matched"), d.get("listed")) != (10, 5) \
+                or (res.get("counts") or {}).get("matched") != 10:
+            fails.append("a capped finding list was reported as the total: ten colours "
+                         f"matched, detector says matched={d.get('matched')} "
+                         f"listed={d.get('listed')}, counts={res.get('counts')}")
+        hum = subprocess.run([sys.executable, str(HERE / "ux_check.py"), str(proj),
+                              "--detector", "S-TOKEN-HEX"], capture_output=True, text=True).stderr
+        if "10 matched, 5 listed" not in hum:
+            fails.append("the human report does not say how many were matched against "
+                         "how many are listed")
+        # The rule matrix is the headline; the raw count comes after it, labelled.
+        r_at, f_at = hum.find("\nrules "), hum.find("\nfindings ")
+        if not (0 <= r_at < f_at) or "raw heuristic hits" not in hum:
+            fails.append("the finding count leads the report again: the rule matrix must "
+                         "come first, and the count must say it is raw heuristic hits")
+        if "Project defaults -- PROJECT rules" not in hum:
+            fails.append("findings are not grouped by rule class, so a PROJECT default "
+                         "reads the same as a STANDARD floor")
+    silent = [f"{p.name}:{i}" for p in sorted((HERE / "checks").glob("*.py"))
+              for i, ln in enumerate(p.read_text().splitlines(), 1)
+              if re.match(r"\s*return out\[:\d+\]\s*$", ln)]
+    if silent:
+        fails.append("a check truncates its own findings, which nothing counts -- the "
+                     "cap belongs in ux_check._cap: " + ", ".join(silent[:6]))
 
     # The ledger's own commands, on a real project laid out the way one is. Only a
     # smoke test -- but `state` reads six surfaces and `show` resolves an archive, so

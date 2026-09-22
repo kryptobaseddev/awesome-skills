@@ -47,7 +47,13 @@ python3 scripts/ux_report.py --merge --release \
 
 ## 4. Report honestly
 
-Lead with `counts.not_run`. An audit that reports 38 failures and 84 unchecked rules
+Lead with the rule matrix -- `counts.fail` by class, then `counts.not_run` -- never
+with the static finding count. The finding count is raw heuristic hits, unranked and
+containing false positives; one field report's 3,790 was read as a work estimate
+while the 24 failing rules that were the real worklist sat underneath it. When you
+do quote findings, quote "matched" and "listed" together.
+
+Lead with `counts.not_run` among the rules. An audit that reports 38 failures and 84 unchecked rules
 is a useful document. An audit that reports 38 failures and implies the other 152
 passed is a false one.
 
@@ -61,3 +67,7 @@ A deviation goes in `.deuxui/exceptions.yaml` using `assets/templates/exception.
 rule ID, scope, reason, alternatives considered, user impact, compensating controls,
 owner, review date. An exception may lower a **PROJECT**-class rule. It may not make
 a failed **STANDARD** report as passing — that one stays visible in the matrix.
+An `APPROVED`, unexpired record against a failing PROJECT rule reports that rule as
+`APPROVED_EXCEPTION` in both `ux_check.py` and `ux_report.py --merge` -- not a pass,
+not blocking, and carrying the owner and review date. `assets/templates/exceptions.yaml`
+is a starting file.

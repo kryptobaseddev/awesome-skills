@@ -467,4 +467,4 @@ def colour_only_status(f, p):
                            "Status shown as a bare coloured dot. Colour alone is not a cue "
                            "-- add the word beside it, or give the dot an aria-label saying "
                            "what the colour means (A11Y-005, SC 1.4.1).", "medium"))
-    return out[:6]
+    return out

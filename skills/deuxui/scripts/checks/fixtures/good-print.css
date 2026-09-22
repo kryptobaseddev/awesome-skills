@@ -1,0 +1,7 @@
+/* The PDF certificate. A CSS pixel on paper at 300dpi is not a screen pixel at
+   arm's length, so the 12px screen floor does not apply inside print. */
+.legal { font-size: 14px; }
+@media print {
+  .legal { font-size: 8px; }
+  .footnote { font-size: 6pt; }
+}
