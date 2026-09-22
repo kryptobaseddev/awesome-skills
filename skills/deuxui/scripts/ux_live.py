@@ -1254,8 +1254,22 @@ def _structural(a, st: dict, span: dict, new_text: str, what: str, detail: dict)
     # component's own file, and reporting only the usage sends them to edit one call
     # site and wonder why the other eleven did not move.
     if span["name"][:1].isupper():
-        d = jsxspan.component_source(span["name"], Path.cwd())
-        if d.get("found"):
+        rec0 = st.get("element") or {}
+        ins = jsxspan.inside_component(span["name"], Path.cwd(), rec0)
+        d = ins if ins.get("file") else jsxspan.component_source(span["name"], Path.cwd())
+        if ins.get("found"):
+            # The class the browser reported is authored in the component's own file,
+            # so the exact node is findable there without a render graph.
+            w(f"  COMPONENT this edits the <{span['name']}> USAGE here. The element you "
+              f"picked is\n            <{ins['name']}> at {ins['file']}:{ins['line']} "
+              f"({ins['how']}) — edit THERE to\n            change every place "
+              f"<{span['name']}> is used.\n")
+        elif ins.get("file"):
+            w(f"  COMPONENT this edits the <{span['name']}> USAGE here. "
+              f"<{span['name']}> is defined at\n            {ins['file']}:"
+              f"{ins['defined_at']}, but which node inside it you picked is not "
+              f"established:\n            {' '.join(str(ins['why']).split())[:150]}\n")
+        elif d.get("found"):
             w(f"  COMPONENT this edits the <{span['name']}> USAGE here. "
               f"<{span['name']}> itself is\n            defined at {d['file']}:"
               f"{d['line']} — edit there to change every place it is used.\n")

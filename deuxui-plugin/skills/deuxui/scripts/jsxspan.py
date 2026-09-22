@@ -260,6 +260,14 @@ _SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", "
               "target", "Pods", ".gradle", ".output", ".nuxt"}
 _SRC = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro", ".mjs"}
 
+# Classes that describe a property rather than a thing. Tailwind and its imitators
+# generate these in bulk, and one of them is never what an element IS.
+UTILITY = re.compile(
+    r"^(?:-?[a-z]{1,8}-)?(?:\d+|\[[^\]]+\]|px|auto|full|none|screen|min|max|fit)$"
+    r"|^(?:flex|grid|block|inline|hidden|absolute|relative|fixed|sticky|static)$"
+    r"|^(?:p|m|w|h|gap|top|left|right|bottom|z|order|col|row)[trblxy]?-",
+    re.I)
+
 
 def component_source(name: str, root, limit: int = 6000) -> dict:
     """Where the component `name` is defined, or why that could not be established.
@@ -315,6 +323,58 @@ def component_source(name: str, root, limit: int = 6000) -> dict:
                 "why": f"{len(hits)} files define a component called {name}, so which "
                        f"one renders this element is not established here"}
     return {"found": True, **hits[0]}
+
+
+def inside_component(name: str, root, rec: dict) -> dict:
+    """The element WITHIN a component's definition that matches what was picked.
+
+    I wrote that this needs the render graph. It does not, for the case that actually
+    comes up. A node picked on screen carries a class and a tag; the class is authored
+    in the component's own file, because that is where its markup lives. So once
+    `component_source` says which file, the element can be found inside it by the same
+    anchors used everywhere else -- scoped to one file, where a class that is ambiguous
+    across a project is usually unique.
+
+    What genuinely DOES need the render graph is the case this still refuses: an
+    element with no class, or whose only distinctive text is a prop value passed in
+    from the call site. Then nothing in the definition distinguishes it from its
+    siblings, and picking one is guessing."""
+    d = component_source(name, root)
+    if not d.get("found"):
+        return d
+    from pathlib import Path as _P
+    f = _P(root) / d["file"]
+    try:
+        text = f.read_text(errors="replace")
+    except OSError as e:
+        return {"found": False, "why": f"could not read {d['file']}: {e}"}
+
+    tried = []
+    for cls in str(rec.get("classes") or "").split():
+        # A utility class is not an identity. `p-4` describes padding, not which element
+        # this is, and matching on one is coincidence even when it happens to be unique
+        # in the file -- the next time somebody adds padding to a sibling, the same pick
+        # resolves somewhere else. A class that says what the element IS is required.
+        if len(cls) < 4 or UTILITY.match(cls):
+            tried.append({"anchor": cls, "hits": None, "why": "utility class"})
+            continue
+        # No uniqueness pre-check here: `find` already refuses an anchor that appears
+        # more than once, and duplicating that meant two of the three guards in this
+        # loop could not be made to fail when deleted. One place enforces it.
+        n = text.count(cls)
+        tried.append({"anchor": cls, "hits": n})
+        if n:
+            r = find(text, cls, str(rec.get("tag") or "") or None)
+            if r["found"]:
+                return {"found": True, "file": d["file"], "line": r["line"],
+                        "name": r["name"], "how": f"matched on the class {cls!r}",
+                        "defined_at": d["line"], "tried": tried}
+    return {"found": False, "file": d["file"], "defined_at": d["line"], "tried": tried,
+            "why": (f"<{name}> is defined at {d['file']}:{d['line']}, but nothing in "
+                    f"the element that was picked distinguishes it from its siblings "
+                    f"THERE -- no class of its own, or one that is not unique in that "
+                    f"file. Which node inside the component this is needs the render "
+                    f"graph, which this does not have.")}
 
 
 def verify(text: str, s: dict, anchor: str) -> tuple[bool, str]:

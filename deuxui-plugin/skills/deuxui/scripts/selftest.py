@@ -490,6 +490,79 @@ def element_spans():
             fails.append(f"component_source resolved Card to {_cs['file']}; "
                          f"node_modules must never be searched or every third-party "
                          f"component shadows the project's own")
+        # Resolving the element INSIDE the definition. I wrote that this needs the
+        # render graph; it does not, for the case that comes up. A node picked on screen
+        # carries a class, and that class is authored in the component's own file --
+        # scoped to one file, a class ambiguous across a project is usually unique.
+        # `p-4` appears on two elements and `card-row` on two: a class that is not
+        # unique inside the file identifies nothing, and a utility class identifies
+        # nothing anywhere. Without both in the fixture, relaxing `n == 1` to `n >= 1`
+        # and deleting the utility guard changed no outcome, so those two controls
+        # passed with the code removed.
+        (_r9 / "src" / "Card.tsx").write_text(
+            'export function Card({ title, price }) {\n'
+            '  return (\n'
+            '    <article className="card p-4">\n'
+            '      <h3 className="card-title">{title}</h3>\n'
+            '      <p className="card-price p-4">{price}</p>\n'
+            '      <span className="card-row">a</span>\n'
+            '      <span className="card-row">b</span>\n'
+            '    </article>\n  );\n}\n')
+        _in = jsxspan.inside_component("Card", _r9,
+                                       {"classes": "card-title", "tag": "h3"})
+        if not _in.get("found"):
+            fails.append(f"inside_component could not place a picked <h3.card-title> "
+                         f"in the component that authors that class: {_in.get('why')}")
+        elif (_in["file"], _in["name"]) != ("src/Card.tsx", "h3"):
+            fails.append(f"inside_component resolved to {_in.get('file')} "
+                         f"<{_in.get('name')}>, wanted src/Card.tsx <h3>")
+        # It must resolve to the RIGHT sibling, not just into the right file.
+        _in2 = jsxspan.inside_component("Card", _r9,
+                                        {"classes": "card-price", "tag": "p"})
+        if not _in2.get("found") or _in2.get("name") != "p":
+            fails.append("inside_component did not distinguish two siblings in the same "
+                         "component, so a structural edit would land on whichever came "
+                         "first")
+        elif _in2["line"] == (_in.get("line") if _in.get("found") else None):
+            fails.append("inside_component gave two different elements the same line")
+        # And the case that genuinely CANNOT resolve has to say so rather than guess.
+        _no = jsxspan.inside_component("Card", _r9, {"classes": "", "tag": "h3"})
+        if _no.get("found"):
+            fails.append("inside_component placed an element with no class of its own, "
+                         "which it cannot distinguish from its siblings -- that is the "
+                         "case that needs the render graph and it must refuse")
+        elif "render graph" not in str(_no.get("why", "")):
+            fails.append("inside_component refused without saying what would be needed "
+                         "to resolve it, so the refusal is a dead end")
+        # A utility class is not an identity even when it is UNIQUE in the file. That
+        # is the only form of this case that discriminates: with two occurrences, find()
+        # refuses on its own and the guard proves nothing. `mt-8` here is on exactly one
+        # element, and matching it is still coincidence -- the next sibling to get a
+        # margin moves the same pick somewhere else.
+        (_r9 / "src" / "Solo.tsx").write_text(
+            'export function Solo() {\n'
+            '  return <section className="wrap"><b className="mt-8">x</b></section>;\n}\n')
+        _util = jsxspan.inside_component("Solo", _r9, {"classes": "mt-8", "tag": "b"})
+        if _util.get("found"):
+            fails.append("inside_component located an element by a utility class that "
+                         "happened to be unique in the file; `mt-8` says how much margin "
+                         "it has, not which element it is")
+        for _c in ("p-4", "px-2", "w-full", "flex", "z-10", "h-[42px]"):
+            if not jsxspan.UTILITY.match(_c):
+                fails.append(f"jsxspan.UTILITY does not recognise {_c!r} as a utility "
+                             f"class")
+        for _c in ("card-title", "hero-banner", "PricingCard"):
+            if jsxspan.UTILITY.match(_c):
+                fails.append(f"jsxspan.UTILITY called {_c!r} a utility class, which "
+                             f"would throw away the one anchor that identifies it")
+        # A class that is in the file TWICE is not a location either.
+        _dup = jsxspan.inside_component("Card", _r9,
+                                        {"classes": "card-row", "tag": "span"})
+        if _dup.get("found"):
+            fails.append("inside_component placed an element by a class that appears "
+                         "twice in the same component, so the edit lands on whichever "
+                         "came first")
+
         # The four shapes a definition takes.
         for src, how in (('export default function Widget() {}', "export default"),
                          ('function Widget() {}', "function"),

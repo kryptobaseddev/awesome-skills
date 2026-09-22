@@ -505,13 +505,18 @@ live:
       reported has to agree with the tag found in source.
     gap: >-
       resolved textually, with no framework adapter and no AST. It now FOLLOWS a
-      component boundary as far as text allows: an element rendered by
-      `<Card title=.../>` is edited at the usage, and `jsxspan.component_source` names
-      where `Card` itself is defined so somebody wanting every card to change is not
-      left editing one call site. What it still cannot do is resolve WHICH element
-      inside that definition corresponds to the node picked on screen -- that needs the
-      render graph, which is what an adapter has and this does not. Two files defining
-      one component name is refused with both listed. It refuses rather than guesses -- an
+      component boundary further than I first thought text allowed. An element rendered
+      by `<Card title=.../>` is edited at the usage, `component_source` names where
+      `Card` is defined, and `inside_component` resolves WHICH element in that
+      definition was picked -- by the class the browser reported, which is authored in
+      the component's own file. I had written that this needed the render graph; it does
+      not, for the case that comes up.
+      It still needs the render graph for the case it refuses: an element with no class
+      of its own, or whose only class is a utility like `mt-8` that says how much margin
+      it has rather than which element it is. Then nothing in the definition
+      distinguishes it from its siblings and picking one is guessing. Two files defining
+      one component name is refused with both listed.
+      It refuses rather than guesses -- an
       element located by its class instead of its text, a span whose tag disagrees with
       what was picked on screen, unbalanced boundaries, or an anchor appearing more than
       once each produce a refusal and no write.
