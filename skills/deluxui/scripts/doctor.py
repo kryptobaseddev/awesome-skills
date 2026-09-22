@@ -204,6 +204,35 @@ def diagnose(root: Path) -> list[dict]:
             "report NOT_RUN. scripts/ux_question.py ask serves the choice.")
 
     try:
+        import ux_ledger
+        lin = ux_ledger.lineage()
+        approvals = [d for _f, d in ux_ledger.decisions() if d.get("approves_a_build")]
+        unresolved = [d.get("id") for d in approvals
+                      if not d.get("contract_sha")
+                      or ux_ledger.archived(d["contract_sha"]) is None]
+        if unresolved:
+            row("decision provenance", GONE,
+                f"{len(unresolved)} of {len(approvals)} unresolvable",
+                "A-CONTRACT-ARCHIVED FAILs: the approval exists and the declaration "
+                "it approved does not. Nothing can reconstruct what was agreed. "
+                "scripts/ux_ledger.py snapshot archives the contract in force.")
+        elif approvals:
+            row("decision provenance", OK,
+                f"{len(approvals)} approval(s) resolve, {len(lin)} version(s)",
+                "scripts/ux_ledger.py show DEC-001 prints what was declared at the "
+                "time.")
+        elif lin:
+            row("decision provenance", OK, f"{len(lin)} contract version(s) archived",
+                "Nothing approved yet, but the declaration's history is on record.")
+        else:
+            row("decision provenance", WARN, "no contract archived",
+                "A-CONTRACT-ARCHIVED reports NOT_RUN. An approval recorded now could "
+                "not be resolved back to what it approved. "
+                "scripts/ux_ledger.py snapshot fixes it in one command.")
+    except Exception as e:
+        row("decision provenance", WARN, f"{type(e).__name__}: {e}")
+
+    try:
         import ux_image
         provs = [p for p in ux_image.providers() if p["available"]]
         if provs:

@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "4.4.1"
-  last_updated: "2026-09-22 00:45:00"
+  version: "4.4.2"
+  last_updated: "2026-09-22 01:05:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -128,7 +128,7 @@ reports without touching anything. When it does not name a mode at all, read
 decides from measured signals rather than from the wording.
 
 A mode is the shape of the whole job. An **operation** is one move inside it —
-`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-three
+`colorize`, `typeset`, `distill`, `bolder`, `ios`, `extract`, `live`. All thirty-four
 are indexed in `references/ops/index.md`, and each one ends by naming the
 detectors that judge its output, so it finishes in a status rather than an
 impression.

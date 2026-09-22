@@ -296,6 +296,38 @@ def contract_checks():
             fails.append("S-CONTRACT-RAMP fired on a colour ON the declared ramp, so "
                          "it reports conformance as a violation")
 
+    # The ledger's own commands, on a real project laid out the way one is. Only a
+    # smoke test -- but `state` reads six surfaces and `show` resolves an archive, so
+    # a broken one of those is a traceback rather than a wrong number, and nothing
+    # else in this file would have caught it.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        (proj / ".deluxui").mkdir()
+        (proj / ".deluxui" / "design.contract.yaml").write_text(
+            "visitor_mode: read\nworld: One grotesque voice on cool grey.\n"
+            "depth: {metaphor: border}\nradius: {card_px: 12}\n")
+        for cmd in (("snapshot",), ("state", "--json"), ("log", "--json"),
+                    ("diff",), ("check", "--json"), ("show", "nope")):
+            r = subprocess.run([sys.executable, str(HERE / "ux_ledger.py"), *cmd],
+                               capture_output=True, text=True, cwd=proj)
+            # `diff` with one version and `show` of a missing id refuse with 2; a
+            # traceback is what this is looking for.
+            if "Traceback" in r.stderr:
+                fails.append(f"ux_ledger.py {' '.join(cmd)} raised: "
+                             f"{r.stderr.strip().splitlines()[-1]}")
+        r = subprocess.run([sys.executable, str(HERE / "ux_ledger.py"), "state", "--json"],
+                           capture_output=True, text=True, cwd=proj)
+        try:
+            st = json.loads(r.stdout)
+        except ValueError:
+            fails.append("ux_ledger.py state --json did not emit JSON")
+        else:
+            if not st.get("declaration", {}).get("archived"):
+                fails.append("ux_ledger.py snapshot ran and state still reports the "
+                             "contract as unarchived")
+            if len(st.get("briefs") or []) != 2:
+                fails.append("ux_ledger.py state does not report both prose briefs")
+
     # A contract's identity is what binds a decision to what it approved. Two ways
     # it can silently stop working, both of which shipped: the hash including the
     # file's absolute path (so it changed when the project moved), and the ledger
