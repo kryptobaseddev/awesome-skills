@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "4.4.0"
-  last_updated: "2026-09-22 00:30:00"
+  version: "4.4.1"
+  last_updated: "2026-09-22 00:45:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -301,7 +301,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |
 | `scripts/ux_question.py` | **The decision, served.** A page on localhost showing the comps and the structural claim each one makes. Refuses an answer with no author, an agent as the author, a reason too thin to weigh, and a timeout. Writes `.deluxui/decisions/DEC-NNN.yaml` hashed against exactly what was shown. |
 | `scripts/ux_phase.py` | **The gate.** discover → declare → comp → approve → build → verify → release, each transition's requirements machine-checked. `gate write` refuses UI edits before a direction is approved, wired to PreToolUse so the refusal lands while the file is open. The override is audited, because a gate with no way past it gets bypassed by deleting the file. |
-| `scripts/ux_ledger.py` | **The system of record.** `state` says what the design is right now — the declaration field by field with blanks shown as blanks, what the project is actually built with (measured, not declared), the live approval per stage, and what is still open. `log` says how it got there. `snapshot` archives the contract under its own hash, so a decision's `contract_sha` resolves to bytes and `show DEC-003` can print what was declared **at the time**. An unresolvable reference is reported as a gap, never filled in from the present. |
+| `scripts/ux_ledger.py` | **The system of record.** `state` says what the design is right now — the declaration field by field with blanks shown as blanks, what PRODUCT.md and DESIGN.md actually say, what the project is measurably built with, the live approval per stage, and what is still open. `log` says how it got there. `snapshot` archives the contract under its own hash, so a decision's `contract_sha` resolves to bytes and `show DEC-003` can print what was declared **at the time**. An unresolvable reference is reported as a gap, never filled in from the present. |
 | `scripts/fontindex.py` | **Does the declared face exist here.** Finds every way a face legitimately arrives — `@font-face`, `@fontsource`, `next/font`, a file in the tree, a Google Fonts request — matches across spellings, and refuses to treat the build host's own fonts as evidence about a visitor. |
 | `scripts/comp_spec.py` | **Read a reference image.** Palette by coverage, canvas and ink with the measured ratio, region bands, and which are photographic rather than flat — the distinction that decides whether a region ships as a raster or as code. Also records an asset's provenance inside the PNG. |
 | `scripts/native_conformance.py` | **Proves the native driver, not the device.** Recording stubs for `xcrun` and `adb`: the command sequence, the state it restores, and all seven availability states. It says plainly that a stub is not a phone. |

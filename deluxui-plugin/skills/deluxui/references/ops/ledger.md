@@ -60,11 +60,19 @@ than a silence.
 | Section | What it is | Where it comes from |
 |---|---|---|
 | **DECLARED** | The visual commitments, field by field, with blanks shown as blanks | `design.contract.yaml` |
+| **DECLARED IN PROSE** | Audience, jobs and risk; the visual system as built | `PRODUCT.md`, `DESIGN.md` |
 | **BUILT WITH** | Frameworks, primitive libraries, tokens, component count | **measured from the repository** |
 | **APPROVED** | The live approval per stage, and what it superseded | `decisions/` |
 | **OPEN** | Notes nobody has closed, and fields a check is waiting on | `requests/` + the contract |
 
-DECLARED and BUILT WITH are different claims and are never merged. A contract
+The two prose declarations are reported by how much is actually written, not by
+whether the file exists: they fail by being stubs, and a heading with nothing under
+it passes an existence check while settling nothing. Both are archived beside each
+contract version, so `show DEC-003` can say what the brief said at the time too --
+and says plainly when it cannot.
+
+DECLARED, DECLARED IN PROSE and BUILT WITH are different claims and are never
+merged. A contract
 declaring `depth.metaphor: shadow` over a component library whose every primitive
 ships a border is a conflict nobody would find by reading either one alone.
 

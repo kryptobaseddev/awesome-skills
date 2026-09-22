@@ -57,6 +57,13 @@ COMPS = ROOT / "comps"
 PROTO = ROOT / "proto"
 REPORTS = ROOT / "reports"
 EXCEPTIONS = ROOT / "exceptions.yaml"
+# The other two declarations. PRODUCT.md owns audience, jobs and risk; DESIGN.md
+# owns the visual system as built. They are archived beside each contract version
+# rather than under their own hashes, because the question anyone asks of them is
+# "what did the brief say when this was approved" -- which is a question about the
+# contract's version, not about theirs.
+BRIEFS = [("PRODUCT.md", ROOT / "PRODUCT.md", "audience, jobs, risk"),
+          ("DESIGN.md", ROOT / "DESIGN.md", "the visual system as built")]
 
 # What a declaration is made of, in the order a person reads it. The ledger names
 # every one of these even when it is undeclared, because a field nobody has
@@ -193,9 +200,15 @@ def archive(by: str = "ux_ledger.py snapshot", note: str | None = None) -> dict:
     # versions should see the document that was edited, not a normalised rewrite of
     # it that silently drops the reasoning in the comments.
     (ARCHIVE / f"{sha}.yaml").write_text(raw)
+    briefs = {}
+    for name, src, _why in BRIEFS:
+        if src.exists():
+            body = src.read_text(errors="replace")
+            (ARCHIVE / f"{sha}.{name}").write_text(body)
+            briefs[name] = file_sha(src)
     entry = {"sha": sha, "at": now(), "parent": (lin[-1].get("sha") if lin else None),
              "by": by, "declared": len(c.declared), "undeclared": c.undeclared,
-             "changed": changed_fields(prev, data)}
+             "changed": changed_fields(prev, data), "briefs": briefs}
     if not lin:
         # The first declaration is not a change from an empty contract. Reporting it
         # as "31 fields changed" invents a previous version that never existed.
@@ -381,6 +394,28 @@ def declaration() -> dict:
             "departures": (data or {}).get("departures") or []}
 
 
+def briefs() -> list:
+    """PRODUCT.md and DESIGN.md: present, and how much of them is actually written.
+
+    Reported by size because these two fail by being stubs rather than by being
+    absent -- a heading with nothing under it passes an existence check and settles
+    nothing, and `phase.yaml` already refuses to advance on one for that reason."""
+    out = []
+    for name, src, why in BRIEFS:
+        if not src.exists():
+            out.append({"name": name, "exists": False, "why": why, "chars": 0,
+                        "sha": None, "headline": None})
+            continue
+        body = src.read_text(errors="replace")
+        prose = re.sub(r"^\s*#.*$", "", body, flags=re.M).strip()
+        head = next((ln.strip() for ln in prose.split("\n")
+                     if ln.strip() and not ln.strip().startswith(("#", "-", "|", "*"))),
+                    None)
+        out.append({"name": name, "exists": True, "why": why, "chars": len(prose),
+                    "sha": file_sha(src), "headline": head})
+    return out
+
+
 def approvals() -> dict:
     """What has actually been approved, by stage, and by whom.
 
@@ -458,8 +493,16 @@ def state() -> dict:
                         f"{v['contract_sha']}, which is not in the archive")
     if not st:
         gaps.append("no phase.yaml, so the order the work happened in is NOT_RUN")
+    br = briefs()
+    for b in br:
+        if not b["exists"]:
+            gaps.append(f"no {b['name']}, so {b['why']} is nowhere on record and the "
+                        f"phase gate will not advance past `declare`")
+        elif b["chars"] < 200:
+            gaps.append(f"{b['name']} is {b['chars']} characters of prose, which is a "
+                        f"stub rather than a declaration of {b['why']}")
     return {"phase": st.get("phase"), "mode": st.get("mode"),
-            "declaration": d, "component_system": component_system(),
+            "declaration": d, "briefs": br, "component_system": component_system(),
             "approvals": a, "open": open_work(),
             "contract_versions": len(lineage()),
             "events": len(events()), "gaps": gaps}
@@ -530,6 +573,14 @@ def cmd_state(a) -> int:
         w(f"  [{mark}] {r['label']:<34} {val}\n")
     if d["departures"]:
         w(f"\n  {len(d['departures'])} declared departure(s) -- on purpose, with a reason\n")
+
+    w("\nDECLARED IN PROSE\n")
+    for b in s["briefs"]:
+        if not b["exists"]:
+            w(f"  [ ] {b['name']:<12} missing -- {b['why']} is nowhere on record\n")
+        else:
+            w(f"  [{'x' if b['chars'] >= 200 else ' '}] {b['name']:<12} "
+              f"{b['chars']} chars  {_short(b['headline'] or '(no prose)', 58)}\n")
 
     w("\nBUILT WITH")
     if not cs.get("measured"):
@@ -678,6 +729,15 @@ def _show_decision(p: Path, d: dict, a) -> int:
             n = len(changed_fields(c, load(CONTRACT)))
             w(f"    Since then the declaration has changed in {n} field(s): "
               f"`ux_ledger.py diff {csha} {cur}`\n")
+        for name, _src, why in BRIEFS:
+            at_time = ARCHIVE / f"{csha}.{name}"
+            if at_time.exists():
+                n = len(re.sub(r"^\s*#.*$", "", at_time.read_text(errors="replace"),
+                               flags=re.M).strip())
+                w(f"    {name:<11} {n} chars, archived: {at_time}\n")
+            else:
+                w(f"    {name:<11} not archived with this version, so {why} as it "
+                  f"stood then cannot be produced\n")
     notes = d.get("notes") or []
     w(f"\n  CARRIED {len(notes)} WORK ITEM(S)\n")
     for n in notes:
