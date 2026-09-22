@@ -502,6 +502,149 @@ def element_spans():
     return fails
 
 
+def capabilities():
+    """Do the generators and gates actually DO their job, or only start?
+
+    `parity.py --deep` proves every cited script starts. That is a real check and it is
+    a weak one: a generator that runs and emits an off-scale ladder satisfies it, and a
+    gate that runs and permits everything satisfies it too. This asserts the property
+    each one exists FOR, on the five capabilities that were measurable and unmeasured.
+
+    Each case is the claim the tool makes about itself in SKILL.md, turned into a
+    question with an answer."""
+    fails = []
+    sys.path.insert(0, str(HERE))
+
+    # 1. palette: "every pair contrast-checked". A generated ramp whose roles do not
+    #    clear the contrast they owe is the one thing this generator must never emit.
+    import palette                                                   # noqa: E402
+    try:
+        pal = palette.build(hue=250)
+    except Exception as e:
+        pal = None
+        fails.append(f"palette.build raised {type(e).__name__}: {e}")
+    if isinstance(pal, dict):
+        need = {"canvas", "surface", "ink", "muted", "interactive"}
+        missing = need - set(pal.get("roles") or {})
+        if missing:
+            fails.append(f"palette.build omitted the role(s) {sorted(missing)}, which "
+                         f"every contract declares")
+        # The generator reports the pairs it measured. A pair it emits below the ratio
+        # that pair owes is the one thing this generator must never produce.
+        owed = {"ink on canvas": 4.5, "muted on canvas": 4.5}
+        got = dict(pal.get("pairs") or [])
+        for pair, floor in owed.items():
+            v = got.get(pair)
+            if v is None:
+                fails.append(f"palette.build did not report the pair {pair!r}, so "
+                             f"nothing establishes that it clears {floor}:1")
+            elif v < floor:
+                fails.append(f"palette.build emitted {pair} at {v}:1, below the "
+                             f"{floor}:1 it exists to guarantee")
+
+    # 2. typescale: rungs that carry different jobs. Two adjacent steps a reader cannot
+    #    tell apart are not a hierarchy, whatever the ratio claims.
+    import typescale                                                 # noqa: E402
+    try:
+        ladder = typescale.build(body=17, ratio=1.25)
+        px = [r["px"] for r in ladder["rungs"] if isinstance(r, dict) and r.get("px")]
+        if len(px) < 4:
+            fails.append(f"typescale produced {len(px)} rung(s); a ladder that short "
+                         f"cannot carry display, heading, body and caption")
+        flat = [(a, b) for a, b in zip(px, px[1:]) if a and b and max(a, b) / min(a, b) < 1.12]
+        if flat:
+            fails.append(f"typescale produced adjacent steps under 1.12x apart "
+                         f"({flat[:2]}), which read as the same size")
+    except Exception as e:
+        fails.append(f"typescale.build raised {type(e).__name__}: {e}")
+
+    # 3. comp_spec provenance: "records an asset's provenance INSIDE the PNG". An
+    #    asset whose origin lives only in a chat message cannot be regenerated.
+    import pngread                                                   # noqa: E402
+    # A fixture that ships, so this case is never silently skipped. The first version
+    # pointed at a PNG that does not exist in this tree, so the whole provenance check
+    # was a no-op that reported "all ok" -- a check that cannot run is the thing this
+    # skill is about, and it managed to be one.
+    shot = FIX / "provenance.png"
+    if not shot.exists():
+        fails.append(f"{shot.name} is missing, so the provenance round-trip cannot be "
+                     f"checked at all")
+    else:
+        with tempfile.TemporaryDirectory() as d:
+            q = Path(d) / "a.png"
+            q.write_bytes(shot.read_bytes())
+            note = "selftest: written by capabilities()"
+            if not pngread.add_text(q, "deuxui-provenance", note):
+                fails.append("pngread.add_text could not write provenance into a PNG")
+            elif pngread.text_chunks(q).get("deuxui-provenance") != note:
+                fails.append("provenance written into a PNG did not read back, so an "
+                             "asset's origin is not actually recorded in the file")
+            try:
+                pngread.rows(q)
+            except Exception as e:
+                fails.append(f"a PNG carrying provenance no longer decodes: "
+                             f"{type(e).__name__}: {e}")
+
+    # 4. the phase gate: "refuses production UI edits before a direction is approved",
+    #    and is opt-in -- with no phase.yaml nothing is refused.
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        (r / "app").mkdir()
+        target = r / "app" / "page.tsx"
+        target.write_text("export default () => <div>x</div>;\n")
+        cwd = os.getcwd()
+        try:
+            os.chdir(r)
+            opt_in = subprocess.run(
+                [sys.executable, str(HERE / "ux_phase.py"), "gate", "write",
+                 str(target)], capture_output=True, text=True)
+            if opt_in.returncode != 0:
+                fails.append("the phase gate refused a write in a project with no "
+                             "phase.yaml; it is opt-in, and refusing by default would "
+                             "block every project that never asked for it")
+            subprocess.run([sys.executable, str(HERE / "ux_phase.py"), "init"],
+                           capture_output=True, text=True)
+            closed = subprocess.run(
+                [sys.executable, str(HERE / "ux_phase.py"), "gate", "write",
+                 str(target)], capture_output=True, text=True)
+            if closed.returncode == 0:
+                fails.append("the phase gate PERMITTED a production UI edit in a "
+                             "freshly initialised project, where nobody has approved "
+                             "anything -- the gate is the whole argument and it was open")
+        finally:
+            os.chdir(cwd)
+
+    # 5. ux_proto: "conformant by construction, so running the checks over its output
+    #    is a positive control on the generator".
+    with tempfile.TemporaryDirectory() as d:
+        r = Path(d)
+        (r / ".deuxui").mkdir()
+        shutil.copy(FIX / "design.contract.yaml", r / ".deuxui" / "design.contract.yaml")
+        out = r / "proto.html"
+        cwd = os.getcwd()
+        try:
+            os.chdir(r)
+            g = subprocess.run([sys.executable, str(HERE / "ux_proto.py"),
+                                "--write", str(out), "--title", "Selftest"],
+                               capture_output=True, text=True)
+        finally:
+            os.chdir(cwd)
+        if not out.exists() or out.stat().st_size < 2000:
+            fails.append(f"ux_proto wrote no usable prototype (exit {g.returncode})")
+        else:
+            body = out.read_text(errors="replace")
+            for must, why in (("<dialog", "a dialog that traps focus"),
+                              ("<table", "a table"),
+                              ("aria-", "any ARIA at all")):
+                if must not in body:
+                    fails.append(f"the generated prototype contains no {must!r} -- it "
+                                 f"is advertised as having {why}")
+
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 def contract_checks():
     """Invariants the check corpus cannot catch on its own."""
     fails = []
@@ -1290,6 +1433,7 @@ def main():
     wiring = config_wiring()
     bytecode = no_shipped_bytecode()
     overlay = overlay_policy()
+    caps = capabilities()
     spans = element_spans()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
@@ -1311,8 +1455,9 @@ def main():
     print(f"shipped bytecode:    {'none' if not bytecode else str(len(bytecode)) + ' FOUND'}")
     print(f"overlay vs page CSP: {'all ok' if not overlay else str(len(overlay)) + ' FAILING'}")
     print(f"element spans:       {'all ok' if not spans else str(len(spans)) + ' FAILING'}")
+    print(f"capabilities:        {'all ok' if not caps else str(len(caps)) + ' FAILING'}")
     ok = (not missed and not leaked and not contract and not wiring and not bytecode
-          and not overlay and not spans)
+          and not overlay and not spans and not caps)
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

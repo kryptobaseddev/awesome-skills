@@ -185,6 +185,71 @@ def runs(script: str) -> tuple[bool, str]:
     return _RUNS[script]
 
 
+# Files that assert behaviour rather than describe it. A capability named by one of
+# these is exercised; a capability named nowhere in them is only known to START.
+CONTROLS = ("selftest.py", "browsertest.py", "native_conformance.py",
+            "lint_rules.py", "checks/fixtures")
+
+
+def _control_text() -> str:
+    """Everything the automated controls contain, as one blob to search."""
+    out = []
+    for name in CONTROLS:
+        q = SKILL / "scripts" / name
+        if q.is_dir():
+            for f in sorted(q.rglob("*")):
+                if f.is_file():
+                    try:
+                        out.append(f.read_text(errors="replace"))
+                    except OSError:
+                        pass
+        elif q.exists():
+            try:
+                out.append(q.read_text(errors="replace"))
+            except OSError:
+                pass
+    return "\n".join(out)
+
+
+def executable(ev: list) -> bool:
+    """Does this row cite anything that can be RUN?
+
+    A row backed only by an operation reference or a workflow is prose an agent
+    follows. There is nothing to smoke-test: `lint_rules.py` already proves every rule
+    and detector ID it cites exists, and whether the guidance is good is a judgement no
+    control can make. Counting those as "unexercised" buries the rows that matter in a
+    number nobody can act on."""
+    return any(str(e).split(":", 1)[0] in ("script", "sub", "flag") for e in ev)
+
+
+def exercised(ev: list, blob: str) -> bool:
+    """Is any of this row's evidence named by a control?
+
+    A deliberately weak test, and it is labelled as one. It asks whether a control
+    MENTIONS the capability, not whether it asserts the right thing about it -- no
+    static check can tell the difference between a control that would catch a
+    regression and one that imports a module and moves on.
+
+    It is still worth printing, because the number it produces is the honest answer to
+    "wired and working": a row whose evidence no control mentions at all is known to
+    start and nothing more, and that set should be small and named rather than
+    averaged into a pass."""
+    for e in ev:
+        e = str(e)
+        if ":" not in e:
+            continue
+        kind, rest = e.split(":", 1)
+        if kind == "detector":
+            if rest in blob:
+                return True
+        elif kind in ("script", "sub", "flag"):
+            name = rest.split(":", 1)[0]
+            stem = name.rsplit(".", 1)[0]
+            if stem and (f"import {stem}" in blob or f"{stem}." in blob):
+                return True
+    return False
+
+
 def audit(deep: bool = False) -> dict:
     try:
         doc = yaml.safe_load(MATRIX.read_text())
@@ -196,6 +261,7 @@ def audit(deep: bool = False) -> dict:
                 "counts": {}, "problems": [str(e)]}
 
     dets = detector_ids()
+    blob = _control_text()
     rows, problems = [], []
     counts = {s: 0 for s in STATUSES}
 
@@ -247,10 +313,17 @@ def audit(deep: bool = False) -> dict:
                                             f"evidence and does not run: {told}")
             rows.append({"section": section, "name": name, "status": st,
                          "evidence": len(ev), "unresolved": unresolved,
-                         "gap": row.get("gap")})
+                         "gap": row.get("gap"),
+                         "exercised": exercised(ev, blob) if ev else False,
+                         "executable": executable(ev)})
 
     return {"ok": not problems, "rows": rows, "counts": counts, "problems": problems,
             "source": doc.get("source", {}), "detectors_known": len(dets),
+            "unexercised": sorted(r["name"] for r in rows
+                                  if r["status"] == "mapped" and not r["exercised"]
+                                  and r["executable"]),
+            "prose_only": sorted(r["name"] for r in rows
+                                 if r["status"] == "mapped" and not r["executable"]),
             "deep": deep, "scripts_run": len(_RUNS),
             "scripts_broken": sorted(k for k, (g, _w) in _RUNS.items() if not g)}
 
@@ -280,6 +353,16 @@ def main(argv=None) -> int:
     w(f"  {total} row(s): {c.get('mapped', 0)} mapped, {c.get('partial', 0)} partial, "
       f"{c.get('absent', 0)} absent\n")
     w(f"  {r.get('detectors_known', 0)} detector ID(s) available as evidence\n")
+    ux = r.get("unexercised") or []
+    prose = r.get("prose_only") or []
+    mapped = r["counts"].get("mapped", 0)
+    runnable = mapped - len(prose)
+    w(f"  {runnable - len(ux)}/{runnable} runnable mapped row(s) exercised by a "
+      f"control; {len(ux)} known only to start\n")
+    if ux:
+        w(f"    only start: {', '.join(ux)}\n")
+    w(f"  {len(prose)} mapped row(s) are guidance with nothing to run; lint_rules "
+      f"proves the IDs they cite exist\n")
     if r.get("deep"):
         bad = r.get("scripts_broken") or []
         w(f"  {r.get('scripts_run', 0)} cited script(s) run: "

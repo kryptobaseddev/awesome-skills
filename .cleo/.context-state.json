@@ -1,11 +1,11 @@
 {
   "version": "1.0.0",
-  "timestamp": "2026-09-22T04:15:38Z",
+  "timestamp": "2026-09-22T04:21:53Z",
   "staleAfterMs": 5000,
   "contextWindow": {
     "maxTokens": 1000000,
-    "currentTokens": 602843,
-    "percentage": 60
+    "currentTokens": 624520,
+    "percentage": 62
   },
   "status": "ok",
   "sessionId": "",
