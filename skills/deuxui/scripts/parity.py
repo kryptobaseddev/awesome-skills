@@ -147,7 +147,45 @@ def resolve(ev: str, dets: set) -> tuple[bool, str]:
     return True, ""
 
 
-def audit() -> dict:
+_RUNS: dict[str, tuple] = {}
+
+
+def runs(script: str) -> tuple[bool, str]:
+    """Does `scripts/<script>` actually start, or is it a file that satisfies a claim?
+
+    The rest of this checker proves a piece of evidence EXISTS. That is the weaker
+    half: a row can cite a script that is present and broken, and the claim resolves
+    while the capability does not. A `mapped` row backed by a module that raises on
+    import is exactly the shape of overstatement this file was written to prevent, and
+    nothing here could see it.
+
+    So `--deep` runs each cited script's `--help`. Chosen because it is the one
+    invocation every script here supports, it touches no project files, and it forces
+    the whole import graph -- which is where rot actually shows up. Exit status is
+    read, and stderr is quoted when it fails, so the report says what broke rather
+    than that something did."""
+    if script in _RUNS:
+        return _RUNS[script]
+    q = SKILL / "scripts" / script
+    if not q.exists():
+        _RUNS[script] = (False, "the file does not exist")
+        return _RUNS[script]
+    try:
+        r = subprocess.run([sys.executable, str(q), "--help"],
+                           capture_output=True, text=True, timeout=60)
+    except subprocess.SubprocessError as e:
+        _RUNS[script] = (False, f"{type(e).__name__}: {e}")
+        return _RUNS[script]
+    if r.returncode != 0:
+        tail = (r.stderr or r.stdout or "").strip().splitlines()
+        _RUNS[script] = (False, f"exits {r.returncode}: "
+                                + (tail[-1][:160] if tail else "no output"))
+    else:
+        _RUNS[script] = (True, "")
+    return _RUNS[script]
+
+
+def audit(deep: bool = False) -> dict:
     try:
         doc = yaml.safe_load(MATRIX.read_text())
     except OSError:
@@ -193,12 +231,28 @@ def audit() -> dict:
                 if not ok:
                     unresolved.append((str(e), why))
                     problems.append(f"{where}: {why}")
+                elif deep:
+                    # Existing is not working. A row can cite a script that is present
+                    # and broken, and the claim resolves while the capability does not.
+                    kind, rest = str(e).split(":", 1)
+                    # NOT `name`: that is the row's name, three lines up, and shadowing
+                    # it here set every row's name to None in the report.
+                    cited = (rest if kind == "script" else
+                             rest.split(":", 1)[0] if kind in ("sub", "flag") else None)
+                    if cited and cited.endswith(".py"):
+                        good, told = runs(cited)
+                        if not good:
+                            unresolved.append((str(e), f"cited but does not run -- {told}"))
+                            problems.append(f"{where}: scripts/{cited} is cited as "
+                                            f"evidence and does not run: {told}")
             rows.append({"section": section, "name": name, "status": st,
                          "evidence": len(ev), "unresolved": unresolved,
                          "gap": row.get("gap")})
 
     return {"ok": not problems, "rows": rows, "counts": counts, "problems": problems,
-            "source": doc.get("source", {}), "detectors_known": len(dets)}
+            "source": doc.get("source", {}), "detectors_known": len(dets),
+            "deep": deep, "scripts_run": len(_RUNS),
+            "scripts_broken": sorted(k for k, (g, _w) in _RUNS.items() if not g)}
 
 
 def main(argv=None) -> int:
@@ -207,8 +261,11 @@ def main(argv=None) -> int:
     ap.add_argument("--check", action="store_true",
                     help="exit 2 if any claim cannot be resolved")
     ap.add_argument("--status", choices=STATUSES, help="only rows with this status")
+    ap.add_argument("--deep", action="store_true",
+                    help="also RUN every cited script, because a present-but-broken "
+                         "script satisfies a claim it cannot support")
     a = ap.parse_args(argv)
-    r = audit()
+    r = audit(a.deep)
 
     if a.json:
         print(json.dumps(r, indent=1))
@@ -222,7 +279,12 @@ def main(argv=None) -> int:
     total = sum(c.values())
     w(f"  {total} row(s): {c.get('mapped', 0)} mapped, {c.get('partial', 0)} partial, "
       f"{c.get('absent', 0)} absent\n")
-    w(f"  {r.get('detectors_known', 0)} detector ID(s) available as evidence\n\n")
+    w(f"  {r.get('detectors_known', 0)} detector ID(s) available as evidence\n")
+    if r.get("deep"):
+        bad = r.get("scripts_broken") or []
+        w(f"  {r.get('scripts_run', 0)} cited script(s) run: "
+          + ("all start" if not bad else f"{len(bad)} BROKEN — {', '.join(bad)}") + "\n")
+    w("\n")
 
     for section in SECTIONS:
         rows = [x for x in r["rows"] if x["section"] == section

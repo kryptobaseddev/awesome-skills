@@ -26,6 +26,11 @@
 #   sub:<script>:<cmd> that script declares that subcommand
 #   flag:<script>:<f>  that script declares that option
 #   detector:<ID>      present in references/rules/detectors.yaml
+#
+# `parity.py --deep` additionally RUNS every cited script. Existing is not working: a
+# row can cite a script that is present and broken, and the claim resolves while the
+# capability does not. The shallow check already executes any script cited with a
+# `sub:`, so what `--deep` adds is the 20 cited only as `script:` -- which it never ran.
 #   hook:<event>       documented in references/ops/hooks.md
 
 source:
