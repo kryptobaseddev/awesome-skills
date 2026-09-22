@@ -8,3 +8,7 @@ type:
 radius: {control_px: 8, card_px: 14}
 depth:
   metaphor: shadow
+color:
+  # A six-step ramp. The good fixture paints only on these steps; the bad one
+  # lands between two of them, which is the escape S-CONTRACT-RAMP measures.
+  ramp_steps: [0.985, 0.922, 0.715, 0.574, 0.371, 0.209]

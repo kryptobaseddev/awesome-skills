@@ -201,6 +201,20 @@ def contract(start: Path | None = None, explicit: str | None = None) -> dict:
     if not isinstance(doc, dict):
         return {}
 
+    out = clean_contract(doc)
+    out["_path"] = str(q)
+    return out
+
+
+def clean_contract(doc: dict) -> dict:
+    """Strip every `UNKNOWN` and empty branch from a contract document.
+
+    Public because the identity of a contract is the identity of its DECLARED
+    subset, and anything that needs to compute that -- the ledger archiving a
+    version, a reader resolving an old `contract_sha` -- has to clean it exactly
+    the way the loader does. A second copy of these four lines somewhere else is a
+    ledger that silently stops matching the decisions it is supposed to explain."""
+
     def clean(v):
         if isinstance(v, dict):
             return {k: clean(x) for k, x in v.items()
@@ -209,9 +223,7 @@ def contract(start: Path | None = None, explicit: str | None = None) -> dict:
             return [x for x in v if x != "UNKNOWN"]
         return v
 
-    out = clean(doc)
-    out["_path"] = str(q)
-    return out
+    return clean(doc if isinstance(doc, dict) else {})
 
 
 if __name__ == "__main__":

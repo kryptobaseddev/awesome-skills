@@ -56,6 +56,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import yaml                                                        # noqa: E402
 import ux_image                                                    # noqa: E402
+import ux_ledger                                                   # noqa: E402
 
 DECISIONS = Path(".deluxui/decisions")
 REQUESTS = Path(".deluxui/requests")
@@ -1090,6 +1091,23 @@ def validate(form: dict, rv: Review) -> list:
     return errs
 
 
+def _contract_sha() -> str | None:
+    """The sha of the declaration in force, archived so it stays resolvable.
+
+    Archiving here rather than only in a separate step is deliberate: the moment a
+    person approves something is exactly the moment the contract's bytes acquire
+    evidential value, and an archive that depends on somebody having run a command
+    earlier has holes precisely at the approvals."""
+    try:
+        c = ux_image.load_contract(None)
+        if not c.raw:
+            return None
+        ux_ledger.archive(by="ux_review.py (an approval was recorded against it)")
+        return c.sha()
+    except Exception:                       # never lose a decision over bookkeeping
+        return None
+
+
 def record(form: dict, rv: Review, notes_written: list) -> Path:
     did = _next(DECISIONS, "DEC")
     choice = form["choice"].strip()
@@ -1105,6 +1123,10 @@ def record(form: dict, rv: Review, notes_written: list) -> Path:
         "recorded_at": now(),
         "rationale": form.get("why", "").strip(),
         "options_sha": rv.sha(),
+        # The declaration this was approved against, content-addressed. Without it
+        # the approval survives and what it approved does not, so the ledger can
+        # only report the decision as unresolvable -- see ux_ledger.py.
+        "contract_sha": _contract_sha(),
         "reviewed": [{"id": vid, "kind": v["kind"], "target": v["target"]}
                      for vid, v in rv.variants.items()],
         "shown": [{"id": vid, "title": f"{vid} ({v['kind']})", "image": None,

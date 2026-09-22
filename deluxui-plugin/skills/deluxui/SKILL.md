@@ -1,6 +1,6 @@
 ---
 name: deluxui
-description: "Engineer and verify interfaces against a 234-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including a small addition like a delete or submit control, which carries confirmation and undo duties. Also when redesigning, polishing, simplifying or hardening UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 183 static checks bound to cited rule IDs, a browser tier that measures contrast and 320px reflow and forces the states nobody tests, and 38 iOS and Android rules - behind a gate where NOT_RUN is never a pass. Renders comps from the contract, serves the choice as a page, and refuses UI edits until one is approved. Knows React, Next.js, Svelte, Vue, Tailwind, SwiftUI, Compose, React Native, Flutter. Use even if the user only says 'make this look better'."
+description: "Engineer and verify interfaces against a 235-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout - including a small addition like a delete or submit control, which carries confirmation and undo duties. Also when redesigning, polishing, simplifying or hardening UI, and when auditing accessibility, responsive reflow, empty/loading/error/offline states, destructive actions, focus order, contrast, hit areas, motion, microcopy or design-system drift. Ships 184 static checks bound to cited rule IDs, a browser tier that measures contrast and 320px reflow and forces the states nobody tests, and 38 iOS and Android rules - behind a gate where NOT_RUN is never a pass. Renders comps from the contract, serves the choice as a page, and refuses UI edits until one is approved. Knows React, Next.js, Svelte, Vue, Tailwind, SwiftUI, Compose, React Native, Flutter. Use even if the user only says 'make this look better'."
 license: MIT
 compatibility: >-
   Python 3.9+ with pyyaml for the static tier and the report. The runtime tier
@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "4.3.1"
-  last_updated: "2026-09-21 17:05:00"
+  version: "4.4.0"
+  last_updated: "2026-09-22 00:30:00"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -23,7 +23,7 @@ They fail in the states nobody opens: the empty list, the request that 500s, the
 320px phone, the keyboard-only pass, the moment the network drops. And then the
 agent reports success, because nothing told it otherwise.
 
-This skill fixes the reporting problem first. It carries a 234-rule contract
+This skill fixes the reporting problem first. It carries a 235-rule contract
 derived from WCAG 2.2, platform guidance and named UX research, and it ships
 scripts that actually test the testable parts. A rule that was checked says PASS.
 A rule that was not says **NOT_RUN** — and NOT_RUN is never a pass, never rounds
@@ -68,8 +68,9 @@ Read this table first — each row is a failure that reaches real users.
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
 | **Design craft is checked against a declaration, never against taste.** | `.deluxui/design.contract.yaml` states the type roles, colour roles, one depth metaphor, radii and motion band *before* the code is written. The `S-CONTRACT-*` checks then compare the artifact to it. With no contract they report NOT_RUN — an undeclared system cannot be conformed to, and "is this beautiful?" has no decision procedure while "does this match what was declared?" does. |
 | **The 20 UX laws now carry verdicts — 14 measured, 5 by attestation.** | Each enforceable law is indexed to the detectors that adjudicate one of its `verify:` clauses, and the report rolls them up. A law whose only evidence is a human attestation says `attested only` instead of passing as measured. The rule ID is still the finer-grained claim, so cite `NUM-004` when you mean the threshold and `LAW-02` when you mean the principle. |
-| **213 of the 234 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
+| **213 of the 235 rules have an automated detector; the other 21 are the manual tier.** | Every rule is accounted for and every P0 is automated. The 21 are judgement calls no checker can settle — is this the right amount of complexity to reveal, is this density right for this task — and they report NOT_RUN until a person records an answer. Coverage is not conformance. |
 | **The contract is declared before the code, and that order is now measured.** | Entering the `comp` phase snapshots the contract's hash, the git head and every UI file's hash; entering `verify` compares against it. A contract declared with no file changed since is a contract written to describe code that already existed — it will always show conformance, so every `S-CONTRACT-*` PASS behind it would be circular. `A-PHASE-ORDER` FAILs on exactly that. |
+| **An approval whose declaration cannot be produced is not an approval.** | A decision records the hash of the contract it was made against, and a hash with no bytes behind it is a fingerprint of a document nobody kept. `ux_ledger.py` archives the contract under that hash every time one is derived, gated or approved, so `show DEC-003` prints what was declared at the time. When it cannot, it says so — printing *today's* contract beside an old approval would make every past decision look as though it were made with today's information, which is the worst thing a record can do. `A-CONTRACT-ARCHIVED` reports it to the gate. |
 | **A drawing cannot be used, so it cannot tell you whether the thing works.** | There are two review stages. A wireframe settles structure; a working prototype settles usability, and `build` is gated on the second. `ux_proto.py` generates a real, clickable prototype from the contract — the five states as a switch, a form that validates, a dialog that traps focus, an undo that puts the row back — and `ux_review.py` hosts it beside the current product so a person can Alt-click any element and say what is wrong in their own words. |
 | **A direction is approved by a person, against what they were actually shown.** | `ux_question.py` serves the comps as a page and records who chose, when, why, and the hash of what was on screen. It refuses an unnamed chooser, an agent's name, a reason under 40 characters, and a timeout — nobody choosing means NOT_RUN, never a default. Editing an approved comp afterwards makes the record stale and the build gate says so. |
 | **The report audits itself.** | `GOV-005/006/008`, the `QA-*` and several `MEASURE-*` rules are about the report, not the product — no scan of an app can tell you whether the agent describing it invented a result. `ux_report.py` checks that every PASS names a detector that ran, that unknowns are declared, and that project config has not been used to weaken a standard. |
@@ -79,9 +80,17 @@ Read this table first — each row is a failure that reaches real users.
 Before changing anything, find out what already exists.
 
 ```bash
+python3 scripts/ux_ledger.py state                  # the whole record in one page
+python3 scripts/ux_ledger.py log --limit 20         # and how it got that way
 python3 scripts/ux_check.py <project> --signals     # stack, theme vars, inventory
 cat .deluxui/PRODUCT.md .deluxui/DESIGN.md          # if they exist
 ```
+
+`ux_ledger.py state` is the first thing to run in a project that has been worked on
+before. It reports the declaration field by field, what the code is actually built
+with, which approval each stage is currently standing on, and what is still open —
+and it keeps those four apart, because a contract declaring one thing over a
+component library that does another is a conflict neither one reveals alone.
 
 If `.deluxui/` is missing, follow `references/workflows/init.md`. It builds the
 project memory by **inspecting** the repo — package manifest, theme variables,
@@ -230,7 +239,7 @@ results, the counts and one of four decisions:
   replace it).
 
 When a **STANDARD**-class rule fails, cite its basis alongside the rule ID —
-`NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 234 rules,
+`NUM-001 (S03, WCAG SC 1.4.3)`. The registry carries a source for all 235 rules,
 and a reader who can follow the claim to the criterion can check you; one who
 cannot has to take your word for it, which is the thing this skill exists to stop.
 
@@ -246,6 +255,7 @@ Each reference is self-contained. Read the one you need.
 | Task | Reference |
 |---|---|
 | The full execution loop, step by step | `references/loop.md` |
+| The record: what the design is, and how it got that way | `references/ops/ledger.md` |
 | What the visitor came to do, and what it changes | `references/design/visitor-modes.md` |
 | The craft floor: every number, and which detector decides it | `references/design/craft-floor.md` |
 | The visual contract a project declares | `assets/templates/design.contract.yaml` |
@@ -258,7 +268,7 @@ Each reference is self-contained. Read the one you need.
 | Everything in this skill, indexed | `references/index.md` |
 | Governance, priority order, exceptions | `references/rules/00-governance.md` |
 | Rule packs by domain (a11y, forms, state, layout, …) | `references/rules/` |
-| The machine registry: 234 rules, severities, sources | `references/rules/registry.yaml` |
+| The machine registry: 235 rules, severities, sources | `references/rules/registry.yaml` |
 | The 20 UX laws, with limits and `verify:` clauses. 19 are enforceable and `ux_report.py` rolls each one up to a status — 14 from live detectors, 5 from a human attestation, stated apart because a signature and a measurement are not the same evidence | `references/rules/registry.yaml` (`laws:`) |
 | What each detector tests and with which engine | `references/rules/detectors.yaml` |
 | Numeric thresholds, and which are overridable | `references/rules/thresholds.yaml` |
@@ -291,6 +301,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/ux_image.py` | **Comps, three ways.** `render` draws them from the contract with no model, no key and no network, so they are conformant by construction. `generate` builds the prompt from the contract and calls whichever of four providers is reachable, reporting NOT_RUN when none is. `verify` measures what came back against the contract — per-colour tolerance, and a tint pointing the other way round the wheel is a different world rather than a near miss. |
 | `scripts/ux_question.py` | **The decision, served.** A page on localhost showing the comps and the structural claim each one makes. Refuses an answer with no author, an agent as the author, a reason too thin to weigh, and a timeout. Writes `.deluxui/decisions/DEC-NNN.yaml` hashed against exactly what was shown. |
 | `scripts/ux_phase.py` | **The gate.** discover → declare → comp → approve → build → verify → release, each transition's requirements machine-checked. `gate write` refuses UI edits before a direction is approved, wired to PreToolUse so the refusal lands while the file is open. The override is audited, because a gate with no way past it gets bypassed by deleting the file. |
+| `scripts/ux_ledger.py` | **The system of record.** `state` says what the design is right now — the declaration field by field with blanks shown as blanks, what the project is actually built with (measured, not declared), the live approval per stage, and what is still open. `log` says how it got there. `snapshot` archives the contract under its own hash, so a decision's `contract_sha` resolves to bytes and `show DEC-003` can print what was declared **at the time**. An unresolvable reference is reported as a gap, never filled in from the present. |
 | `scripts/fontindex.py` | **Does the declared face exist here.** Finds every way a face legitimately arrives — `@font-face`, `@fontsource`, `next/font`, a file in the tree, a Google Fonts request — matches across spellings, and refuses to treat the build host's own fonts as evidence about a visitor. |
 | `scripts/comp_spec.py` | **Read a reference image.** Palette by coverage, canvas and ink with the measured ratio, region bands, and which are photographic rather than flat — the distinction that decides whether a region ships as a raster or as code. Also records an asset's provenance inside the PNG. |
 | `scripts/native_conformance.py` | **Proves the native driver, not the device.** Recording stubs for `xcrun` and `adb`: the command sequence, the state it restores, and all seven availability states. It says plainly that a stub is not a phone. |

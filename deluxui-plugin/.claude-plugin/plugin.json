@@ -1,6 +1,6 @@
 {
   "name": "deluxui",
-  "version": "4.3.1",
+  "version": "4.4.0",
   "description": "UX engineering with a verdict, from the first wireframe to the release gate: a 234-rule interface contract, 183 static checks, a browser tier that forces the offline/empty/failed states nobody tests, 38 iOS and Android rules, wireframes rendered from the declared contract, a generated working prototype a person can click and use, a live A/B review page where they Alt-click an element and say what is wrong in their own words, a phase gate that refuses production UI edits until somebody has accepted a prototype, and a release gate where NOT_RUN never counts as a pass.",
   "author": {
     "name": "kryptobaseddev",

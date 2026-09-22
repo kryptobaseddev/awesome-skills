@@ -9,7 +9,7 @@ meta:
   generated_note: Rule text is derived from the rulebook. Severity, class and detector bindings are deluxui
     additions. The rulebook stays the citable source.
   counts:
-    rules: 234
+    rules: 235
     tests: 20
     laws: 20
     # 19 of the 20 laws are enforceable (LAW-17 is an alias of LAW-16). Each is
@@ -214,6 +214,21 @@ rules:
     writing production code for it, rather than approving a drawing of it.
   acceptance: A decision record from a live review states an accepting outcome, and the prototype it
     reviewed exists.
+  applies_when: always
+- id: GOV-015
+  section: 00. Interpretation and authority
+  levels:
+  - MUST
+  class: PROJECT
+  severity: P2
+  basis:
+  - S00
+  requirement: MUST be able to resolve every recorded approval to the declaration it was made
+    against, by archiving the contract's bytes under their own hash rather than recording
+    only a hash.
+  acceptance: Every decision record that approves a build names a contract_sha, and those bytes
+    exist in the archive. An approval whose declaration cannot be produced is reported as
+    unresolvable rather than read against the current contract.
   applies_when: always
 - id: CTX-001
   section: 01. Required project inputs

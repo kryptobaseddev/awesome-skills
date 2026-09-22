@@ -134,8 +134,17 @@ class Contract:
         return min(s, key=lambda v: abs(v - 16))
 
     def sha(self) -> str:
+        """Content-addressed, so the same declaration hashes the same anywhere.
+
+        Keys beginning with `_` are excluded because `uxconfig.contract()` adds
+        `_path`, the contract's absolute location. Including it made the hash
+        change when a project was cloned to a different directory -- so a comp
+        and a decision recorded on two machines disagreed about which contract
+        they were made against, having been made against the same one. A
+        fingerprint that depends on the filing cabinet is not a fingerprint."""
+        body = {k: v for k, v in self.raw.items() if not str(k).startswith("_")}
         return hashlib.sha256(
-            yaml.safe_dump(self.raw, sort_keys=True).encode()).hexdigest()[:16]
+            yaml.safe_dump(body, sort_keys=True).encode()).hexdigest()[:16]
 
     @property
     def undeclared(self) -> list:

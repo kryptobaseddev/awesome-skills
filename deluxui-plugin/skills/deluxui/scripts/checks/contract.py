@@ -25,7 +25,7 @@ from . import check, finding
 # fontindex lives beside the check package, not inside it: it is also a CLI the
 # skill documents, and duplicating it here would be two answers to one question.
 sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
-from ._util import strip_comments
+from ._util import parse_color, rgb_to_oklch, strip_comments
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 
@@ -218,6 +218,66 @@ def elevation_set(f, p):
                            f"elevations. Use a declared step, or reference it as a token "
                            f"-- a one-off shadow cannot be re-tuned with the system "
                            f"(VIS-001, VIS-006).", "medium"))
+    return out[:4]
+
+
+@check("S-CONTRACT-RAMP")
+def ramp_steps(f, p):
+    """A colour whose lightness is not on the declared ramp.
+
+    The contract template has always said an off-ramp value "is an escape, and
+    escapes are the one design signal that discriminates" -- and until now nothing
+    read `color.ramp_steps`. A field two scripts write, a template argues for, and
+    no detector measures is the exact shape of an unrun check reported as fine, so
+    the choice was to implement it or stop claiming it.
+
+    Lightness only, deliberately. Hue and chroma are where a designer legitimately
+    varies (a warning amber and a success green share a lightness step and nothing
+    else); lightness is the axis a ramp actually fixes, and an off-step lightness is
+    what makes two surfaces fail to read as the same tier."""
+    out = []
+    steps = _needs(p, "color", "ramp_steps") and _has(p, "color", "ramp_steps")
+    if not steps:
+        return out
+    try:
+        ladder = sorted(float(s) for s in steps)
+    except (TypeError, ValueError):
+        return out
+    if not ladder:
+        return out
+    # The token source is where the ramp is DEFINED. Measuring it against itself
+    # would report every step as an escape from itself.
+    rel = str(getattr(f, "rel", "") or "")
+    if any(rel == s or rel.endswith("/" + s) for s in (p.token_sources or [])):
+        return out
+    hay = strip_comments(f.css) if f.css else strip_comments(f.text)
+    if not hay:
+        return out
+    roles = _has(p, "color", "roles") or {}
+    declared_vals = {str(v).strip().lower() for v in roles.values()
+                     if isinstance(v, str)}
+    seen = set()
+    for m in re.finditer(r"#[0-9a-fA-F]{6}\b(?![\w-])|oklch\([^)]*\)", hay):
+        raw = m.group(0)
+        low = raw.strip().lower()
+        if low in seen or low in declared_vals:
+            continue
+        rgb = parse_color(raw, p.cssvars)
+        if not rgb:
+            continue
+        L = rgb_to_oklch(rgb)[0]
+        # TOL is a perceptual judgement, not a rounding allowance: two surfaces
+        # 0.02 apart in OKLCH lightness read as the same tier, and further apart
+        # they read as two tiers that do not exist in the system.
+        if any(abs(L - s) <= 0.02 for s in ladder):
+            continue
+        seen.add(low)
+        near = min(ladder, key=lambda s: abs(L - s))
+        out.append(finding("S-CONTRACT-RAMP", f, _line(hay, m.start()), raw[:40],
+                           f"Lightness {L:.3f} is not on the declared ramp; the "
+                           f"nearest step is {near:.3f}. A value between two steps "
+                           f"reads as a tier the system does not have, and it cannot "
+                           f"be re-tuned with the rest (VIS-001).", "medium"))
     return out[:4]
 
 

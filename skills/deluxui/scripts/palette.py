@@ -35,23 +35,10 @@ from checks._util import _oklch_to_rgb, contrast_ratio, hex_to_rgb   # noqa: E40
 
 
 # --------------------------------------------------------------- sRGB -> OKLCH
-def _srgb_to_linear(c):
-    c /= 255.0
-    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
-
-def rgb_to_oklch(rgb):
-    r, g, b = (_srgb_to_linear(c) for c in rgb)
-    l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
-    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
-    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
-    l_, m_, s_ = l ** (1 / 3), m ** (1 / 3), s ** (1 / 3)
-    L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
-    a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
-    bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
-    C = math.hypot(a, bb)
-    H = math.degrees(math.atan2(bb, a)) % 360
-    return (round(L, 4), round(C, 4), round(H, 1))
+# The transform lives in checks/_util.py, which S-CONTRACT-RAMP also uses: the
+# check that measures a colour against this ramp has to do the arithmetic that
+# produced it, and two copies would drift.
+from checks._util import rgb_to_oklch                              # noqa: E402
 
 
 def oklch(L, C, H):

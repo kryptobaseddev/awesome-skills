@@ -17,6 +17,7 @@ Two deliberate properties:
   a guessed one would quietly become the standard the product is judged against.
 """
 from __future__ import annotations
+import os
 import argparse, collections, json, re, sys
 from pathlib import Path
 
@@ -202,6 +203,25 @@ def main(argv=None):
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(header + text)
         sys.stderr.write(f"wrote {dest}\n")
+        # Archive it as version one. A derived contract is the most important
+        # version to keep: everything later is measured as drift from it, and if
+        # the bytes are not on disk that comparison has no fixed end.
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import ux_ledger
+            cwd = Path.cwd()
+            os.chdir(root)
+            try:
+                r = ux_ledger.archive(by="derive_contract.py --write",
+                                      note="derived from the existing codebase")
+            finally:
+                os.chdir(cwd)
+            if r.get("sha"):
+                sys.stderr.write(f"archived as contract {r['sha']} -- "
+                                 f"`ux_ledger.py log` now has a first version\n")
+        except Exception as e:                        # bookkeeping never blocks a write
+            sys.stderr.write(f"could not archive it ({e}); run "
+                             f"`ux_ledger.py snapshot` to put it on record\n")
     else:
         print(header + text)
     spread_report(s)

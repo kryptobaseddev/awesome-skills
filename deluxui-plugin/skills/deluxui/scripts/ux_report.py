@@ -766,6 +766,13 @@ def _process_tier() -> dict:
         for k in ("A-PHASE-ORDER", "A-COMP-APPROVED", "A-DECISION-VETTED"):
             out.setdefault(k, ("NOT_RUN", why))
     out["A-COMP-CONFORM"] = _comp_conform(st)
+    try:
+        import ux_ledger
+        out.update(ux_ledger.process_checks())
+    except Exception as e:
+        out.setdefault("A-CONTRACT-ARCHIVED", (
+            "NOT_RUN", f"The ledger could not be read ({type(e).__name__}: {e}), so "
+                       f"whether the approvals resolve to a declaration is unknown."))
     return out
 
 

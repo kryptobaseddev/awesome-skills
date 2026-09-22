@@ -318,6 +318,9 @@ detectors:
   A-COMP-CONFORM: {engine: process, rules: [VIS-001, GOV-013], confidence: high,
                    not_run_when: "No approved comp raster to measure, or the contract
                      declares no colour roles to measure it against."}
+  A-CONTRACT-ARCHIVED: {engine: process, rules: [GOV-015], confidence: high,
+                        not_run_when: "No approval on record, so there is nothing whose
+                          provenance could be traced."}
   A-PERF-TIER: {engine: report, rules: [PERF-002, PERF-009, PERF-010, MEASURE-001,
                                         MEASURE-003, MEASURE-004], confidence: high}
 
@@ -416,6 +419,12 @@ detectors:
     rules: [VIS-001]
     confidence: medium
     not_run_when: The visual contract declares no radius values.
+  S-CONTRACT-RAMP:
+    engine: source
+    rules: [VIS-001, NUM-017]
+    confidence: medium
+    not_run_when: The visual contract declares no color.ramp_steps, so there is no
+      ladder a colour's lightness could be off.
   S-CONTRACT-FONT-AVAIL: {engine: source, rules: [VIS-010, VIS-002], confidence: high,
                           not_run_when: "The visual contract declares no type.families,
                             so there is no face whose availability could be checked."}

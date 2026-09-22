@@ -37,7 +37,8 @@ EXPECT = [
     "S-CRAFT-GRADIENT-TEXT", "S-CRAFT-ZINDEX", "S-CRAFT-GRAY-ON-COLOR",
     "S-CRAFT-TYPE-FLAT", "S-CRAFT-BALANCE", "S-CRAFT-SURFACES",
     # visual contract conformance
-    "S-CONTRACT-FAMILY", "S-CONTRACT-RADIUS", "S-CONTRACT-FONT-AVAIL",
+    "S-CONTRACT-FAMILY", "S-CONTRACT-RADIUS", "S-CONTRACT-RAMP",
+    "S-CONTRACT-FONT-AVAIL",
     # P0 family
     "S-PRIVACY-URL", "S-SECRET-LOG", "S-PASSWORD-HANDLING", "S-PERM-ONMOUNT",
     "S-DARK-PATTERN", "S-FAKE-STATS", "S-STATE-PREMATURE", "S-DRAFT-BOUNDARY",
@@ -271,6 +272,93 @@ def contract_checks():
     if drift:
         fails.append("HOOK_EXT has drifted from SOURCE_EXT|STYLE_EXT|NATIVE_EXT: "
                      f"{sorted(drift)}")
+
+    # S-CONTRACT-RAMP measured against a ramp, both directions, on its own subject.
+    # The corpus can only show it firing: the good fixtures contain no raw colour at
+    # all (S-TOKEN-HEX would fire if they did), so "silent on good" there proves the
+    # check had nothing to look at rather than that it can pass. One colour ON the
+    # ramp and one OFF it, in the same project, is the control that distinguishes a
+    # working check from one that reports everything -- or nothing.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        (proj / ".deluxui").mkdir(parents=True)
+        (proj / ".deluxui" / "design.contract.yaml").write_text(
+            "color:\n  ramp_steps: [0.985, 0.922, 0.715, 0.574, 0.371, 0.209]\n")
+        (proj / "theme.css").write_text(":root { --x: 1 }\n")
+        (proj / "on.css").write_text(".a { color: #e5e5e3 }\n")     # L 0.9213
+        (proj / "off.css").write_text(".b { color: #9a9a98 }\n")    # L 0.6856
+        hits = _scan(proj, extra=("--detector", "S-CONTRACT-RAMP")).get("findings", [])
+        files = {Path(h["file"]).name for h in hits}
+        if "off.css" not in files:
+            fails.append("S-CONTRACT-RAMP did not fire on a colour off the declared "
+                         "ramp, so the ramp is declared and never measured")
+        if "on.css" in files:
+            fails.append("S-CONTRACT-RAMP fired on a colour ON the declared ramp, so "
+                         "it reports conformance as a violation")
+
+    # A contract's identity is what binds a decision to what it approved. Two ways
+    # it can silently stop working, both of which shipped: the hash including the
+    # file's absolute path (so it changed when the project moved), and the ledger
+    # hashing the raw file while every decision hashed the cleaned subset (so no
+    # approval ever resolved). Negative control included: two DIFFERENT contracts
+    # must not hash the same, or a hash that ignored its input would pass the rest.
+    import ux_image, uxconfig
+    body = ("visitor_mode: operate\nworld: Warm paper, one serif voice.\n"
+            "type: {families: {display: Georgia, body: Inter, mono: null}, "
+            "scale_px: [12, 16, 24]}\ncolor: {roles: {canvas: '#fff', ink: '#111'}}\n"
+            "depth: {metaphor: border}\nradius: {card_px: 14}\n")
+    shas = []
+    for sub in ("one", "two/deeper"):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td) / sub / ".deluxui"
+            d.mkdir(parents=True)
+            (d / "design.contract.yaml").write_text(body)
+            shas.append(ux_image.Contract(
+                uxconfig.contract(d.parent)).sha())
+    if len(set(shas)) != 1:
+        fails.append(f"Contract.sha() depends on where the file lives ({shas}), so a "
+                     f"decision recorded on one machine cannot be resolved on another")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td) / ".deluxui"
+        d.mkdir(parents=True)
+        (d / "design.contract.yaml").write_text(body)
+        loader = ux_image.Contract(uxconfig.contract(d.parent)).sha()
+        import ux_ledger
+        ledger = ux_ledger.sha_of(yaml.safe_load(body))
+        if loader != ledger:
+            fails.append(f"the ledger hashes a contract differently from the loader "
+                         f"({ledger} vs {loader}), so every recorded approval would "
+                         f"report as unresolvable")
+        other = ux_ledger.sha_of(yaml.safe_load(
+            body.replace("card_px: 14", "card_px: 4")))
+        if other == ledger:
+            fails.append("two different contracts hash the same, so a version change "
+                         "would not be recorded as one")
+
+    # Tokens gate the whole colour family: every check that resolves a colour is
+    # `requires=lambda p: bool(p.cssvars)`, so a token collector that returns
+    # nothing switches those checks OFF rather than failing them. Both directions,
+    # because a collector that returned the entire stylesheet would satisfy the
+    # positive case alone and quietly treat every `--x:` anywhere as a theme token.
+    from checks._util import theme_blocks, collect_css_vars
+    one_line = "@theme { --color-canvas: #fbf9f4; --color-ink: #16181d; }"
+    if "--color-ink" not in "".join(theme_blocks(one_line)):
+        fails.append("theme_blocks misses a single-line @theme block, which silently "
+                     "disables every colour check")
+    nested = "@theme {\n  --color-a: 1;\n  @keyframes spin { to { opacity: 1 } }\n}"
+    if "--color-a" not in "".join(theme_blocks(nested)):
+        fails.append("theme_blocks misses an @theme block containing @keyframes")
+    if theme_blocks(":root { --color-ink: #000; }\n.x { --y: 1; }"):
+        fails.append("theme_blocks returned a block from a file with no @theme")
+    with tempfile.TemporaryDirectory() as td:
+        r = Path(td)
+        (r / "app.css").write_text(one_line)
+        if "--color-ink" not in collect_css_vars(r):
+            fails.append("collect_css_vars found no tokens in a single-line @theme "
+                         "project, so the colour checks would not have run")
+        (r / "app.css").write_text("/* no theme here */\n.a { color: red }")
+        if collect_css_vars(r):
+            fails.append("collect_css_vars invented tokens in a project with none")
 
     # A single-file scan must never report a rule as PASS.
     reg, det = ux_check.load_rules()

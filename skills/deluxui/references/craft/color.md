@@ -79,9 +79,25 @@ with the user's own. A product whose meaning lives in its colours loses that
 meaning, and `R-FORCED-COLORS` measures it by diffing two passes — something that
 carried a distinction before and does not after.
 
+## The ramp is a ladder, and a value between two rungs is an escape
+
+`color.ramp_steps` in the contract is the set of lightness steps the palette
+actually uses. A colour whose lightness sits between two of them reads as a tier the
+system does not have — and, more practically, it cannot be re-tuned when the ramp
+moves, so it drifts away from everything around it the first time the palette is
+adjusted.
+
+`S-CONTRACT-RAMP` measures lightness only, deliberately. Hue and chroma are where a
+designer legitimately varies: a warning amber and a success green share a lightness
+step and nothing else. Lightness is the axis a ramp fixes. Tolerance is 0.02 in
+OKLCH L, which is roughly where two surfaces stop reading as the same tier.
+
+Declare no ramp and the check reports NOT_RUN — there is no ladder for a colour to
+be off. `scripts/palette.py` writes a ramp you can paste in.
+
 ## Adjudicated by
 
-`S-CONTRACT-COLOR` · `S-CONTRAST-PAIR` · `S-TOKEN-HEX` · `S-COLOR-ONLY` ·
+`S-CONTRACT-COLOR` · `S-CONTRACT-RAMP` · `S-CONTRAST-PAIR` · `S-TOKEN-HEX` · `S-COLOR-ONLY` ·
 `S-CRAFT-PALETTE-WARM` · `S-CRAFT-GRAY-ON-COLOR` · `S-CRAFT-GRADIENT-TEXT` ·
 `S-SLOP-PALETTE` · `R-CONTRAST` · `R-PIXEL-CONTRAST` · `R-FORCED-COLORS`
 

@@ -283,7 +283,34 @@ def ancestors(t: Tag):
 import math
 
 _VAR_RE = re.compile(r"(--[\w-]+)\s*:\s*([^;}]+)")
-_THEME_BLOCK = re.compile(r"@theme[^{]*\{(.*?)\n\}", re.S)
+_THEME_OPEN = re.compile(r"@theme[^{]*\{")
+
+
+def theme_blocks(txt: str) -> list:
+    """The body of every `@theme` block, brace-matched.
+
+    This was a regex requiring a newline before the closing brace, which meant a
+    single-line `@theme { --color-ink: #16181d; }` -- the shape a bundler emits, and
+    a perfectly ordinary shape to hand-write -- matched nothing. Zero tokens is not
+    a neutral outcome here: every colour check is gated on `p.cssvars` being
+    non-empty, so the whole family went quiet and reported nothing rather than
+    NOT_RUN. A check that disappears is worse than one that fails.
+
+    Brace matching rather than a wider regex because a v4 `@theme` may legitimately
+    contain a nested `@keyframes`, and both a greedy and a non-greedy pattern get
+    one of those two cases wrong."""
+    out = []
+    for m in _THEME_OPEN.finditer(txt):
+        depth, start = 1, m.end()
+        i = start
+        while i < len(txt) and depth:
+            if txt[i] == "{":
+                depth += 1
+            elif txt[i] == "}":
+                depth -= 1
+            i += 1
+        out.append(txt[start:i - 1] if depth == 0 else txt[start:])
+    return out
 
 
 def collect_css_vars(root: Path) -> dict:
@@ -295,7 +322,7 @@ def collect_css_vars(root: Path) -> dict:
             out[m.group(1)] = m.group(2).strip()
     for f in iter_files(root, STYLE_EXT):
         txt = read(f)
-        for blk in _THEME_BLOCK.findall(txt):          # v4 CSS-first config wins
+        for blk in theme_blocks(txt):                  # v4 CSS-first config wins
             for m in _VAR_RE.finditer(blk):
                 out[m.group(1)] = m.group(2).strip()
         for m in re.finditer(r"(?::root|:host|\[data-theme[^\]]*\])[^{]*\{([^}]*)\}", txt):
@@ -425,6 +452,25 @@ def _lin(c):
 def luminance(rgb):
     r, g, b = (_lin(c) for c in rgb)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def rgb_to_oklch(rgb):
+    """sRGB 0-255 to OKLCH. Shared with palette.py so there is one transform.
+
+    A declared ramp is a list of lightness steps, and comparing a colour to it
+    needs the same arithmetic that produced it. Two copies of this matrix would
+    drift in the fourth decimal and the ramp check would start disagreeing with
+    the tool that wrote the ramp."""
+    r, g, b = (_lin(float(c)) for c in rgb)
+    l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+    l_, m_, s_ = l ** (1 / 3), m ** (1 / 3), s ** (1 / 3)
+    L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+    a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+    bb = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    return (round(L, 4), round(math.hypot(a, bb), 4),
+            round(math.degrees(math.atan2(bb, a)) % 360, 1))
 
 
 def contrast_ratio(fg, bg) -> float:

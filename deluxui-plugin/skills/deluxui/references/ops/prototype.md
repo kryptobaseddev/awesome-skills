@@ -50,6 +50,33 @@ usually the one worth reading.
 If the contract declares a typeface this project does not ship, the page says so
 on its own face. Judging type in a fallback nobody chose wastes the review.
 
+## What this would be built with
+
+The last panel is the one part of the page that does not come from the contract. It
+is measured from the repository the generator ran in: the frameworks, the headless
+primitive libraries installed, the token count and source, and — per demo — the
+component the project already has for it.
+
+That panel exists because the prototype is otherwise a parallel universe. Its
+dialog demonstrates the intended *behaviour*; lifted into production verbatim, in a
+project that has Radix installed, it is a COMP-001 violation with the focus
+containment done worse. Saying so on the artefact, at the moment somebody is
+deciding whether to build it, is the only place that gets read in time.
+
+When no primitive library is installed the panel says that instead, and names what
+it implies: focus containment, Escape handling, typeahead and roving tabindex are
+now work somebody has to do by hand, and they are the first things dropped under
+time pressure.
+
+When the repository cannot be read at all, the panel says **not measured** rather
+than showing an empty inventory. "This project has no components" and "nobody
+looked" produce the same empty list and mean opposite things.
+
+```bash
+python3 scripts/ux_proto.py --write .deluxui/proto/index.html   # panel included
+python3 scripts/ux_proto.py --no-provenance                      # panel omitted
+```
+
 ## The wrapper is a template, not output
 
 Every prototype uses the same shell, so a reviewer learns the chrome once and

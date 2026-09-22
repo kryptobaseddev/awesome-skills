@@ -66,6 +66,7 @@ what was taken and what was changed.
 | [live](live.md) | Change something, see what moved. |
 | [live-setup](live-setup.md) | Wire the loop once so it runs without flags. |
 | [hooks](hooks.md) | Surface the defect while the file is still open. |
+| [ledger](ledger.md) | The system of record: what the design is, and how it got that way. |
 | [doctor](doctor.md) | What this installation can and cannot check. |
 | [operate](operate.md) | Depth for product and reading surfaces. |
 

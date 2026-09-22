@@ -374,6 +374,13 @@ def advance(target: str | None, st: dict) -> tuple[int, dict]:
           "evidence": [w for _m, w in reqs]}
     if target == "wireframe":
         c = ux_image.load_contract(None)
+        # Archive the bytes, not just the hash. `snapshot` recorded a sha that
+        # nothing could resolve, which is a fingerprint of a document nobody kept.
+        try:
+            import ux_ledger
+            ux_ledger.archive(by="ux_phase.py advance (entering wireframe)")
+        except Exception:
+            pass
         st["snapshot"] = {"taken_at": now(), "contract_sha": c.sha(),
                           "git_head": git("rev-parse", "HEAD"),
                           "ui_files": ui_files(Path.cwd())}

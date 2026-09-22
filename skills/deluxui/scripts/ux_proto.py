@@ -33,6 +33,7 @@ sprint.
 """
 from __future__ import annotations
 import argparse
+import html
 import re
 import sys
 from datetime import date
@@ -590,8 +591,111 @@ def shell_text(path: Path | None = None) -> str:
                 "</body></html>\n")
 
 
+# --------------------------------------------------- what the project is made of
+# The prototype is generated from the contract and knows nothing about the repo it
+# sits in, which is right for its conformance claim and wrong for the person
+# reading it. They are about to decide whether to build this, and the honest
+# framing of that decision needs one more fact: what the project already has.
+#
+# A prototype's hand-rolled dialog is a DEMONSTRATION of the intended behaviour.
+# Lifted into production verbatim, in a project that has Radix installed, it is a
+# COMP-001 violation with the focus containment done worse. Saying so here, on the
+# artefact itself, is the only place it gets read at the right moment.
+DEMOS = [
+    ("dialog", "The confirmation dialog", ("dialog", "modal", "alertdialog", "confirm")),
+    ("tabs", "Tabs", ("tabs", "tab")),
+    ("select", "The select", ("select", "combobox", "listbox", "dropdown")),
+    ("toast", "The toast and the activity log", ("toast", "snackbar", "notification")),
+    ("table", "The table", ("table", "datatable", "grid")),
+    ("form", "The form", ("form", "input", "field", "textfield")),
+    ("button", "Controls", ("button", "iconbutton")),
+]
+
+
+def provenance(root: Path | None = None) -> dict:
+    """Frameworks, primitive libraries and the real component for each demo.
+
+    Measured, never declared -- and when it cannot be measured it says so rather
+    than reporting an empty inventory, because "this project has no components" and
+    "nobody looked" produce the same empty list and mean opposite things."""
+    root = root or Path.cwd()
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import ux_check
+        from checks.designsystem import PRIMITIVES
+        pr = ux_check.detect_project(root)
+    except Exception as e:
+        return {"measured": False, "why": f"{type(e).__name__}: {e}"}
+    libs = sorted({name for dep, name in PRIMITIVES.items()
+                   if any(d == dep or d.startswith(dep + "/") for d in pr.deps)})
+    rows = []
+    for _key, label, words in DEMOS:
+        hits = sorted({n for n in pr.inventory
+                       if any(wd in n.lower() for wd in words)})[:3]
+        rows.append({"demo": label, "components": hits,
+                     "paths": [pr.inventory[h] for h in hits]})
+    return {"measured": True, "libraries": libs,
+            "frameworks": sorted({f for f, dep in (("React", "react"), ("Vue", "vue"),
+                                  ("Svelte", "svelte"), ("Solid", "solid-js"),
+                                  ("Angular", "@angular/core"), ("Astro", "astro"))
+                                  if dep in pr.deps}),
+            "tailwind": pr.tailwind_major or None,
+            "tokens": len(pr.cssvars), "token_sources": pr.token_sources[:4],
+            "components": len(pr.inventory), "rows": rows}
+
+
+def provenance_section(pv: dict) -> str:
+    """The panel, last on the page. Last because it is about the build rather than
+    about the design, and a reviewer should meet the interface first."""
+    if not pv.get("measured"):
+        return ('\n  <section class="proto-section" id="built-with">'
+                '<h2>What this would be built with</h2>\n'
+                f'<p class="note">Not measured ({html.escape(str(pv.get("why")))}). '
+                'This prototype therefore says nothing about which components exist '
+                'in the project \u2014 that is unknown here, not empty.</p>\n'
+                '  </section>\n')
+    libs = ", ".join(pv["libraries"])
+    fw = ", ".join(pv["frameworks"]) or "no framework detected"
+    rows = ""
+    for r in pv["rows"]:
+        if r["components"]:
+            has = "".join(f'<code>{html.escape(c)}</code> ' for c in r["components"])
+            verdict = "compose this, do not re-implement it"
+        else:
+            has = '<span class="muted">nothing matching</span> '
+            verdict = ("build it \u2014 but check the inventory by hand before you do"
+                       if pv["components"] else "the inventory is empty")
+        rows += (f'<tr><td>{html.escape(r["demo"])}</td><td>{has}</td>'
+                 f'<td class="muted">{verdict}</td></tr>')
+    lib_line = (f'<p><strong>{html.escape(libs)}</strong> is installed. Every dialog, '
+                f'menu, select and tooltip below is a demonstration of the intended '
+                f'behaviour, not the component to ship: that library has already '
+                f'solved focus containment, Escape handling and typeahead, and a '
+                f'hand-rolled replacement will be worse at all three.</p>'
+                if libs else
+                '<p>No headless primitive library is installed, so the accessibility '
+                'behaviour demonstrated below \u2014 focus containment, Escape, '
+                'typeahead, roving tabindex \u2014 is work somebody will have to do '
+                'by hand, and it is the work that gets dropped under time pressure.</p>')
+    return (f'\n  <section class="proto-section" id="built-with">'
+            f'<h2>What this would be built with</h2>\n'
+            f'    <p class="note">Measured from this repository, not declared. The '
+            f'rest of this page comes from the contract; this section comes from the '
+            f'code, and the two disagreeing is worth knowing before anybody starts.</p>\n'
+            f'    <p>{html.escape(fw)}'
+            + (f' \u00b7 Tailwind {pv["tailwind"]}' if pv["tailwind"] else "")
+            + f' \u00b7 {pv["tokens"]} design token(s)'
+            + (f' in <code>{html.escape(", ".join(pv["token_sources"]))}</code>'
+               if pv["token_sources"] else " and no token source")
+            + f' \u00b7 {pv["components"]} component(s) in the inventory</p>\n'
+            f'    {lib_line}\n'
+            f'    <table class="proto-table"><thead><tr><th>This prototype shows</th>'
+            f'<th>The project already has</th><th></th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>\n  </section>\n')
+
+
 def build(c, title: str, density: str, shell: Path | None = None,
-          extra_sections: str = "") -> str:
+          extra_sections: str = "", pv: dict | None = None) -> str:
     depth = DEPTH_SHADOW if c.depth == "shadow" else DEPTH_BORDER
     header = (HEADER.replace("__TITLE__", title)
               .replace("__SHA__", c.sha())
@@ -619,7 +723,8 @@ def build(c, title: str, density: str, shell: Path | None = None,
     out = shell_text(shell)
     for slot, value in (("title", title), ("tokens", tokens(c)), ("css", CSS),
                         ("depth", depth), ("banners", banner), ("header", header),
-                        ("sections", SECTIONS + (extra_sections or "")),
+                        ("sections", SECTIONS + (extra_sections or "")
+                         + (provenance_section(pv) if pv is not None else "")),
                         ("script", SCRIPT), ("density", density)):
         out = out.replace("{{" + slot + "}}", value)
     return out
@@ -636,6 +741,9 @@ def main(argv=None) -> int:
     ap.add_argument("--shell", metavar="PATH",
                     help="a different wrapper (default: assets/templates/"
                          "prototype-shell.html)")
+    ap.add_argument("--no-provenance", action="store_true",
+                    help="omit the \"what this would be built with\" panel, which is "
+                         "measured from the repository this runs in")
     ap.add_argument("--sections", metavar="PATH",
                     help="an HTML fragment appended after the built-in systems -- "
                          "this is where a real product screen goes")
@@ -648,8 +756,9 @@ def main(argv=None) -> int:
         except OSError as e:
             sys.stderr.write(f"could not read {a.sections}: {e}\n")
             return 2
+    pv = None if a.no_provenance else provenance()
     out = build(c, a.title, a.density,
-                Path(a.shell) if a.shell else None, extra)
+                Path(a.shell) if a.shell else None, extra, pv)
     if a.write:
         p = Path(a.write)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -658,7 +767,11 @@ def main(argv=None) -> int:
             f"\nwrote {p}  ({len(out)} bytes, no dependencies, no build step)\n"
             f"  contract {c.sha()}"
             + (f", {len(c.undeclared)} fields undeclared and drawn as placeholders"
-               if c.undeclared else ", fully declared") + "\n\n"
+               if c.undeclared else ", fully declared") + "\n"
+            + (("  built with: " + (", ".join(pv["libraries"]) or "no primitive library")
+                + f", {pv['components']} component(s) in the inventory\n")
+               if pv and pv.get("measured") else "")
+            + "\n"
             f"Put it in front of a person, beside whatever exists today:\n"
             f"  python3 scripts/ux_review.py serve --variant \"proposed={p}\" \\\n"
             f"        --variant \"current=http://localhost:5173/\"\n\n"
