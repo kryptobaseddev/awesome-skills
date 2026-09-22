@@ -25,7 +25,7 @@
 #          git log --format='%b' skills/deuxui | grep -inE \
 #            '\b(a|one|two|three|four) (real |more )?(defect|bug|mistake)s?\b'
 #   32   the product defects enumerated below.
-#   49   with the control defects, which no release note ever counted.
+#   50   with the control defects, which no release note ever counted.
 #
 # So "sixteen" was not a subset anyone can name, and it was not even consistent with
 # the notes' own headlines. It was a number maintained by hand in prose, which is the
@@ -81,6 +81,7 @@ defects:
       - file: scripts/selftest.py
         text: "so nothing can be graded"
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-02
     title: the review chrome was themed from hardcoded hex, in the tool that finds hex
@@ -107,6 +108,7 @@ defects:
       - file: scripts/selftest.py
         text: "deuxui's own review page violates deuxui's own contract"
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-03
     title: S-CONTRACT-FONT-AVAIL read a declared stack as one opaque face name
@@ -230,6 +232,7 @@ defects:
       - file: scripts/selftest.py
         text: style_policy trusts the rule count without measuring the effect
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-08
     title: coupled() searched only the files locate() had already proved unique
@@ -333,6 +336,7 @@ defects:
       - file: scripts/selftest.py
         text: legacy_state did not find a record under an arbitrary
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-12
     title: doctor said nothing when a second record sat beside the live one
@@ -357,6 +361,7 @@ defects:
       - file: scripts/selftest.py
         text: state_candidates did not see the second record
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-13
     title: the archive --adopt created was detected as a new rival on the next run
@@ -431,6 +436,7 @@ defects:
       - file: scripts/selftest.py
         text: so the finding fires on a faithful build
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-16
     title: hue decided whether two greys matched
@@ -535,6 +541,7 @@ defects:
       - file: scripts/selftest.py
         text: a `partial` row with no gap was accepted
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-20
     title: locate dead-ended on text that lives in data rather than markup
@@ -561,6 +568,7 @@ defects:
       - file: scripts/selftest.py
         text: locate did not name the data file the text actually lives in
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-21
     title: a word boundary before *ngFor can never match
@@ -685,6 +693,7 @@ defects:
       - file: scripts/selftest.py
         text: row(s) with no name
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-26
     title: the provenance control pointed at a PNG that does not exist
@@ -708,6 +717,7 @@ defects:
       - file: scripts/selftest.py
         text: so the provenance round-trip cannot be
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-27
     title: classify called the commonest generic in CSS a serif
@@ -782,6 +792,7 @@ defects:
       - file: scripts/selftest.py
         text: edits_lock granted the same lock twice
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-30
     title: a stale anchor was explained as "reworded" in both of its two causes
@@ -809,6 +820,7 @@ defects:
       - file: scripts/selftest.py
         text: reworded since
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-31
     title: a batch of edits was scanned one file at a time
@@ -835,6 +847,7 @@ defects:
       - file: scripts/selftest.py
         text: missed a P0/P1 introduced by the FIRST
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-33
     title: selftest had no argument parsing, so --help ran the whole suite
@@ -868,6 +881,7 @@ defects:
       - file: scripts/selftest.py
         text: ran the suite instead of describing it
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-32
     title: the decision record described the last file, not the batch
@@ -1240,3 +1254,30 @@ defects:
       - file: scripts/selftest.py
         text: A traceback is detection of a sort
     verified_by_revert: true
+
+  - id: DEF-50
+    title: the own-page control compared the brand contract against itself
+    class: undetectable
+    kind: control
+    found_in: "5.24.1"
+    fixed_in: "5.24.1"
+    surface: scripts/selftest.py
+    symptom: >-
+      The review page was generated AND scanned in one temp project whose contract was a
+      copy of the brand contract. `theme()` reading the project's contract and `theme()`
+      reading the brand's therefore produced identical output, so reverting the mechanism
+      changed nothing and the case passed.
+    consequence: >-
+      The control for "the review frame must never wear the colours of the product it is
+      reviewing" -- the thing that makes "is that the tool or the product?" answerable --
+      could not fail. It proved only that the page conforms to something.
+    fix: >-
+      Two directories: the page is generated in a project carrying a deliberately rival
+      system (warm ground, serif voice, different radii and ramp) and scanned where the
+      brand contract lives. A frame themed from the project then violates the brand
+      contract in six places, which is what the revert now produces.
+    guard:
+      - file: scripts/selftest.py
+        text: makes the two indistinguishable
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"

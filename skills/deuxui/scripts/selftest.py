@@ -1811,12 +1811,30 @@ export default { async headers() { return [{ source: "/(.*)",
     # test for: S-CONTRACT-FONT-AVAIL read a declared stack as one opaque face name, so
     # `ui-sans-serif, system-ui, sans-serif` was reported as a missing typeface; and the
     # composed dark theme was mixed rather than taken off the declared ramp.
+    # The page is GENERATED in a project whose contract is deliberately NOT the brand,
+    # and SCANNED where the brand contract is. Both in one directory -- which is how
+    # this was written -- makes the two indistinguishable: `theme()` reading the
+    # project's contract and `theme()` reading the brand's produce identical output, so
+    # the case passed with the mechanism reverted and proved only that the page conforms
+    # to something. Found by reverting `theme()` months later, not by reading the test.
     brand = HERE.parent / "assets" / "brand" / "brand.contract.yaml"
     if brand.exists():
         with tempfile.TemporaryDirectory() as td:
-            proj = Path(td)
-            (proj / ".deuxui").mkdir()
-            shutil.copy(brand, proj / ".deuxui" / "design.contract.yaml")
+            proj = Path(td) / "reviewed"          # the project under review
+            scanned = Path(td) / "scanned"        # where the brand contract lives
+            (proj / ".deuxui").mkdir(parents=True)
+            (scanned / ".deuxui").mkdir(parents=True)
+            shutil.copy(brand, scanned / ".deuxui" / "design.contract.yaml")
+            # A rival system: warm ground, a serif voice, different radii and ramp. A
+            # frame that themes itself from HERE cannot also conform to the brand.
+            (proj / ".deuxui" / "design.contract.yaml").write_text(
+                "visitor_mode: operate\nworld: Warm paper, one serif voice.\n"
+                "type:\n  families: {display: Georgia, body: Georgia, mono: null}\n"
+                "  scale_px: [13, 15, 19, 23, 31]\n"
+                "color:\n  roles: {canvas: '#fbf3e8', surface: '#fffaf2',"
+                " ink: '#2b1a0e', muted: '#7a6652', interactive: '#b4530f',"
+                " danger: '#9b1c1c'}\n  ramp_steps: [0.97, 0.9, 0.7, 0.55, 0.35, 0.2]\n"
+                "shape:\n  radius: {control: 3, card: 5}\n")
             here = Path.cwd()
             try:
                 os.chdir(proj)
@@ -1830,10 +1848,11 @@ export default { async headers() { return [{ source: "/(.*)",
                     {"one": {"kind": "file", "target": str(proj / "a.html")},
                      "two": {"kind": "file", "target": str(proj / "b.html")}},
                     "Which layout carries the total?", "checkout")
-                (proj / "review.html").write_text(ux_review.page(rv, ux_review.theme()))
+                (scanned / "review.html").write_text(
+                    ux_review.page(rv, ux_review.theme()))
             finally:
                 os.chdir(here)
-            hits = _scan(proj / "review.html").get("findings", [])
+            hits = _scan(scanned / "review.html").get("findings", [])
             own = [h for h in hits if str(h.get("detector", "")).startswith(
                 ("S-CONTRACT-", "S-TOKEN-", "S-CONTRAST-", "S-SLOP-"))]
             for h in own:
