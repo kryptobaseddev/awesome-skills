@@ -184,10 +184,54 @@ def locate(rec: dict, root: Path | None = None) -> dict:
                     "tried": tried}
         if len(hits) > 1:
             continue
+    # Nothing in the markup. Before giving up, look where the text most often actually
+    # lives in a component-based app: a data file the markup maps over. This is the
+    # single commonest reason a copy edit cannot be placed, and "no anchor resolved"
+    # sends somebody hunting through components for a string that was never in one.
+    data = _in_data(rec, root)
+    if data:
+        return {"found": False, "tried": tried, "data": data,
+                "why": (f"this text is not in any component -- it is data. It is at "
+                        f"{data['file']}:{data['line']}, and the markup reads it from "
+                        f"there -- a mapped list, a translation lookup, a fixture. Edit "
+                        f"it there, knowing what else reads the same key, or pick an "
+                        f"element whose text is written in the markup.")}
     return {"found": False, "tried": tried,
             "why": ("no anchor in this element resolved to exactly one place in the "
                     "source. Give the element a distinctive class, or name the file "
                     "yourself with --file.")}
+
+
+def _in_data(rec: dict, root: Path) -> dict | None:
+    """The text as a value in a data file, when it is nowhere in the markup.
+
+    `iter_files(SRC_EXT)` covers components; a string rendered through `items.map(...)`
+    lives in a `.ts` constant, a JSON fixture or a YAML file, and `locate` correctly
+    finds nothing. Reporting that as "no anchor resolved" is true and useless -- it
+    sends somebody grepping components for a string that was never in one.
+
+    Not a location this tool will write to. Knowing the text is data is exactly the
+    point at which an automatic edit stops being safe: the same row may render in three
+    places, and the key beside it may be what an icon map or an analytics event is
+    keyed on."""
+    txt = str(rec.get("text") or "").strip()
+    if len(txt) < 6:
+        return None
+    first = re.split(SPLIT, txt)[0].strip()
+    for needle in (first[:70], txt[:70]):
+        if len(needle) < 6:
+            continue
+        for q in iter_files(root, COUPLED_EXT):
+            try:
+                body = q.read_text(errors="replace")
+            except OSError:
+                continue
+            i = body.find(needle)
+            if i != -1:
+                return {"file": str(q.relative_to(root)),
+                        "line": body[:i].count("\n") + 1,
+                        "matched": needle}
+    return None
 
 
 # ----------------------------------------------------------------- the variants

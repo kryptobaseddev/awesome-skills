@@ -620,6 +620,35 @@ def contract_checks():
                          f"edit; a batch is not all-or-nothing and a refusal on one "
                          f"must not discard the rest")
 
+    # When an element's text is nowhere in the markup, "no anchor resolved" is true and
+    # useless -- it sends somebody grepping components for a string that was never in
+    # one. In a component-based app the text usually lives in data the markup reads:
+    # a mapped constant, a translation catalogue, a fixture. Naming that file is the
+    # difference between a dead end and a next step.
+    with tempfile.TemporaryDirectory() as _d8:
+        _r8 = Path(_d8)
+        (_r8 / "src").mkdir()
+        (_r8 / "locales").mkdir()
+        (_r8 / "src" / "P.tsx").write_text(
+            'export const P = () => <li className="plan">{t("plan.starter")}</li>;\n')
+        (_r8 / "locales" / "en.json").write_text(
+            '{ "plan.starter": "Starter plan for small teams" }\n')
+        _loc = ux_live.locate({"text": "Starter plan for small teams",
+                               "classes": "plan"}, _r8)
+        if _loc["found"]:
+            fails.append("locate claimed a source location for text that is only in a "
+                         "JSON catalogue, which a copy edit would then write into "
+                         "markup that does not contain it")
+        if "locales/en.json" not in str(_loc.get("data") or ""):
+            fails.append("locate did not name the data file the text actually lives in, "
+                         "so its refusal is a dead end rather than a next step")
+        # And it must NOT invent a data source for text that is genuinely absent.
+        _none = ux_live.locate({"text": "No such copy anywhere at all",
+                                "classes": "plan"}, _r8)
+        if _none.get("data"):
+            fails.append("locate reported a data source for text that is not in the "
+                         "project at all")
+
     # comp_diff compares a build to the comp somebody approved. Every other check in
     # this skill compares an artefact to the CONTRACT, which catches a build that left
     # the system and cannot catch one that stayed inside it and is not the thing that
