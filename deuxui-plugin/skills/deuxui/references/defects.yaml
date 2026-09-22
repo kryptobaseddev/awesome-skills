@@ -168,6 +168,7 @@ defects:
       - file: scripts/selftest.py
         text: 'nm != "connect_page"'
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-06
     title: the review proxy stripped CSP headers but not a meta policy
@@ -192,6 +193,7 @@ defects:
       - file: scripts/selftest.py
         text: a non-CSP meta tag was rewritten
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-07
     title: an overlay's <style> is inline style whatever world created it
@@ -241,6 +243,7 @@ defects:
       - file: scripts/selftest.py
         text: files locate() already proved unique
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-09
     title: the skill's own counts disagreed with its own registry
@@ -293,6 +296,7 @@ defects:
       - file: scripts/selftest.py
         text: container picked, not its child
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-11
     title: a state directory was recognised by a remembered name, not by its contents
@@ -366,6 +370,7 @@ defects:
       - file: scripts/selftest.py
         text: is still reported as a
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-14
     title: contrast was read as a dict when comp_spec reports a bare float
@@ -389,6 +394,7 @@ defects:
       - file: scripts/selftest.py
         text: comp_diff.ground_diff says
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-15
     title: a lost tonal step was printed as two rows with the same built percentage
@@ -437,6 +443,7 @@ defects:
       - file: scripts/selftest.py
         text: hue is unstable at zero chroma
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-17
     title: a wireframe's placeholder band was measured as design intent
@@ -463,6 +470,7 @@ defects:
       - file: scripts/selftest.py
         text: comp_diff.is_wireframe missed the marker
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-18
     title: a no-op slice made the prefix-anchor case look handled
@@ -566,6 +574,7 @@ defects:
       - file: scripts/selftest.py
         text: '"angular ngFor"'
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-22
     title: the repeat check required a strict ancestor, and v-for sits on the element
@@ -611,6 +620,7 @@ defects:
       - file: scripts/selftest.py
         text: reported a .forEach() as a .map()
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-24
     title: the parity checker proved evidence existed, not that it worked
@@ -711,6 +721,7 @@ defects:
       - file: scripts/selftest.py
         text: '("sans-serif", "sans")'
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-28
     title: classify classified the whole stack rather than the face
@@ -734,6 +745,7 @@ defects:
       - file: scripts/selftest.py
         text: '("Inter, Georgia, serif", "sans")'
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-29
     title: two concurrent applies would each diff against a file the other had rewritten

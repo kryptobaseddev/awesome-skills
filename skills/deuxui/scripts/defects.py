@@ -32,6 +32,18 @@ Three integrity rules, because the ways a file like this rots are known:
   * every `guard` and `control` pattern must resolve. A citation that no longer
     matches is the failure mode this file exists to prevent, not a formatting nit.
 
+`verified_by_revert` means the control was proven to fail at the time the fix shipped.
+`revert_reverified` carries a date on which that was done AGAIN, against the current
+tree, and the two are reported separately: the first is a claim about a run somebody
+made once, which is the kind of evidence everything else here distrusts.
+
+One trap when re-verifying, met and recorded so it is not met twice: a revert that is
+not really a revert reports the control as MISSED, and the conclusion is to go and
+"fix" a control that was working. `COUPLED_EXT = set() or {...}` evaluates to the dict,
+because an empty set is falsy -- so the mechanism was never removed and the control
+correctly stayed quiet. Read the reverted line and prove it changed behaviour before
+believing a MISSED. Same family as the negative control appended after `sys.exit`.
+
 Exit 0 when every row resolves, 2 when any does not (with `--check`).
 """
 from __future__ import annotations
@@ -209,6 +221,7 @@ def audit(ledger=None) -> dict:
                      "guarded": bool(controls) or (who == "control"
                                                    and bool(row.get("verified_by_revert"))),
                      "reverted": bool(row.get("verified_by_revert")),
+                     "reverified": str(row.get("revert_reverified") or ""),
                      "no_control": excuse or None})
 
     return {"ok": not problems, "rows": rows, "problems": problems,
@@ -218,7 +231,8 @@ def audit(ledger=None) -> dict:
                        "control": sum(1 for r in rows if r["kind"] == "control"),
                        "guarded": sum(1 for r in rows if r["guarded"]),
                        "unguarded": sum(1 for r in rows if not r["guarded"]),
-                       "revert_verified": sum(1 for r in rows if r["reverted"])},
+                       "revert_verified": sum(1 for r in rows if r["reverted"]),
+                       "reverified": sum(1 for r in rows if r["reverified"])},
             "by_class": {k: sum(1 for r in rows if r["class"] == k)
                          for k in CLASSES if any(r["class"] == k for r in rows)}}
 
@@ -264,8 +278,9 @@ def main(argv=None) -> int:
       f"CONTROL that could not fail,\n  which is a defect in this skill's own terms and "
       f"is counted as one.\n")
     w("  by kind:   " + " · ".join(f"{k} {n}" for k, n in r["by_class"].items()) + "\n")
-    w(f"  {c['revert_verified']} of them had the control verified by deleting the "
-      f"mechanism it guards.\n")
+    w(f"  {c['revert_verified']} had the control verified by deleting the mechanism it "
+      f"guards; {c['reverified']}\n  of those were re-verified against the current tree "
+      f"rather than at the time.\n")
     if c["unguarded"]:
         w("  An unguarded fix is one refactor from being undone. The rows above say so\n"
           "  rather than reading as though every fix were equally safe.\n")
