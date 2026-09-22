@@ -965,6 +965,7 @@ defects:
       - file: scripts/selftest.py
         text: that version of this case proved nothing
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-36
     title: a comparison inside braces kept the same outer brackets either way
@@ -984,6 +985,7 @@ defects:
       - file: scripts/selftest.py
         text: that was the first version of this case
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-37
     title: a stray closing tag in a string outside the element was discarded anyway
@@ -1004,6 +1006,7 @@ defects:
       - file: scripts/selftest.py
         text: passed with string skipping removed
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-38
     title: the arbitrary-name case was asserted against the wrong function
@@ -1025,6 +1028,7 @@ defects:
       - file: scripts/selftest.py
         text: so it passed with `legacy_state` reverted to a hardcoded name
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-39
     title: the pre-rename name was kept as test data after it had stopped proving anything
@@ -1047,6 +1051,7 @@ defects:
       - file: scripts/selftest.py
         text: Keeping the old name here proved nothing
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-40
     title: the grey-pair case used two greys whose hues happened to agree
@@ -1066,6 +1071,7 @@ defects:
       - file: scripts/selftest.py
         text: first version of this case used two warm greys
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-41
     title: the negative control for --deep was appended where it could never execute
@@ -1107,6 +1113,7 @@ defects:
       - file: scripts/selftest.py
         text: so the control passed with the
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-43
     title: a control asserted a failure the tool was right not to produce
@@ -1170,6 +1177,7 @@ defects:
       - file: scripts/selftest.py
         text: passed with the guard deleted and only the message was lost
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-46
     title: two pre-checks could not fail because the fixture had no ambiguity in it
@@ -1215,6 +1223,7 @@ defects:
       - file: scripts/selftest.py
         text: picked one of two identical <span>s
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-48
     title: a stale-citation case cited a string that lives in the file it searches
