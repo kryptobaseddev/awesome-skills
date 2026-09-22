@@ -237,8 +237,42 @@ def audit(ledger=None) -> dict:
                          for k in CLASSES if any(r["class"] == k for r in rows)}}
 
 
+def subset(rows: list, spec: str) -> tuple[list, list]:
+    """The rows a caller names, and the ids that do not exist.
+
+    Exists because the size of this list has been argued about, and an argument about a
+    number is settled by naming the members. `--ids DEF-01..DEF-16` answers "are those
+    sixteen quantified and fixed" for whichever sixteen somebody means, rather than
+    asking them to accept a total. An id that is not here is reported, never dropped --
+    silently resolving a request for 16 rows to 15 is the shape of answer this whole
+    file exists to refuse."""
+    want, missing = [], []
+    for part in str(spec).replace(" ", "").split(","):
+        if not part:
+            continue
+        if ".." in part:
+            lo, _, hi = part.partition("..")
+            try:
+                a, b = int(lo.split("-")[-1]), int(hi.split("-")[-1])
+            except ValueError:
+                missing.append(part)
+                continue
+            want.extend(f"DEF-{n:02d}" for n in range(min(a, b), max(a, b) + 1))
+        else:
+            want.append(part.upper())
+    by_id = {r["id"]: r for r in rows}
+    got = []
+    for rid in want:
+        (got if rid in by_id else missing).append(by_id.get(rid, rid))
+    return got, missing
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--ids", metavar="SPEC",
+                    help="report exactly these rows: DEF-05,DEF-07 or a range "
+                         "DEF-01..DEF-16. An id that does not exist is named, not "
+                         "quietly dropped")
     ap.add_argument("--check", action="store_true", help="exit 2 if any row fails")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--id", help="one row, in full")
@@ -265,6 +299,22 @@ def main(argv=None) -> int:
     w = sys.stderr.write
     c = r["counts"]
     w("\n")
+    if a.ids:
+        got, missing = subset(r["rows"], a.ids)
+        for row in got:
+            w(f"  {'ok  ' if row['guarded'] else 'GAP '} {row['id']}  "
+              f"fixed {row['fixed_in']:<8} {str(row['title'])[:58]}\n")
+        for m in missing:
+            w(f"  MISSING {m} -- no such row\n")
+        n_ok = sum(1 for x in got if x["guarded"])
+        w(f"\n  {len(got) + len(missing)} requested: {len(got)} present, {n_ok} fixed "
+          f"and guarded, {len(missing)} not in the ledger.\n")
+        if r["problems"]:
+            w(f"  {len(r['problems'])} row(s) elsewhere in the ledger do not resolve; "
+              f"run without --ids.\n")
+        w("\n")
+        bad = bool(missing) or n_ok != len(got)
+        return 2 if (bad and a.check) else 0
     for row in r["rows"]:
         if a.unguarded and row["guarded"]:
             continue

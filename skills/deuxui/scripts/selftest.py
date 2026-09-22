@@ -1204,6 +1204,20 @@ def capabilities():
         fails.append("selftest.py --help ran the suite instead of describing it, which "
                      "is how `parity --deep` came to spawn a run inside a run")
 
+    # 13. naming a subset. The size of that ledger has been argued about, and the answer
+    #     to "are those sixteen fixed" is to name the sixteen, not to restate a total. A
+    #     filter that silently resolves a request for sixteen rows to fifteen would be
+    #     the same failure as a report that counts an unrun check as a pass.
+    _all = defects.audit()["rows"]
+    _got, _miss = defects.subset(_all, "DEF-01..DEF-16")
+    if len(_got) != 16 or _miss:
+        fails.append(f"defects.subset resolved DEF-01..DEF-16 to {len(_got)} row(s) "
+                     f"with {len(_miss)} missing, so a named range cannot be checked")
+    _got, _miss = defects.subset(_all, "DEF-03,DEF-99")
+    if len(_got) != 1 or _miss != ["DEF-99"]:
+        fails.append("defects.subset did not name an id that does not exist, so asking "
+                     "for rows that are not there reads as an answer about rows that are")
+
     _led = defects.audit()
     if not _led["ok"]:
         fails.append(f"the defect ledger does not resolve: {_led['problems'][:1]}")
