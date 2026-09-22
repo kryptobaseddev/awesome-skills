@@ -1,0 +1,41 @@
+{
+  "skill_name": "deuxui",
+  "description": "Realistic prompts that should trigger deuxui and exercise its loop: orient, apply the preserve ladder, run the checks, and report a rule matrix that distinguishes NOT_RUN from PASS. Use with skill-evaluator.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "audit-running-app-with-forced-states",
+      "prompt": "Our dashboard at http://localhost:5173 is about to go to a customer pilot. Can you do a proper accessibility and UX audit of the / and /settings routes and tell me whether it's ready? It's React + Tailwind + shadcn, API calls all go to /api/*.",
+      "expected_output": "Runs the static tier (ux_check.py --json) AND the runtime tier (ux_browser.sh with --routes /,/settings and --api '**/api/**'), then ux_report.py --merge. The report must distinguish PASS from NOT_RUN and lead with the count of unchecked rules rather than implying they passed. Should name specific rule IDs (e.g. NUM-001 contrast, A11Y-003 focus, STATE-001 error states) rather than generic advice, and must not claim WCAG conformance from automated checks alone. Must surface the forced-state results (aborted/empty/offline) since --api was inferable. Gate decision should be BLOCKED or CONDITIONAL, not READY, unless every applicable rule was actually checked.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "preserve-ladder-on-new-component",
+      "prompt": "I need a confirmation modal for when someone deletes a project. Can you build one? We're on Next.js with shadcn/ui already set up.",
+      "expected_output": "Must check the existing inventory BEFORE building (ux_check.py --inventory, or reading components/ui/). Because shadcn/Radix is present, it must compose the existing AlertDialog rather than hand-rolling a div with role=dialog. Should not autofocus the destructive confirm (COMP-009), should give the button an action-specific label rather than 'Continue' (COMP-003), and should offer undo or a recovery path (TRUST-006). Should mention focus restoration on close (COMP-008). A hand-written modal with a custom focus trap is a failure even if it works.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "vague-polish-request-must-not-redesign",
+      "prompt": "the spacing on our pricing page feels a bit off, can you tighten it up? don't change anything else, the brand stuff is locked",
+      "expected_output": "Must treat this as the 'improve' workflow in preserve mode: lock the identity first (observable values, not mood words), capture a baseline screenshot, diagnose the actual spacing defect (inconsistent scale steps, or groups spaced the same as their contents per LAW-04) rather than restyling. Must NOT change colours, fonts, radii or layout structure. Should report what it deliberately left alone. Proposing a full visual redesign, a new palette, or gradient/glass decoration is a clear failure.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "static-only-must-report-honestly",
+      "prompt": "Review the accessibility of the components in ./src/components — I can't run the app right now, the backend is down.",
+      "expected_output": "Runs the static tier only and says so explicitly. Must state that the runtime tier could not run and that the rules it covers (real contrast, real hit areas, focus order, all runtime states) are therefore NOT_RUN — not passing. Must not claim the components are accessible. Should give specific findings with rule IDs and file:line, ordered by severity, and should offer to run the runtime tier when the app is back.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "tailwind-v4-focus-semantics",
+      "prompt": "We just upgraded to Tailwind v4 and our designer says the focus outlines look broken on some buttons. Here's the class list we use: `rounded-md bg-indigo-500 px-4 py-2 text-white focus:outline-none`. What's wrong?",
+      "expected_output": "Must identify that Tailwind v4 changed outline-none to mean outline-style:none (the old forgiving behaviour is now outline-hidden), so the indicator is removed even in forced-colors mode. Must recommend outline-hidden plus an explicit focus-visible:ring-2, noting v4's default ring width dropped from 3px to 1px. Bonus: notices indigo-500 with white text is 4.47:1 and fails the 4.5:1 floor (NUM-001). Answering with v3 semantics is a failure.",
+      "files": []
+    }
+  ]
+}

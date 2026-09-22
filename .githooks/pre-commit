@@ -72,8 +72,8 @@ if [[ -f scripts/sync_plugin.py ]]; then
     echo "[pre-commit] error: sync_plugin.py failed" >&2
     exit 1
   fi
-  git add -A deluxui-plugin/skills 2>/dev/null || true
-  git add deluxui-plugin/.claude-plugin/plugin.json 2>/dev/null || true
+  git add -A deuxui-plugin/skills 2>/dev/null || true
+  git add deuxui-plugin/.claude-plugin/plugin.json 2>/dev/null || true
 fi
 
 # 3. Refresh registry + README

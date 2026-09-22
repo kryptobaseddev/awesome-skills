@@ -5,12 +5,12 @@
     "name": "kryptobaseddev",
     "url": "https://github.com/kryptobaseddev/awesome-skills"
   },
-  "description": "Agent Skills by @kryptobaseddev, plus the plugins that wrap them. Skills install on their own by copy or symlink; a plugin is only needed where a skill cannot reach \u2014 slash commands, subagents, and hooks.",
+  "description": "Agent Skills by @kryptobaseddev, plus the plugins that wrap them. Skills install on their own by copy or symlink; a plugin is only needed where a skill cannot reach — slash commands, subagents, and hooks.",
   "plugins": [
     {
-      "name": "deluxui",
-      "source": "./deluxui-plugin",
-      "description": "UX engineering with a verdict, from the first wireframe to the release gate. Two review stages a human actually uses: /ux-comp renders wireframes from the declared contract and /ux-decide serves them as a page, then /ux-proto generates a working prototype \u2014 real states, a form that validates, a dialog that traps focus, an undo that works \u2014 and /ux-review hosts it live beside the current product so a person can Alt-click any element and say what is wrong in their own words, which lands as a work item the agent reads. Plus /ux (the router), /ux-phase, /ux-select, /ux-fonts, /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive, /ux-optimize, /ux-design, /ux-uplift, /ux-doctor, /ux-live, /ux-color, /ux-type, /ux-native, /ux-polish, /ux-bolder, /ux-quieter, /ux-distill, /ux-clarify, /ux-extract and /ux-onboard, an independent ux-reviewer subagent, a PostToolUse hook that checks every interface file as it is written, and a PreToolUse gate that refuses production UI edits until somebody has used a prototype and accepted it. Wraps the deluxui skill: 234 rules, 244 detectors across static, browser, native, process and manual tiers, 33 operations, thirteen craft references, and a release gate where NOT_RUN is never a pass."
+      "name": "deuxui",
+      "source": "./deuxui-plugin",
+      "description": "UX engineering with a verdict, from the first wireframe to the release gate. Two review stages a human actually uses: /ux-comp renders wireframes from the declared contract and /ux-decide serves them as a page, then /ux-proto generates a working prototype — real states, a form that validates, a dialog that traps focus, an undo that works — and /ux-review hosts it live beside the current product so a person can Alt-click any element and say what is wrong in their own words, which lands as a work item the agent reads. Plus /ux (the router), /ux-phase, /ux-select, /ux-fonts, /ux-init, /ux-create, /ux-improve, /ux-critique, /ux-audit, /ux-harden, /ux-responsive, /ux-optimize, /ux-design, /ux-uplift, /ux-doctor, /ux-live, /ux-color, /ux-type, /ux-native, /ux-polish, /ux-bolder, /ux-quieter, /ux-distill, /ux-clarify, /ux-extract and /ux-onboard, /ux-ledger and /ux-comp, an independent ux-reviewer subagent, a PostToolUse hook that checks every interface file as it is written, and a PreToolUse gate that refuses production UI edits until somebody has used a prototype and accepted it. Wraps the deuxui skill: 235 rules, 246 detectors across static, browser, native, process and manual tiers, 34 operations, thirteen craft references, and a release gate where NOT_RUN is never a pass."
     }
   ]
 }

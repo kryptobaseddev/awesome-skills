@@ -1,0 +1,67 @@
+# .deuxui/ux.config.yaml -- project settings for the deuxui checks.
+# Everything here is optional; the defaults come from
+# references/rules/thresholds.yaml.
+#
+# Every key below changes behaviour, and scripts/selftest.py holds a positive
+# control for each one: set the key, and the observable result has to move. A key
+# that were merely parsed and ignored would be worse than no key, because it
+# would report itself as configured.
+#
+# Command-line flags override this file; this file overrides the defaults.
+
+app:
+  dev_url: http://localhost:5173
+  # Routes worth auditing: the primary task, one dense data view, one form,
+  # and every screen with an irreversible action.
+  routes: ["/", "/settings"]
+  # Glob against request URLs. WITHOUT THIS the aborted / empty / offline probes
+  # never run, and they find more real defects than everything else combined.
+  # Supabase: '**/rest/v1/**'   GraphQL: '**/graphql'
+  api_pattern: "**/api/**"
+  viewports: [320, 390, 768, 1024, 1440]
+
+# Features the product actually has. Rules gated on a feature you do not declare
+# report NOT_APPLICABLE. Declaring honestly is what keeps the matrix meaningful.
+features:
+  - forms
+  # - authentication
+  # - payments_or_legal
+  # - destructive_actions
+  # - charts
+  # - tables
+  # - uploads
+  # - drag_interactions
+  # - search_or_filter
+  # - pagination
+  # - bulk_actions
+  # - modals
+  # - i18n
+  # - offline_or_drafts
+  # - media
+  # - ai_features
+  # - measurement_program
+  # - ios
+  # - android
+
+# Overrides for PROJECT-class thresholds only. STANDARD values come from WCAG and
+# are not overridable -- a deviation is an exception record, not a config change.
+thresholds:
+  # target_size:
+  #   web_coarse_min_px: 40        # dense internal tooling, recorded decision
+  # typography:
+  #   measure_ch_max: 90
+
+# Turn a check off only when it genuinely does not apply to this project. It is
+# not a way to silence a real finding: the rule still reports, now as NOT_RUN,
+# which is exactly what it is.
+disabled_checks: []
+  # - S-CONTENT-I18N            # single-locale product, will not change
+
+# Directories to keep out of the scan entirely, beyond the built-in list
+# (node_modules, dist, tests, tmp and so on). Use this for generated output or a
+# vendored copy -- not to hide a directory that is failing. One project's tmp/
+# supplied 1,344 of 6,852 findings and was the only source of two P0 failures,
+# which is what this key and the built-in tmp/ skip exist to prevent.
+exclude: []
+  # - generated
+  # - vendor-copy

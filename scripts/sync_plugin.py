@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Keep the plugin's copy of a skill identical to the skill.
 
-A plugin has to CONTAIN the skills it ships. `deluxui-plugin/skills/deluxui` was
-a symlink into `skills/deluxui`, which reads correctly in the working tree and
+A plugin has to CONTAIN the skills it ships. `deuxui-plugin/skills/deuxui` was
+a symlink into `skills/deuxui`, which reads correctly in the working tree and
 does not survive installation: the installer copies the directory, the symlink is
 not followed, and the installed plugin arrives with an empty `skills/` folder.
 
 The consequence is quiet and total. Every `/ux-*` command says "invoke the
-deluxui skill" and the plugin ships none; the PostToolUse check and the PreToolUse
-phase gate point at `${CLAUDE_PLUGIN_ROOT}/skills/deluxui/scripts/...`, which does
+deuxui skill" and the plugin ships none; the PostToolUse check and the PreToolUse
+phase gate point at `${CLAUDE_PLUGIN_ROOT}/skills/deuxui/scripts/...`, which does
 not exist, so both hooks silently do nothing. Nothing errors. It simply never
 runs -- which is the failure mode this whole skill exists to argue against.
 
@@ -31,7 +31,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PAIRS = [(ROOT / "skills" / "deluxui", ROOT / "deluxui-plugin" / "skills" / "deluxui")]
+PAIRS = [(ROOT / "skills" / "deuxui", ROOT / "deuxui-plugin" / "skills" / "deuxui")]
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".ruff_cache"}
 SKIP_SUFFIX = {".pyc", ".pyo"}
 # Build output and local scratch never ship.
@@ -57,10 +57,10 @@ def versions() -> tuple[str, str, list]:
     """(skill version, plugin version, complaints). They ship together, so they
     carry the same number -- a plugin at 2.1.0 wrapping a skill at 4.3.1 tells
     the person installing it nothing true."""
-    sk = (ROOT / "skills" / "deluxui" / "SKILL.md").read_text()
+    sk = (ROOT / "skills" / "deuxui" / "SKILL.md").read_text()
     m = re.search(r'^\s*version:\s*"([^"]+)"', sk, re.M)
     sv = m.group(1) if m else "?"
-    pj = ROOT / "deluxui-plugin" / ".claude-plugin" / "plugin.json"
+    pj = ROOT / "deuxui-plugin" / ".claude-plugin" / "plugin.json"
     pv = json.loads(pj.read_text()).get("version", "?")
     return sv, pv, ([] if sv == pv else
                     [f"the skill is {sv} and the plugin says {pv}; they install "
@@ -103,7 +103,7 @@ def sync(check: bool) -> int:
     sv, pv, vprob = versions()
     problems += vprob
     if not check and vprob:
-        pj = ROOT / "deluxui-plugin" / ".claude-plugin" / "plugin.json"
+        pj = ROOT / "deuxui-plugin" / ".claude-plugin" / "plugin.json"
         d = json.loads(pj.read_text())
         d["version"] = sv
         pj.write_text(json.dumps(d, indent=2) + "\n")
