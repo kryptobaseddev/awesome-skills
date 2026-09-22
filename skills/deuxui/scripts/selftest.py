@@ -465,6 +465,69 @@ def element_spans():
             fails.append(f"jsxspan repeat detection said {got}, wanted {want} "
                          f"({label}) -- a missed repeat edits every row without "
                          f"saying so, and a false one warns about code that runs once")
+    # Following a component boundary -- the one thing a per-framework source adapter
+    # buys that a textual resolver otherwise cannot. An element rendered by
+    # `<Card title="Starter" />` resolves to the USAGE; somebody who wants every card to
+    # change needs Card's own file, and reporting only the usage sends them to edit one
+    # call site and wonder why the other eleven did not move.
+    with tempfile.TemporaryDirectory() as _d9:
+        _r9 = Path(_d9)
+        (_r9 / "src").mkdir()
+        (_r9 / "src" / "Card.tsx").write_text(
+            'export function Card({ title }) {\n'
+            '  return <article className="card"><h3>{title}</h3></article>;\n}\n')
+        (_r9 / "src" / "Pricing.tsx").write_text(
+            'import { Card } from "./Card";\n'
+            'export default function Pricing() {\n'
+            '  return <div className="grid"><Card title="Starter" /></div>;\n}\n')
+        (_r9 / "node_modules").mkdir()
+        (_r9 / "node_modules" / "Card.tsx").write_text(
+            'export function Card() { return null; }\n')
+        _cs = jsxspan.component_source("Card", _r9)
+        if not _cs.get("found"):
+            fails.append(f"component_source could not find Card: {_cs.get('why')}")
+        elif _cs["file"] != "src/Card.tsx":
+            fails.append(f"component_source resolved Card to {_cs['file']}; "
+                         f"node_modules must never be searched or every third-party "
+                         f"component shadows the project's own")
+        # The four shapes a definition takes.
+        for src, how in (('export default function Widget() {}', "export default"),
+                         ('function Widget() {}', "function"),
+                         ('const Widget = () => null;', "const"),
+                         ('class Widget extends React.Component {}', "class")):
+            with tempfile.TemporaryDirectory() as _dd:
+                _rr = Path(_dd)
+                (_rr / "W.tsx").write_text(src + "\n")
+                if not jsxspan.component_source("Widget", _rr).get("found"):
+                    fails.append(f"component_source missed a component declared as "
+                                 f"{how!r}")
+        # A lowercase tag is a DOM element, not a component. Asserted on the REASON,
+        # not on found/not-found: with the guard removed it searches for `function div`,
+        # finds nothing and still returns not-found, so the first version of this case
+        # passed with the guard deleted and only the message was lost -- and the message
+        # is the whole value, because "no file defines div" sends somebody looking for a
+        # file that cannot exist.
+        _dv = jsxspan.component_source("div", _r9)
+        if _dv.get("found"):
+            fails.append("component_source claimed a definition for <div>")
+        elif "not a component name" not in str(_dv.get("why", "")):
+            fails.append(f"component_source said {str(_dv.get('why'))[:60]!r} for a "
+                         f"lowercase tag; it has to say a DOM element has no definition "
+                         f"to find, or the refusal reads as a missing file")
+        # Two definitions of one name is a real thing, and picking the first is how an
+        # edit lands in the wrong package.
+        (_r9 / "src" / "legacy").mkdir()
+        (_r9 / "src" / "legacy" / "Card.tsx").write_text(
+            'export const Card = () => null;\n')
+        _amb = jsxspan.component_source("Card", _r9)
+        if _amb.get("found"):
+            fails.append("component_source picked one of two files defining Card "
+                         "instead of refusing; which renders the element is not "
+                         "established from the name alone")
+        elif len(_amb.get("candidates") or []) < 2:
+            fails.append("component_source refused an ambiguous component without "
+                         "listing the candidates, so the refusal is a dead end")
+
     _fe = jsxspan.find('<div>{rows.forEach(r => <li>Row copy</li>)}</div>', "Row copy")
     if "forEach" not in (_fe.get("repeated") or {}).get("kind", ""):
         fails.append("jsxspan reported a .forEach() as a .map(), which is a small lie "

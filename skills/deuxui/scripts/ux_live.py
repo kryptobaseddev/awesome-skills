@@ -1249,6 +1249,21 @@ def _structural(a, st: dict, span: dict, new_text: str, what: str, detail: dict)
 
     delta = check_delta(Path.cwd(), f, new_text)
     w(f"\n{a.id}  {what} at {rel}:{span['line']}  <{span['name']}>\n")
+    # A capitalised tag is a component usage. Editing it here is legitimate -- it is
+    # this call site -- but somebody who wants every card to change needs the
+    # component's own file, and reporting only the usage sends them to edit one call
+    # site and wonder why the other eleven did not move.
+    if span["name"][:1].isupper():
+        d = jsxspan.component_source(span["name"], Path.cwd())
+        if d.get("found"):
+            w(f"  COMPONENT this edits the <{span['name']}> USAGE here. "
+              f"<{span['name']}> itself is\n            defined at {d['file']}:"
+              f"{d['line']} — edit there to change every place it is used.\n")
+        elif d.get("candidates"):
+            w(f"  COMPONENT <{span['name']}> is defined in "
+              f"{len(d['candidates'])} files, so which one renders\n"
+              f"            this is not established: "
+              f"{', '.join(c['file'] for c in d['candidates'][:3])}\n")
     rep = span.get("repeated")
     if rep:
         # Not a refusal: editing a template is usually exactly what somebody means. But

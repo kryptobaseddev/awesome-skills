@@ -246,6 +246,77 @@ def repeated(text: str, start: int, end: int) -> dict | None:
     return best
 
 
+# How a component announces itself, across the JSX family. Deliberately not a parser:
+# these are the four shapes a definition takes, and a name that matches none of them is
+# reported as not found rather than guessed at.
+_DEFS = [
+    (r"export\s+default\s+function\s+{n}\b", "export default function"),
+    (r"(?:export\s+)?function\s+{n}\s*\(", "function"),
+    (r"(?:export\s+)?const\s+{n}\s*[:=]", "const"),
+    (r"(?:export\s+)?class\s+{n}\s+extends", "class"),
+]
+_SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", ".svelte-kit", "out",
+              "coverage", ".venv", "venv", "__pycache__", ".turbo", ".cache", ".deuxui",
+              "target", "Pods", ".gradle", ".output", ".nuxt"}
+_SRC = {".tsx", ".jsx", ".ts", ".js", ".svelte", ".vue", ".astro", ".mjs"}
+
+
+def component_source(name: str, root, limit: int = 6000) -> dict:
+    """Where the component `name` is defined, or why that could not be established.
+
+    This is the one thing a per-framework source adapter buys that a textual resolver
+    otherwise cannot do, and it is narrower than an adapter: an element rendered by
+    `<Card title="Starter" />` resolves to the USAGE, and somebody who wants to change
+    how every card looks needs `Card`'s own file. Reporting only the usage sends them
+    to edit one call site and wonder why the other eleven did not change.
+
+    Four definition shapes, no parser, and a name matching none of them comes back not
+    found. Several matches also come back not found WITH the list: two components
+    called `Card` in one project is a real thing, and picking the first is how an edit
+    lands in the wrong package."""
+    from pathlib import Path as _P
+    root = _P(root)
+    if not re.fullmatch(r"[A-Z][A-Za-z0-9_]*", name or ""):
+        return {"found": False,
+                "why": f"{name!r} is not a component name -- a lowercase tag is a DOM "
+                       f"element and has no definition to find"}
+    pats = [(re.compile(p.format(n=re.escape(name))), what) for p, what in _DEFS]
+    hits, n = [], 0
+    for q in sorted(root.rglob("*")):
+        if n >= limit:
+            break
+        if not q.is_file() or q.suffix.lower() not in _SRC:
+            continue
+        try:
+            rel = q.relative_to(root)
+        except ValueError:
+            continue
+        if any(part in _SKIP_DIRS for part in rel.parts):
+            continue
+        n += 1
+        try:
+            body = q.read_text(errors="replace")
+        except OSError:
+            continue
+        if name not in body:
+            continue
+        for pat, what in pats:
+            m = pat.search(body)
+            if m:
+                hits.append({"file": str(rel), "line": body[:m.start()].count("\n") + 1,
+                             "how": what})
+                break
+    if not hits:
+        return {"found": False,
+                "why": f"no file defines a component called {name} -- it may be "
+                       f"imported from a package, or generated"}
+    if len(hits) > 1:
+        return {"found": False, "candidates": hits[:6],
+                "why": f"{len(hits)} files define a component called {name}, so which "
+                       f"one renders this element is not established here"}
+    return {"found": True, **hits[0]}
+
+
 def verify(text: str, s: dict, anchor: str) -> tuple[bool, str]:
     """Is this span safe to edit? Three checks, each one a way the scan could be wrong."""
     body = text[s["start"]:s["end"]]
