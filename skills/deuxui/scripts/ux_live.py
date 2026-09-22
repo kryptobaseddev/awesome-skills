@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -1525,6 +1526,77 @@ def staged() -> list:
     return [(q, load(q) or {}) for q in sorted(EDITS.glob("EDIT-*.yaml"))]
 
 
+def nearest(body: str, want: str) -> dict | None:
+    """The line most like `want`, when `want` itself is no longer in the file.
+
+    An edit staged against copy that has since changed produces a dead refusal: "no
+    longer in the file", and the person is left diffing by hand to find out what it
+    became. impeccable repairs this inside its applier; the useful part of that here is
+    not the repair, it is SAYING what the text became -- a fuzzy match is a good enough
+    guide for a person and not good enough to write from, because 0.82 similar is also
+    what a different label on a different row looks like."""
+    want = want.strip()
+    if len(want) < 6:
+        return None
+    lines = body.splitlines()
+    best, score = None, 0.0
+    for i, ln in enumerate(lines):
+        s = difflib.SequenceMatcher(None, want, ln.strip()).ratio()
+        if s > score:
+            best, score = i, s
+    if best is None or score < 0.6:
+        return None
+    return {"line": best + 1, "score": round(score, 2), "text": lines[best].strip()[:90]}
+
+
+def nearest_in_project(want: str, root: Path) -> dict | None:
+    """The line in this project most like `want`, across the files `locate` searches."""
+    best = None
+    for q in iter_files(root, SRC_EXT):
+        try:
+            body = q.read_text(errors="replace")
+        except OSError:
+            continue
+        n = nearest(body, want)
+        if n and (best is None or n["score"] > best["score"]):
+            best = dict(n, file=str(q.relative_to(root)))
+    return best
+
+
+def edits_lock(hold: bool = True):
+    """One writer at a time over the staged batch.
+
+    Not the lease impeccable needs -- theirs coordinates a separate applier agent with
+    a deadline. The hazard underneath it is real here anyway: two sessions running
+    `edits apply` in one checkout both read the queue, both resolve against the same
+    pre-edit text, and the second writes over the first with a diff computed from a
+    file that no longer exists. `O_EXCL` is enough for one machine, and a stale lock is
+    reported with its age rather than silently removed -- a lock nobody can explain is
+    how a tool teaches people to delete locks."""
+    lock = EDITS / ".apply.lock"
+    if not hold:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+        return True, ""
+    EDITS.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, f"{os.getpid()} {now()}\n".encode())
+        os.close(fd)
+        return True, ""
+    except FileExistsError:
+        try:
+            age = int(time.time() - lock.stat().st_mtime)
+            who = lock.read_text(errors="replace").strip()
+        except OSError:
+            age, who = -1, "unknown"
+        return False, (f"another apply holds {lock} ({who}, {age}s old). Two writers "
+                       f"over one queue resolve against the same pre-edit text and the "
+                       f"second overwrites the first. If nothing is running, remove it.")
+
+
 def cmd_edits(a) -> int:
     return {"watch": _edits_watch, "list": _edits_list,
             "apply": _edits_apply, "discard": _edits_discard}[a.what](a)
@@ -1582,7 +1654,18 @@ def _edits_watch(a) -> int:
                 continue
             for rec in (q.get("q") or [])[seen:]:
                 rid = _next_id(EDITS, "EDIT")
+                # What the text resolved to WHEN IT WAS STAGED. Without this, apply
+                # cannot tell "the file was reworded since" from "this element's text
+                # always spanned two source strings" -- in both the full run is absent
+                # now, and asserting either one is a wrong explanation half the time.
+                stamp = locate({"text": rec.get("before"),
+                                "classes": rec.get("classes")}, Path.cwd())
                 rec = dict(rec, id=rid, recorded_at=now(),
+                           staged_anchor=(stamp.get("anchor") if stamp.get("found")
+                                          else None),
+                           staged_contiguous=bool(stamp.get("found")
+                                                  and stamp.get("anchor") ==
+                                                  str(rec.get("before") or "")),
                            recorded_by="deuxui/scripts/ux_live.py edits watch "
                                        "(rewritten in the page)")
                 (EDITS / f"{rid}.yaml").write_text(
@@ -1637,6 +1720,17 @@ def _edits_apply(a) -> int:
         w("\nApplying copy needs a person's name on it — it becomes a decision record. "
           "Pass --who \"NAME\".\n\n")
         return 2
+    held, why = edits_lock(True)
+    if not held:
+        w(f"\nREFUSED. {why}\n\n")
+        return 2
+    try:
+        return _edits_apply_locked(a, rows)
+    finally:
+        edits_lock(False)
+
+
+def _edits_apply_locked(a, rows) -> int:
     root = Path.cwd()
     pending: dict = {}
     applied, refused = [], []
@@ -1647,10 +1741,25 @@ def _edits_apply(a) -> int:
             continue
         loc = locate({"text": before, "classes": d.get("classes")}, root)
         if not loc["found"] or loc.get("anchor_kind") != "text":
-            refused.append((d, "no single place in the source carries that text"
-                               if not loc["found"] else
-                               "it was located by its class, not its text, so the "
-                               "string to replace is not established"))
+            if loc["found"]:
+                refused.append((d, "it was located by its class, not its text, so the "
+                                   "string to replace is not established"))
+            else:
+                # The commonest reason a staged edit stops resolving is that the file
+                # changed underneath it, and "no single place carries that text" leaves
+                # somebody diffing by hand to find out what it became. Say what it
+                # became -- and do not re-anchor onto it, because 0.8 similar is also
+                # what a different label on a different row looks like.
+                near = nearest_in_project(before, root)
+                refused.append((d, "no single place in the source carries that text"
+                                   + (f". The closest is {near['file']}:{near['line']} "
+                                      f"({near['score']} similar): {near['text']!r} -- "
+                                      f"if that is the same element it was reworded "
+                                      f"after this was staged, so re-pick it rather "
+                                      f"than assuming"
+                                      if near else
+                                      ", and nothing in the project resembles it, so it "
+                                      "was removed rather than reworded")))
             continue
         f = root / loc["file"]
         body = pending.get(f, None)
@@ -1662,6 +1771,19 @@ def _edits_apply(a) -> int:
                 continue
         anchor = str(loc["anchor"])
         n = body.count(anchor)
+        if n == 0:
+            near = nearest(body, anchor)
+            refused.append((d, f"{anchor!r} is no longer in {loc['file']} -- the file "
+                               f"changed since this was staged."
+                               + (f" The closest line is {loc['file']}:{near['line']} "
+                                  f"({near['score']} similar): {near['text']!r}. Re-pick "
+                                  f"it if that is the same element; this will not "
+                                  f"re-anchor for you, because 0.8 similar is also what "
+                                  f"a different label on a different row looks like."
+                                  if near else
+                                  " Nothing in the file resembles it, so it was removed "
+                                  "rather than reworded.")))
+            continue
         if n != 1:
             refused.append((d, f"{anchor!r} appears {n} times in {loc['file']}, so "
                                f"there is no single occurrence to rewrite"))
@@ -1676,11 +1798,35 @@ def _edits_apply(a) -> int:
         # `after[:len(after)]`, which is `after`, behind a conditional that made it look
         # like the case was handled.
         if anchor != before:
-            refused.append((d, f"the source matched on {anchor!r}, a prefix of the "
-                               f"{len(before)}-character run that was rewritten -- the "
-                               f"element's text spans more than one source string, so "
-                               f"where the new wording begins and ends is not "
-                               f"established. Edit {loc['file']}:{loc['line']} directly."))
+            # Two different causes produce a prefix anchor, and naming the wrong one is
+            # a wrong explanation, not a vague one. The element's innerText genuinely
+            # spanning several source strings is one. The other is that the file was
+            # REWORDED after this was staged, leaving the head intact and the tail
+            # changed -- and the first version of this message asserted the first cause
+            # in both cases, telling somebody their markup was split when it was not.
+            was = d.get("staged_contiguous")
+            if was is True:
+                why_pfx = (f"{before!r} was contiguous in the source when this was "
+                           f"staged and is not now -- it was reworded since. "
+                           f"{anchor!r} still matches at {loc['file']}:{loc['line']}. "
+                           f"Re-pick it; this will not rewrite a prefix, because where "
+                           f"the new wording should end is not established.")
+            elif was is False:
+                why_pfx = (f"this element's text spans more than one source string -- "
+                           f"it already did when this was staged, matching only "
+                           f"{anchor!r}. Where the new wording begins and ends is not "
+                           f"established from here. Edit {loc['file']}:{loc['line']} "
+                           f"directly.")
+            else:
+                # Staged by a version that did not record it. Two causes, and naming one
+                # would be a guess: say both rather than assert the wrong one.
+                why_pfx = (f"the source matches only {anchor!r}, a prefix of the "
+                           f"{len(before)}-character run. Either the text was reworded "
+                           f"since this was staged, or it always spanned more than one "
+                           f"source string -- this edit carries no record of which, so "
+                           f"neither is claimed. Edit {loc['file']}:{loc['line']} "
+                           f"directly.")
+            refused.append((d, why_pfx))
             continue
         pending[f] = body.replace(anchor, after, 1)
         applied.append((d, loc, anchor))

@@ -1130,6 +1130,63 @@ def contract_checks():
             (_e / f"{_rid}.yaml").write_text(yaml.safe_dump(
                 {"id": _rid, "before": _b, "after": _af, "selector": _cls,
                  "tag": "p", "classes": _cls}, sort_keys=False))
+        # A prefix anchor has two causes, and naming the wrong one is a WRONG
+        # explanation rather than a vague one: the text was reworded after staging, or
+        # it always spanned more than one source string. In both the full run is absent
+        # now, so the current file cannot tell them apart -- only what resolved AT
+        # STAGING time can, which is why the edit record carries it.
+        for _contig, _need in ((True, "reworded since"),
+                               (False, "spans more than one source string"),
+                               (None, "neither is claimed")):
+            with tempfile.TemporaryDirectory() as _dp:
+                _rp = Path(_dp)
+                (_rp / "H.tsx").write_text(
+                    'export const H = () => <b className="c">Plans that scale</b>;\n')
+                _pe = _rp / ".deuxui" / "edits"
+                _pe.mkdir(parents=True)
+                _row = {"id": "EDIT-001", "before": "Plans that scale with your team",
+                        "after": "Pricing", "selector": "b", "tag": "b", "classes": "c"}
+                if _contig is not None:
+                    _row["staged_contiguous"] = _contig
+                (_pe / "EDIT-001.yaml").write_text(yaml.safe_dump(_row, sort_keys=False))
+                _c2, _e2 = os.getcwd(), io.StringIO()
+                try:
+                    os.chdir(_rp)
+                    with contextlib.redirect_stderr(_e2):
+                        ux_live._edits_apply(_A())
+                finally:
+                    os.chdir(_c2)
+                if _need not in _e2.getvalue():
+                    fails.append(f"edits apply did not say {_need!r} for a prefix "
+                                 f"anchor staged with contiguous={_contig}; naming the "
+                                 f"wrong cause tells somebody their markup is split "
+                                 f"when it was merely reworded")
+
+        # Two writers over one queue resolve against the same pre-edit text and the
+        # second overwrites the first. Not impeccable's lease -- one machine, one lock.
+        with tempfile.TemporaryDirectory() as _dl:
+            _rl = Path(_dl)
+            _c3 = os.getcwd()
+            try:
+                os.chdir(_rl)
+                _ok1, _w1 = ux_live.edits_lock(True)
+                _ok2, _w2 = ux_live.edits_lock(True)
+                if not _ok1:
+                    fails.append("edits_lock could not take a free lock")
+                if _ok2:
+                    fails.append("edits_lock granted the same lock twice, so two applies "
+                                 "can write over each other")
+                elif "another apply holds" not in _w2:
+                    fails.append("edits_lock refused without saying what holds it, so "
+                                 "the only way past is deleting a file nobody explained")
+                ux_live.edits_lock(False)
+                if not ux_live.edits_lock(True)[0]:
+                    fails.append("edits_lock did not release, so one run blocks every "
+                                 "later one")
+                ux_live.edits_lock(False)
+            finally:
+                os.chdir(_c3)
+
         _cwd = os.getcwd()
         _err = io.StringIO()
         try:

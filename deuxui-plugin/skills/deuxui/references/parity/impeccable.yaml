@@ -477,10 +477,18 @@ live:
       independently, so one refusal does not discard the rest, and a refused edit stays
       staged rather than being silently lost.
     gap: >-
-      no lease and no chunking: one queue on one machine, not a protocol between
-      processes. An element whose text spans more than one source string is refused
-      rather than repaired -- `locate` matched a prefix, and where the new wording
-      begins and ends is not established from here.
+      no protocol between processes, and no repair. The hazards underneath impeccable's
+      lease and repair are handled in the terms this tool actually has: `edits apply`
+      takes an exclusive lock, because two applies over one queue both resolve against
+      the same pre-edit text and the second overwrites the first; and a staged edit that
+      no longer resolves reports WHY, distinguishing "reworded since it was staged" from
+      "always spanned more than one source string" using what resolved at staging time,
+      because the current file cannot tell those apart and naming the wrong one is a
+      wrong explanation rather than a vague one.
+      What is still absent: it does not RE-ANCHOR. The closest line is named and left
+      for a person, because 0.8 similar is also what a different label on a different
+      row looks like. No chunking either -- one local queue has no deadline to chunk
+      against.
     evidence: [sub:ux_live.py:edits, sub:ux_live.py:text, flag:ux_live.py:--to,
                script:ux_select.py]
 
