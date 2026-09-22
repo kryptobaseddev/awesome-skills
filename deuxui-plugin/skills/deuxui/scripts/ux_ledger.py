@@ -825,6 +825,56 @@ def cmd_check(a) -> int:
     return 0
 
 
+def describe_record(d: Path) -> dict:
+    """What is in one state directory, in the terms that decide which is the history.
+
+    File sizes and dates are the weak evidence; a person can read those with `ls`. The
+    strong evidence is what only a real record has: archived contract versions whose
+    filenames are content hashes, decisions that point at them, and a phase history.
+    A directory with three archived contracts and four decisions is somebody's design
+    history. A directory with a config file and nothing else is a scaffold."""
+    files = sorted(q for q in d.rglob("*") if q.is_file())
+    lin = d / "contract" / "lineage.yaml"
+    versions = 0
+    if lin.exists():
+        try:
+            versions = len(yaml.safe_load(lin.read_text()) or [])
+        except (OSError, yaml.YAMLError):
+            versions = -1
+    return {
+        "dir": d.name,
+        "files": len(files),
+        "bytes": sum(q.stat().st_size for q in files),
+        "newest": max((q.stat().st_mtime for q in files), default=0),
+        "names": sorted(str(q.relative_to(d)) for q in files),
+        "contract_versions": versions,
+        "archived_contracts": len(list((d / "contract").glob("*.yaml")))
+                              - (1 if lin.exists() else 0)
+                              if (d / "contract").is_dir() else 0,
+        "decisions": len(list((d / "decisions").glob("DEC-*.yaml")))
+                     if (d / "decisions").is_dir() else 0,
+        "requests": len(list((d / "requests").glob("REQ-*.yaml")))
+                    if (d / "requests").is_dir() else 0,
+        "has_phase": (d / "phase.yaml").exists(),
+        "has_contract": (d / "design.contract.yaml").exists(),
+    }
+
+
+def compare_records(dirs: list) -> dict:
+    """Both records, and what distinguishes them. States no preference."""
+    rows = [describe_record(d) for d in dirs]
+    only = {}
+    allnames = set()
+    for r in rows:
+        allnames |= set(r["names"])
+    for r in rows:
+        only[r["dir"]] = sorted(allnames - set(r["names"]))
+    return {"records": rows, "missing_from": only,
+            "richest": max(rows, key=lambda r: (r["contract_versions"], r["decisions"],
+                                                r["files"]))["dir"],
+            "newest": max(rows, key=lambda r: r["newest"])["dir"]}
+
+
 def cmd_migrate(a) -> int:
     """Move a record of ours onto this version's directory name, or say why not.
 
@@ -846,13 +896,88 @@ def cmd_migrate(a) -> int:
            "candidates": [q.name for q in found], "markers": list(uxconfig.STATE_MARKERS),
            "applied": False, "moved": None, "status": None, "note": None}
 
+    rivals = ([new] if new.is_dir() else []) + found
+
+    if a.compare:
+        if len(rivals) < 2:
+            res["status"] = "NOT_APPLICABLE"
+            res["note"] = (f"only {len(rivals)} record here, so there is nothing to "
+                           f"compare.")
+        else:
+            res["status"] = "COMPARED"
+            res["comparison"] = compare_records(rivals)
+            res["note"] = (f"{len(rivals)} records. Nothing was changed. The strongest "
+                           f"evidence is archived contract versions and decisions, "
+                           f"because only a real history has those.")
+        return _migrate_out(a, res)
+
+    if a.adopt:
+        keep = Path(a.adopt.rstrip("/"))
+        if keep not in rivals:
+            res["status"] = "REFUSED"
+            res["note"] = (f"{keep}/ is not one of the records here "
+                           f"({', '.join(q.name + '/' for q in rivals) or 'none'}).")
+            return _migrate_out(a, res)
+        others = [q for q in rivals if q != keep]
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        plan = [(q, Path(f"{ROOT}-archived-{stamp}-{q.name.lstrip('.')}"))
+                for q in others]
+        res["adopt"] = keep.name
+        res["archive"] = [[str(s), str(dst)] for s, dst in plan]
+        if not a.apply:
+            res["status"] = "PLANNED"
+            res["note"] = (f"would keep {keep.name}/ as {new}/ and MOVE "
+                           + "; ".join(f"{s.name}/ to {dst.name}/" for s, dst in plan)
+                           + ". Nothing is deleted, so this is reversible with a "
+                             "rename. Re-run with --apply.")
+        else:
+            for s, dst in plan:
+                s.rename(dst)
+                # Marks it as deliberately set aside, so it is not detected as a rival
+                # record on the next run -- otherwise adopting one record creates a
+                # permanent conflict with the archive of the other.
+                (dst / uxconfig.SET_ASIDE).write_text(
+                    f"# Set aside {now()}\n\n"
+                    f"This was `{s.name}/` in this project. It held a record written by "
+                    f"this tool, and\nsomebody chose `{keep.name}/` as the history "
+                    f"instead, using:\n\n"
+                    f"    ux_ledger.py migrate --adopt {keep.name} --apply\n\n"
+                    f"Nothing in here was deleted or rewritten. Every contract version, "
+                    f"decision and\nnote keeps its original bytes, so if this turns out "
+                    f"to be the real history you can\nput it back:\n\n"
+                    f"    rm {ROOT}/{uxconfig.SET_ASIDE}   # if present\n"
+                    f"    mv {ROOT} {ROOT}-superseded\n"
+                    f"    mv {dst.name} {ROOT}\n"
+                    f"    rm {ROOT}/{uxconfig.SET_ASIDE}\n\n"
+                    f"While this file exists here, `ux_ledger.py migrate` and "
+                    f"`doctor.py` treat this\ndirectory as archived rather than as a "
+                    f"second live record.\n")
+            if keep != new:
+                keep.rename(new)
+            res["applied"] = True
+            res["status"] = "ADOPTED"
+            res["note"] = (f"{keep.name}/ is now {new}/. The other record(s) were "
+                           f"MOVED, not deleted: "
+                           + "; ".join(dst.name + "/" for _s, dst in plan)
+                           + f". Nothing inside anything was rewritten, so every "
+                             f"`contract_sha` in either still resolves. Each archive "
+                             f"carries a {uxconfig.SET_ASIDE} saying how to put it back.")
+        return _migrate_out(a, res)
+
     if new.is_dir() and found:
         res["status"] = "REFUSED"
+        res["comparison"] = compare_records(rivals)
         res["note"] = (f"{new}/ is live, and {', '.join(q.name + '/' for q in found)} "
-                       f"also holds a record of ours. Which one is the history is a "
-                       f"question this tool cannot answer, and merging them would "
-                       f"produce a history that never happened. Compare them and "
-                       f"remove or archive the one you are not keeping.")
+                       f"also holds a record of ours. Which one is the history is not "
+                       f"something this tool may decide -- merging them would produce a "
+                       f"history that never happened, and picking one silently discards "
+                       f"the other.\n\n"
+                       f"  See the evidence:  ux_ledger.py migrate --compare\n"
+                       f"  Then choose:       ux_ledger.py migrate --adopt "
+                       f"{found[0].name} --apply\n\n"
+                       f"  `--adopt` MOVES the record you are not keeping to "
+                       f"{ROOT}-archived-<timestamp>-<name>/ rather than deleting it, "
+                       f"so a wrong answer is one rename from being undone.")
     elif not found:
         res["status"] = "NOT_APPLICABLE"
         res["note"] = ((f"nothing to move: {new}/ already holds this project's records."
@@ -885,17 +1010,44 @@ def cmd_migrate(a) -> int:
                            f"decision and note keeps its bytes, so every "
                            f"`contract_sha` still resolves.")
 
+    return _migrate_out(a, res)
+
+
+def _migrate_out(a, res: dict) -> int:
+    w = sys.stdout.write
     if a.json:
-        w(json.dumps(res, indent=1) + "\n")
+        w(json.dumps(res, indent=1, default=str) + "\n")
         return 0 if res["status"] != "REFUSED" else 2
     w(f"\n{res['status']}: {res['note']}\n")
-    if res["moved"] and not res["applied"]:
+    if res.get("moved") and not res.get("applied"):
         for f in res["moved"][:20]:
             w(f"  {f}\n")
         if len(res["moved"]) > 20:
             w(f"  ... and {len(res['moved']) - 20} more\n")
+    c = res.get("comparison")
+    if c:
+        w("\n")
+        for r in c["records"]:
+            w(f"  {r['dir']}/\n"
+              f"      {r['files']} file(s), {r['bytes']:,} bytes, newest "
+              f"{datetime.fromtimestamp(r['newest'], timezone.utc):%Y-%m-%d %H:%M}Z\n"
+              f"      contract versions {r['contract_versions']}  "
+              f"archived {r['archived_contracts']}  decisions {r['decisions']}  "
+              f"requests {r['requests']}\n"
+              f"      design.contract.yaml {'yes' if r['has_contract'] else 'no'}   "
+              f"phase.yaml {'yes' if r['has_phase'] else 'no'}\n")
+            miss = c["missing_from"][r["dir"]]
+            if miss:
+                w(f"      does NOT have: {', '.join(miss[:6])}"
+                  f"{f' (+{len(miss) - 6} more)' if len(miss) > 6 else ''}\n")
+        w(f"\n  most complete by record content: {c['richest']}/\n"
+          f"  most recently written:           {c['newest']}/\n"
+          f"\n  Those two can disagree, and when they do the newer one is not "
+          f"automatically\n  the history -- a fresh `init` writes recent files over "
+          f"nothing.\n")
     w("\n")
-    return 0 if res["status"] in ("MOVED", "NOT_APPLICABLE", "PLANNED") else 2
+    return 0 if res["status"] in ("MOVED", "ADOPTED", "NOT_APPLICABLE", "PLANNED",
+                                 "COMPARED") else 2
 
 
 def main() -> int:
@@ -941,6 +1093,12 @@ def main() -> int:
     s.add_argument("--apply", action="store_true",
                    help="perform the move; without it the plan is printed and "
                         "nothing on disk changes")
+    s.add_argument("--compare", action="store_true",
+                   help="when two records exist, print what distinguishes them and "
+                        "change nothing")
+    s.add_argument("--adopt", metavar="DIR",
+                   help="name the record to keep. The others are MOVED to "
+                        ".deuxui-archived-<timestamp>-<name>/, never deleted.")
     s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_migrate)
 

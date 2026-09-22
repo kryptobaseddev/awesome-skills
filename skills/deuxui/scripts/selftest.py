@@ -525,6 +525,40 @@ def contract_checks():
             fails.append(f"{where} does not say {want!r}"
                          + (f" -- it says {m.group(0)!r}" if m else " at all"))
 
+    # Two records in one project, and the one path out of it. `migrate --adopt` MOVES
+    # the record you are not keeping; it must then reach a CLEAN state, which the first
+    # version did not: the archive it had just created was detected as a new rival, so
+    # resolving one conflict manufactured a permanent one and no sequence of commands
+    # could ever satisfy the tool.
+    import ux_ledger as _ledger                                      # noqa: E402
+    import uxconfig as _uc2                                          # noqa: E402
+    with tempfile.TemporaryDirectory() as _d5:
+        _r5 = Path(_d5)
+        _live, _rival = _r5 / _uc2.STATE, _r5 / ".other-record"
+        (_live / "contract").mkdir(parents=True)
+        (_live / "design.contract.yaml").write_text("visitor_mode: read\n")
+        (_live / "contract" / "lineage.yaml").write_text("- sha: aaa\n  at: x\n")
+        (_live / "contract" / "aaa.yaml").write_text("visitor_mode: read\n")
+        _rival.mkdir()
+        (_rival / "ux.config.yaml").write_text("x: 1\n")
+        if len(_uc2.state_candidates(_r5)) != 1:
+            fails.append("state_candidates did not see the second record")
+        # The comparison must separate a real history from a scaffold on record
+        # content, not on which was written last.
+        _cmp = _ledger.compare_records([_live, _rival])
+        if _cmp["richest"] != _uc2.STATE:
+            fails.append(f"compare_records called {_cmp['richest']} the most complete "
+                         f"record, but it has no archived contract and no lineage")
+        # A directory marked set aside is archived, not a rival.
+        (_rival / _uc2.SET_ASIDE).write_text("# set aside\n")
+        if _uc2.state_candidates(_r5):
+            fails.append(f"a directory carrying {_uc2.SET_ASIDE} is still reported as a "
+                         f"live record, so archiving one can never resolve a conflict")
+        (_rival / _uc2.SET_ASIDE).unlink()
+        if len(_uc2.state_candidates(_r5)) != 1:
+            fails.append(f"removing {_uc2.SET_ASIDE} did not bring the record back, so "
+                         f"the marker is not what decides it")
+
     # The CSP scanner. What it gets wrong is not "misses a policy" -- it is reading a
     # policy and reporting the WRONG verdict, which sends somebody to loosen a config
     # that was never the problem, or tells them nothing is wrong when the overlay

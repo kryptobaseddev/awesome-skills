@@ -88,6 +88,42 @@ superseded by definition. `state` names the live one and lists the superseded on
 because a record showing three wireframe approvals without saying which is current
 is how a build ends up honouring the wrong one.
 
+## Two records in one project
+
+A project can end up with two state directories: someone runs an older version, a
+checkout is shared, a directory gets copied by hand. Only one is read, so everything
+in the other is silently ignored — including any approval a decision points at.
+
+This tool will not choose between them. Merging them produces a history that never
+happened, and picking one silently discards the other. But refusing without giving
+you anything to decide with is not much better, so:
+
+```bash
+python3 scripts/ux_ledger.py migrate --compare               # the evidence, changes nothing
+python3 scripts/ux_ledger.py migrate --adopt .other --apply  # your decision, reversibly
+```
+
+`--compare` prints what actually distinguishes them. File counts and dates are the
+weak evidence — you can read those with `ls`. The strong evidence is what only a real
+history has: archived contract versions whose filenames are content hashes, decisions
+that resolve against them, a phase history. A directory with three archived contracts
+and four decisions is somebody's design record. A directory with a config file and
+nothing else is a scaffold that happens to be newer.
+
+The report names the most complete record and the most recently written one
+**separately**, because they disagree exactly when it matters: a fresh `init` writes
+recent files over nothing.
+
+`--adopt` **moves** the record you are not keeping to
+`.deuxui-archived-<timestamp>-<name>/` and writes a `SET-ASIDE.md` into it saying what
+it was and how to put it back. Nothing is deleted and nothing inside is rewritten, so
+every `contract_sha` in either still resolves and a wrong answer is one rename from
+being undone.
+
+That marker is also what stops the archive being detected as a *new* rival on the next
+run — a live record is identified by its contents, so an archive has to be able to say
+it is set aside. Without it, resolving one conflict manufactured a permanent one.
+
 ## What it does not do
 
 It does not close notes. A note stays open until a person closes it, and nothing

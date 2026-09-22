@@ -581,6 +581,18 @@ additional:
       emulator evidence that states plainly when a stub is not a phone.
     evidence: [script:ux_native.sh, script:native_conformance.py, op:ios, op:android]
 
+  - name: two records, resolved with evidence rather than a guess
+    what: >-
+      when a project has two state directories -- an older version was run, a checkout
+      is shared, a directory was copied -- only one is read and everything in the other
+      is silently ignored. `migrate --compare` prints what distinguishes them, weighting
+      archived contract versions and decisions over file dates, because a scaffold can
+      be newer than a history. `migrate --adopt` MOVES the one you are not keeping and
+      writes a `SET-ASIDE.md` into it saying how to put it back; nothing is deleted and
+      no bytes are rewritten, so every `contract_sha` still resolves either way.
+    evidence: [script:ux_ledger.py, sub:ux_ledger.py:migrate, flag:ux_ledger.py:--adopt,
+               flag:ux_ledger.py:--compare, op:ledger]
+
   - name: where a CSP is declared, and what it forbids
     what: >-
       `csp.py` reads the policy out of eleven declaration sites and answers one

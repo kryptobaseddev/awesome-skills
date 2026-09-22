@@ -212,6 +212,16 @@ STATE = ".deuxui"
 # holding one of these IS a record of ours whatever it happens to be called.
 STATE_MARKERS = ("design.contract.yaml", "ux.config.yaml", "phase.yaml")
 
+# A record deliberately set aside carries this file. Without it, `migrate --adopt`
+# archived the record somebody chose not to keep and then immediately detected the
+# archive as a new rival -- the tool manufactured a permanent conflict out of
+# resolving one, and there was no way to reach a clean state at all.
+#
+# A marker file rather than a name pattern, for the same reason the whole probe reads
+# contents: a name is the least reliable thing about a directory, and somebody who
+# renames the archive should not thereby resurrect it as a live record.
+SET_ASIDE = "SET-ASIDE.md"
+
 
 def state_candidates(root: Path | None = None) -> list:
     """Every hidden directory that holds a record of ours, whatever it is called.
@@ -224,6 +234,7 @@ def state_candidates(root: Path | None = None) -> list:
     root = root or Path.cwd()
     return [q for q in sorted(root.glob(".*"))
             if q.is_dir() and q.name != STATE
+            and not (q / SET_ASIDE).exists()
             and any((q / m).exists() for m in STATE_MARKERS)]
 
 
