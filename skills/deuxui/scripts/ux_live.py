@@ -588,12 +588,18 @@ def severity_of() -> dict:
     return sev
 
 
-def check_delta(root: Path, sheet: Path, new_text: str) -> dict:
-    """Run the static tier against the edit before it exists on disk.
+def check_delta_many(root: Path, edits: dict) -> dict:
+    """Run the static tier against a whole batch of edits at once.
 
-    A variant is admissible or it is not, and that is measurable. Impeccable's accept
-    is a matter of taste; this one is taste applied to options that already pass, which
-    is the only order that cannot be argued with afterwards."""
+    `check_delta` applies ONE file's change to a copy of the tree and scans it. Used in
+    a loop over several files, as the batch apply did, that is wrong twice over: each
+    scan sees a tree carrying one edit rather than the batch that will actually ship, so
+    a finding that only appears when two files change together is never produced; and
+    the loop variable was overwritten each time, so the decision record ended up
+    describing the LAST file rather than the batch it claims to summarise.
+
+    One copy, every edit applied, one scan. Also considerably faster: the old loop
+    copied the whole project once per file."""
     def scan(target: Path) -> list:
         r = subprocess.run([sys.executable, str(HERE / "ux_check.py"), str(target),
                             "--json"], capture_output=True, text=True)
@@ -605,30 +611,39 @@ def check_delta(root: Path, sheet: Path, new_text: str) -> dict:
     before = scan(root)
     with tempfile.TemporaryDirectory() as td:
         copy = Path(td) / root.name
-        # `.deuxui` must come along. It holds the contract, and without it every
-        # S-CONTRACT-* check reports NOT_RUN on the copy -- so the delta was measured
-        # against a tree that could not see conformance at all, which is precisely
-        # what a variant needs checking for. It read as "0 findings after" and looked
-        # like an improvement.
         ignore = shutil.ignore_patterns(*(SKIP - {".deuxui"}))
         try:
             shutil.copytree(root, copy, ignore=ignore, symlinks=True)
         except (OSError, shutil.Error) as e:
             return {"ran": False, "why": f"could not copy the tree to test on: {e}"}
-        dest = copy / sheet.relative_to(root)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(new_text)
+        for f, text in edits.items():
+            dest = copy / Path(f).relative_to(root)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text)
         after = scan(copy)
-    key = lambda f: (f.get("detector"), f.get("snippet"), f.get("line"))
-    b = {key(f) for f in before}
-    introduced = [f for f in after if key(f) not in b]
+    key = lambda x: (x.get("detector"), x.get("snippet"), x.get("line"))
+    b = {key(x) for x in before}
+    introduced = [x for x in after if key(x) not in b]
     sev = severity_of()
-    for f in introduced:
-        f["severity"] = sev.get(f.get("detector"), "")
-    blocking = [f for f in introduced if f["severity"] in ("P0", "P1")]
+    for x in introduced:
+        x["severity"] = sev.get(x.get("detector"), "")
+    blocking = [x for x in introduced if x["severity"] in ("P0", "P1")]
     return {"ran": True, "before": len(before), "after": len(after),
-            "introduced": introduced[:8], "blocking": blocking,
+            "files": len(edits), "introduced": introduced[:8], "blocking": blocking,
             "graded": bool(sev)}
+
+
+def check_delta(root: Path, sheet: Path, new_text: str) -> dict:
+    """One file's edit, measured before it exists on disk.
+
+    A thin call onto `check_delta_many`, which is the real implementation. It used to
+    carry its own copy of the tree-copy-and-scan, which is how the batch path ended up
+    running it in a loop and scanning a tree that never contained more than one edit.
+    One implementation, so there is one thing to get right.
+
+    A variant is admissible or it is not, and that is measurable. Taste chooses between
+    options that already pass; it does not make an inadmissible one admissible."""
+    return check_delta_many(root, {sheet: new_text})
 
 
 def phase_permits(sheet: Path) -> tuple[bool, str]:
@@ -1838,17 +1853,17 @@ def _edits_apply_locked(a, rows) -> int:
           f"is the tool declining to write to a line it cannot identify.\n\n")
         return 2
 
-    delta = {"ran": False, "why": "not attempted"}
-    for f, text in pending.items():
-        delta = check_delta(root, f, text)
-        if delta.get("ran") and delta["blocking"] and not a.force:
-            w(f"\n  REFUSED. The batch introduces {len(delta['blocking'])} P0/P1 "
-              f"finding(s) in {f.name}:\n")
-            for x in delta["blocking"]:
-                w(f"    {x.get('severity')}  {x.get('detector')}  {x.get('file')}:"
-                  f"{x.get('line')}\n      {x.get('snippet')}\n")
-            w("\n  Copy is checked like anything else. Nothing was written.\n\n")
-            return 1
+    # One scan over the whole batch, not one per file: the tier has to see the tree
+    # that will actually ship.
+    delta = check_delta_many(root, pending)
+    if delta.get("ran") and delta["blocking"] and not a.force:
+        w(f"\n  REFUSED. The batch introduces {len(delta['blocking'])} P0/P1 "
+          f"finding(s) across {delta.get('files', len(pending))} file(s):\n")
+        for x in delta["blocking"]:
+            w(f"    {x.get('severity')}  {x.get('detector')}  {x.get('file')}:"
+              f"{x.get('line')}\n      {x.get('snippet')}\n")
+        w("\n  Copy is checked like anything else. Nothing was written.\n\n")
+        return 1
 
     w(f"\n  {len(applied)} edit(s) across {len(pending)} file(s)\n")
     for f, text in pending.items():
@@ -1873,8 +1888,11 @@ def _edits_apply_locked(a, rows) -> int:
            "declarations": [{"from": d.get("before"), "to": d.get("after"),
                              "file": loc["file"], "line": loc["line"]}
                             for d, loc, _anc in applied],
+           # `files` is recorded because it is what makes this record checkable: a
+           # batch across three files whose checks say one file was scanned is a record
+           # describing something other than what shipped.
            "checks": {"ran": bool(delta.get("ran")), "before": delta.get("before"),
-                      "after": delta.get("after")},
+                      "after": delta.get("after"), "files": delta.get("files")},
            "refused": [{"from": d.get("before"), "why": why} for d, why in refused],
            "reviewed": [],
            "source": "ux_live.py edits apply (copy rewritten in the running page)",

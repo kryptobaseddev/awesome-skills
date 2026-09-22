@@ -1130,6 +1130,49 @@ def contract_checks():
             (_e / f"{_rid}.yaml").write_text(yaml.safe_dump(
                 {"id": _rid, "before": _b, "after": _af, "selector": _cls,
                  "tag": "p", "classes": _cls}, sort_keys=False))
+        # A batch spanning several files has to be scanned AS a batch. The first
+        # version ran `check_delta` in a loop, one file per copy of the tree: each scan
+        # saw a tree carrying one edit rather than the batch that would actually ship,
+        # and the loop variable was overwritten so the decision record described the
+        # LAST file rather than the batch it claims to summarise.
+        with tempfile.TemporaryDirectory() as _db:
+            _rb = Path(_db)
+            (_rb / "src").mkdir()
+            (_rb / "src" / "A.tsx").write_text(
+                'export const A = () => <p className="a">Alpha copy here</p>;\n')
+            (_rb / "src" / "B.tsx").write_text(
+                'export const B = () => <p className="b">Beta copy here</p>;\n')
+            _many = ux_live.check_delta_many(_rb, {
+                _rb / "src" / "A.tsx":
+                    'export const A = () => <p className="a">Alpha reworded</p>;\n',
+                _rb / "src" / "B.tsx":
+                    'export const B = () => <p className="b">Beta reworded</p>;\n'})
+            if not _many.get("ran"):
+                fails.append(f"check_delta_many did not run: {_many.get('why')}")
+            elif _many.get("files") != 2:
+                fails.append(f"check_delta_many reported {_many.get('files')} file(s) "
+                             f"for a two-file batch, so a record built from it describes "
+                             f"something other than what shipped")
+            # A blocking finding in the FIRST file must be caught -- under the old loop
+            # the last iteration's result was what survived.
+            _first = ux_live.check_delta_many(_rb, {
+                _rb / "src" / "A.tsx":
+                    'export const A = () => <div onClick={go}>Alpha</div>;\n',
+                _rb / "src" / "B.tsx":
+                    'export const B = () => <p className="b">Beta reworded</p>;\n'})
+            if not _first.get("blocking"):
+                fails.append("check_delta_many missed a P0/P1 introduced by the FIRST "
+                             "file of a batch; a per-file loop that overwrites its "
+                             "result reports only the last one")
+            # And `check_delta` must be the same implementation, not a second copy.
+            _one = ux_live.check_delta(
+                _rb, _rb / "src" / "A.tsx",
+                'export const A = () => <div onClick={go}>Alpha</div>;\n')
+            if _one.get("files") != 1 or not _one.get("blocking"):
+                fails.append("check_delta and check_delta_many disagree; two copies of "
+                             "the tree-copy-and-scan is how the batch path came to scan "
+                             "a tree that never held more than one edit")
+
         # A prefix anchor has two causes, and naming the wrong one is a WRONG
         # explanation rather than a vague one: the text was reworded after staging, or
         # it always spanned more than one source string. In both the full run is absent
