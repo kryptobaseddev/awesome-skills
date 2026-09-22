@@ -180,11 +180,11 @@ commands:
     gap: >-
       their accept writes through per-framework source adapters (Next, Nuxt,
       SvelteKit, Astro, TanStack) and can restructure markup. This writes one
-      commented rule into the stylesheet that already holds the tokens, and rewrites
-      visible copy in place, and does structural `wrap`/`insert` through a verified
-      textual span -- but with no framework adapter and no AST, so it refuses where
-      theirs resolves. See the
-      `live-wrap` and `live-insert` rows for exactly where it refuses.
+      commented rule into the stylesheet that already holds the tokens, rewrites
+      visible copy both one element at a time and as a batch edited in the page
+      itself, and does structural `wrap`/`insert` through a verified textual span --
+      but with no framework adapter and no AST, so it refuses where theirs resolves.
+      See the `live-wrap` and `live-insert` rows for exactly where it refuses.
     evidence: [op:live, script:ux_live.py, sub:ux_live.py:accept, sub:ux_live.py:text,
                sub:ux_live.py:wrap, sub:ux_live.py:insert]
 
@@ -343,10 +343,10 @@ cli:
       rasterises an SVG or HTML comp through the browser so it can consume this skill's
       own output, forces one viewport width on both captures, and states in every
       report that type, spacing, hierarchy and motion are not measured here.
-    gap: >-
-      it refuses to compare colour against a WIREFRAME, and says so: a rendered sheet
+      It refuses to compare colour against a WIREFRAME and says so: a rendered sheet
       settles structure and commits to nothing about colour, since its plate bands are
-      hatched stand-ins for images nobody has chosen. Colour comparison needs a
+      hatched stand-ins for images nobody has chosen. That is the tool declining to
+      produce a false result, not a capability it lacks -- colour comparison needs a
       generated or photographed comp.
     evidence: [script:comp_diff.py, script:comp_spec.py, script:ux_image.py,
                sub:ux_image.py:verify, detector:S-CONTRACT-COLOR]
@@ -452,26 +452,31 @@ live:
   - name: live-commit-manual-edits
     status: partial
     here: >-
-      `ux_live.py text` rewrites the visible copy of a picked element in the source:
-      the string must resolve to exactly one place by an anchor from the element
-      itself, the edit is checked before it is written, and every other occurrence of
-      the same literal — including a lookup key in an i18n catalogue — is reported
-      and deliberately left alone
+      `ux_live.py edits watch` puts the editing where the reading happens: Alt-click
+      any text in the running page and rewrite it in place. Each change is STAGED to
+      `.deuxui/edits/`, never written -- what lands in the page is a DOM change that
+      disappears on reload, because an in-page editor writing straight to disk would
+      bypass every gate this skill has. `edits list` resolves each one to a source
+      location; `edits apply --who NAME` writes the batch, running the static tier over
+      it first and refusing on a new P0 or P1 (an error message rewritten to "Something
+      went wrong" is refused by `S-CONTENT-ERRORTEXT`). Each edit resolves
+      independently, so one refusal does not discard the rest, and a refused edit stays
+      staged rather than being silently lost.
     gap: >-
-      copy only, one element at a time, initiated from the terminal. Theirs batches
-      edits typed directly into the page, leases the batch, and applies it through a
-      dedicated subagent with chunking and repair. There is no in-page editing
-      surface here and no batch protocol.
-    evidence: [sub:ux_live.py:text, flag:ux_live.py:--to]
+      no lease and no chunking: one queue on one machine, not a protocol between
+      processes. An element whose text spans more than one source string is refused
+      rather than repaired -- `locate` matched a prefix, and where the new wording
+      begins and ends is not established from here.
+    evidence: [sub:ux_live.py:edits, sub:ux_live.py:text, flag:ux_live.py:--to,
+               script:ux_select.py]
 
   - name: live-discard-manual-edits
-    status: partial
-    here: "nothing is staged, so there is nothing to discard: `text --dry-run` shows
-           the diff and writes nothing"
-    gap: >-
-      follows from the row above. With no staged batch there is no discard verb; the
-      equivalent of abandoning a batch is not running the command.
-    evidence: [flag:ux_live.py:--dry-run]
+    status: mapped
+    here: >-
+      `ux_live.py edits discard` drops the staged batch, and says plainly that there is
+      nothing to revert because nothing had reached the source -- the page itself
+      reloads clean.
+    evidence: [sub:ux_live.py:edits]
 
   - name: live-wrap
     status: partial
@@ -539,11 +544,16 @@ agents:
 
   - name: impeccable-manual-edit-applier
     status: partial
-    here: "`ux_live.py text` applies one copy edit, with the checks as the gate"
+    here: >-
+      `ux_live.py edits apply` applies a staged batch to the source, each edit resolved
+      independently and the whole batch measured by the static tier before anything is
+      written
     gap: >-
-      no leased batch protocol and no separate applier agent. See
-      `live-commit-manual-edits`.
-    evidence: [sub:ux_live.py:text]
+      runs in the main thread, not as a separate agent, and has no lease or chunk
+      protocol. It also does not repair: an edit it cannot resolve to exactly one
+      source string is refused with the reason and left staged, where theirs attempts
+      a repair pass.
+    evidence: [sub:ux_live.py:edits]
 
 # ---------------------------------------------------------------------------
 # 5. What is here that is not there. Recorded for the same reason as the gaps:

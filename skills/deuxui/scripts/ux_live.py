@@ -46,6 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1352,6 +1353,330 @@ def cmd_insert(a) -> int:
                        {"where": a.where, "markup": markup, "relative_to": span["name"]})
 
 
+# ---------------------------------------------------------------- manual edits
+EDITS = ROOT / "edits"
+
+EDIT_OVERLAY = r"""
+(() => {
+  if (window.__uxEdits) { window.__uxEdits.active = true; return "already"; }
+  const S = window.__uxEdits = { queue: [], active: true, open: null };
+__PICK_JS__
+  const css = document.createElement('style');
+  css.textContent = `
+  .uxed-bar{position:fixed;z-index:2147483647;left:16px;bottom:16px;
+    font:600 12px/1.3 ui-monospace,monospace;background:#16181d;color:#fff;
+    padding:9px 13px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .uxed-on{outline:2px dashed #1f5eff;outline-offset:2px;background:rgba(31,94,255,.06)}
+  .uxed-hi{outline:1px dashed rgba(31,94,255,.45);outline-offset:2px}`;
+  document.head.appendChild(css);
+  const bar = document.createElement('div');
+  bar.className = 'uxed-bar';
+  bar.textContent = 'deuxui edit — Alt-click text to rewrite it · Esc to stop';
+  document.body.appendChild(bar);
+
+  const ours = n => n && n.closest && n.closest('.uxed-bar');
+  // Only a leaf whose content is text. Making a container editable rewrites every
+  // child in one blob, and there is then no single source string to match.
+  const editable = el => el && el.children.length === 0
+                      && (el.textContent || '').trim().length > 0
+                      && !ours(el);
+
+  let hov = null;
+  addEventListener('mouseover', e => {
+    if (!S.active || S.open) return;
+    if (hov) hov.classList.remove('uxed-hi');
+    hov = editable(e.target) ? e.target : null;
+    if (hov) hov.classList.add('uxed-hi');
+  }, true);
+
+  function finish(el, before) {
+    const after = (el.innerText || '').trim().replace(/\s+/g, ' ');
+    el.removeAttribute('contenteditable');
+    el.classList.remove('uxed-on');
+    S.open = null;
+    bar.textContent = 'deuxui edit — Alt-click text to rewrite it · Esc to stop';
+    if (after && after !== before) {
+      S.queue.push({ before: before, after: after, selector: selectorFor(el),
+                     tag: el.tagName.toLowerCase(),
+                     classes: (el.getAttribute('class') || '').slice(0, 200),
+                     url: location.href, at: new Date().toISOString() });
+      bar.textContent = 'deuxui edit — ' + S.queue.length + ' staged';
+    }
+  }
+
+  addEventListener('click', e => {
+    if (!S.active || !e.altKey) return;
+    const el = e.target;
+    if (!editable(el)) return;
+    e.preventDefault(); e.stopPropagation();
+    if (S.open) return;
+    const before = (el.innerText || '').trim().replace(/\s+/g, ' ');
+    el.classList.remove('uxed-hi');
+    el.classList.add('uxed-on');
+    el.setAttribute('contenteditable', 'plaintext-only');
+    el.focus();
+    S.open = el;
+    bar.textContent = 'editing — Enter to stage, Esc to cancel';
+    const done = ev => {
+      if (ev.type === 'keydown' && ev.key === 'Escape') {
+        el.innerText = before; finish(el, before); ev.preventDefault(); return;
+      }
+      if (ev.type === 'keydown' && ev.key === 'Enter' && !ev.shiftKey) {
+        ev.preventDefault(); el.blur(); return;
+      }
+      if (ev.type === 'blur') { finish(el, before); }
+    };
+    el.addEventListener('blur', done, { once: true });
+    el.addEventListener('keydown', done);
+  }, true);
+
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !S.open) { S.active = false; bar.textContent =
+      'deuxui edit — stopped'; }
+  }, true);
+  return "installed";
+})()
+"""
+
+
+def staged() -> list:
+    return [(q, load(q) or {}) for q in sorted(EDITS.glob("EDIT-*.yaml"))]
+
+
+def cmd_edits(a) -> int:
+    return {"watch": _edits_watch, "list": _edits_list,
+            "apply": _edits_apply, "discard": _edits_discard}[a.what](a)
+
+
+def _edits_watch(a) -> int:
+    """Let somebody rewrite copy in the page itself, and stage what they change.
+
+    `text` takes the new wording on the command line, which is the wrong end of the
+    problem: the person who knows the label is wrong is looking at the label, not at a
+    terminal. This puts the editing where the reading happens.
+
+    Staged, never applied here. What lands in the page is a DOM change that disappears
+    on the next reload; the source edit is a separate, checked, recorded step, because
+    an in-page editor that wrote straight to disk would be a way to bypass every gate
+    this skill has."""
+    ws, why = cdp.connect_page(getattr(a, "url", None))
+    if ws is None:
+        w(f"\n{why}\n\n  Open the page first: agent-browser open <url>\n\n")
+        return 2
+    pol = cdp.style_policy(ws)
+    if pol["styled"] is False:
+        w(f"\nThe editing overlay cannot be styled here: {pol['why']}\n\n")
+        ws.close()
+        return 2
+    try:
+        state = cdp.evaluate(ws, EDIT_OVERLAY.replace("__PICK_JS__", ux_select.PICK_JS))
+    except RuntimeError as e:
+        w(f"\nthe overlay would not install: {e}\n\n")
+        ws.close()
+        return 2
+    w(f"\n  Edit overlay {state}.\n\n"
+      f"  Alt-click any piece of text to rewrite it. Enter stages it, Esc cancels.\n"
+      f"  Nothing reaches the source here — `ux_live.py edits apply` does that, with\n"
+      f"  the checks as the gate. Waiting up to {a.timeout}s.\n\n")
+    EDITS.mkdir(parents=True, exist_ok=True)
+    seen, deadline = 0, time.time() + a.timeout
+    try:
+        while time.time() < deadline:
+            time.sleep(1.0)
+            try:
+                q = cdp.evaluate(ws, "JSON.stringify(window.__uxEdits ? "
+                                     "{q: window.__uxEdits.queue, a: "
+                                     "window.__uxEdits.active} : null)")
+            except RuntimeError:
+                break
+            if not q:
+                # A navigation drops the overlay with the page. Re-install rather than
+                # exiting: moving between routes is how somebody reviews an app.
+                try:
+                    cdp.evaluate(ws, EDIT_OVERLAY.replace("__PICK_JS__",
+                                                          ux_select.PICK_JS))
+                except RuntimeError:
+                    break
+                continue
+            for rec in (q.get("q") or [])[seen:]:
+                rid = _next_id(EDITS, "EDIT")
+                rec = dict(rec, id=rid, recorded_at=now(),
+                           recorded_by="deuxui/scripts/ux_live.py edits watch "
+                                       "(rewritten in the page)")
+                (EDITS / f"{rid}.yaml").write_text(
+                    yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=92))
+                seen += 1
+                w(f"  {rid}  {rec['before'][:40]!r}\n        -> {rec['after'][:40]!r}\n")
+            if not q.get("a"):
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            ws.close()
+        except Exception:
+            pass
+    w(f"\n  {seen} edit(s) staged in {EDITS}/.\n"
+      f"  Review:  python3 scripts/ux_live.py edits list\n"
+      f"  Apply:   python3 scripts/ux_live.py edits apply --who \"NAME\"\n"
+      f"  Drop:    python3 scripts/ux_live.py edits discard\n\n")
+    return 0 if seen else 3
+
+
+def _edits_list(a) -> int:
+    rows = staged()
+    if not rows:
+        w("\nNothing staged. `ux_live.py edits watch` opens the editor in the page.\n\n")
+        return 0
+    root = Path.cwd()
+    w(f"\n{len(rows)} staged edit(s)\n\n")
+    for q, d in rows:
+        loc = locate({"text": d.get("before"), "classes": d.get("classes")}, root)
+        where = (f"{loc['file']}:{loc['line']}" if loc["found"]
+                 else "NOT LOCATED — " + loc["why"][:60])
+        w(f"  {d.get('id', q.stem)}  {d.get('selector', '?')[:50]}\n"
+          f"      {str(d.get('before'))[:60]!r}\n   -> {str(d.get('after'))[:60]!r}\n"
+          f"      {where}\n\n")
+    return 0
+
+
+def _edits_apply(a) -> int:
+    """Apply the staged batch to the source, each edit through the same gate as `text`.
+
+    Not a lease and not a protocol: this is one person's machine and one queue. What it
+    keeps from impeccable's design is the part that matters -- the edits are staged
+    somewhere inspectable, applied deliberately, and each one has to resolve to exactly
+    one place in the source or it is refused on its own without stopping the rest."""
+    rows = staged()
+    if not rows:
+        w("\nNothing staged.\n\n")
+        return 0
+    if not a.who:
+        w("\nApplying copy needs a person's name on it — it becomes a decision record. "
+          "Pass --who \"NAME\".\n\n")
+        return 2
+    root = Path.cwd()
+    pending: dict = {}
+    applied, refused = [], []
+    for q, d in rows:
+        before, after = str(d.get("before") or ""), str(d.get("after") or "")
+        if not before or not after or before == after:
+            refused.append((d, "the edit is empty or unchanged"))
+            continue
+        loc = locate({"text": before, "classes": d.get("classes")}, root)
+        if not loc["found"] or loc.get("anchor_kind") != "text":
+            refused.append((d, "no single place in the source carries that text"
+                               if not loc["found"] else
+                               "it was located by its class, not its text, so the "
+                               "string to replace is not established"))
+            continue
+        f = root / loc["file"]
+        body = pending.get(f, None)
+        if body is None:
+            try:
+                body = f.read_text(errors="replace")
+            except OSError as e:
+                refused.append((d, f"could not read {loc['file']}: {e}"))
+                continue
+        anchor = str(loc["anchor"])
+        n = body.count(anchor)
+        if n != 1:
+            refused.append((d, f"{anchor!r} appears {n} times in {loc['file']}, so "
+                               f"there is no single occurrence to rewrite"))
+            continue
+        # `locate` resolves on progressively shorter PREFIXES of the captured text, so
+        # the anchor it matched on is often not the whole string that was rewritten.
+        # Replacing a prefix with the full new wording leaves the tail of the old one
+        # behind; replacing it with a trimmed new wording invents a cut point. Neither
+        # is knowable from here, so this refuses.
+        #
+        # This is also what the first version of this loop did NOT do: it computed
+        # `after[:len(after)]`, which is `after`, behind a conditional that made it look
+        # like the case was handled.
+        if anchor != before:
+            refused.append((d, f"the source matched on {anchor!r}, a prefix of the "
+                               f"{len(before)}-character run that was rewritten -- the "
+                               f"element's text spans more than one source string, so "
+                               f"where the new wording begins and ends is not "
+                               f"established. Edit {loc['file']}:{loc['line']} directly."))
+            continue
+        pending[f] = body.replace(anchor, after, 1)
+        applied.append((d, loc, anchor))
+
+    for d, why in refused:
+        w(f"\n  REFUSED  {d.get('id')}  {str(d.get('before'))[:44]!r}\n           {why}\n")
+    if not applied:
+        w(f"\n  Nothing was applied. {len(refused)} edit(s) refused, and a refusal here "
+          f"is the tool declining to write to a line it cannot identify.\n\n")
+        return 2
+
+    delta = {"ran": False, "why": "not attempted"}
+    for f, text in pending.items():
+        delta = check_delta(root, f, text)
+        if delta.get("ran") and delta["blocking"] and not a.force:
+            w(f"\n  REFUSED. The batch introduces {len(delta['blocking'])} P0/P1 "
+              f"finding(s) in {f.name}:\n")
+            for x in delta["blocking"]:
+                w(f"    {x.get('severity')}  {x.get('detector')}  {x.get('file')}:"
+                  f"{x.get('line')}\n      {x.get('snippet')}\n")
+            w("\n  Copy is checked like anything else. Nothing was written.\n\n")
+            return 1
+
+    w(f"\n  {len(applied)} edit(s) across {len(pending)} file(s)\n")
+    for f, text in pending.items():
+        diff = "".join(difflib.unified_diff(
+            f.read_text(errors="replace").splitlines(True), text.splitlines(True),
+            fromfile=_rel(f, root), tofile=_rel(f, root) + " (copy)", n=1))
+        w(f"\n{diff}")
+    if a.dry_run:
+        w("\n  --dry-run, nothing written.\n\n")
+        return 0
+    for f, text in pending.items():
+        f.write_text(text)
+
+    did = _next_id(DECISIONS, "DEC")
+    rec = {"id": did, "question": "Copy rewritten in the page and applied to source",
+           "surface": sorted({_rel(f, root) for f in pending}),
+           "chosen": "copy-batch", "outcome": "accept:copy-batch",
+           "approves_a_build": False, "who": a.who,
+           "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+           "recorded_at": now(), "rationale": a.why or f"{len(applied)} copy edit(s)",
+           "axis": "copy",
+           "declarations": [{"from": d.get("before"), "to": d.get("after"),
+                             "file": loc["file"], "line": loc["line"]}
+                            for d, loc, _anc in applied],
+           "checks": {"ran": bool(delta.get("ran")), "before": delta.get("before"),
+                      "after": delta.get("after")},
+           "refused": [{"from": d.get("before"), "why": why} for d, why in refused],
+           "reviewed": [],
+           "source": "ux_live.py edits apply (copy rewritten in the running page)",
+           "recorded_by": "deuxui/scripts/ux_live.py"}
+    DECISIONS.mkdir(parents=True, exist_ok=True)
+    dp = DECISIONS / f"{did}.yaml"
+    dp.write_text(yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=92))
+    try:
+        import ux_ledger
+        ux_ledger.archive(by="ux_live.py edits apply (copy accepted into the source)")
+    except Exception:
+        pass
+    for d, _loc, _a in applied:
+        q = EDITS / f"{d.get('id')}.yaml"
+        if q.exists():
+            q.unlink()
+    w(f"\n  written  {len(pending)} file(s)\n  recorded {dp}\n"
+      f"  {len(refused)} edit(s) left staged because they were refused.\n\n")
+    return 0
+
+
+def _edits_discard(a) -> int:
+    rows = staged()
+    for q, _d in rows:
+        q.unlink()
+    w(f"\n{len(rows)} staged edit(s) discarded. Nothing had been written to the "
+      f"source, so there is nothing to revert — the page itself reloads clean.\n\n")
+    return 0
+
+
 def cmd_status(a) -> int:
     rows = sorted(LIVE.glob("*.yaml")) if LIVE.exists() else []
     if not rows:
@@ -1459,6 +1784,16 @@ def main(argv=None) -> int:
     s.add_argument("--dry-run", action="store_true")
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_insert)
+
+    s = sub.add_parser("edits", help="rewrite copy in the page, then apply the batch")
+    s.add_argument("what", choices=["watch", "list", "apply", "discard"])
+    s.add_argument("--url", help="the page under test")
+    s.add_argument("--timeout", type=int, default=1800)
+    s.add_argument("--who", help="the person deciding, by name")
+    s.add_argument("--why")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--force", action="store_true")
+    s.set_defaults(fn=cmd_edits)
 
     s = sub.add_parser("status", help="what is open")
     s.set_defaults(fn=cmd_status)

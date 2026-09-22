@@ -143,6 +143,39 @@ Anything it cannot verify is a refusal with the reason, and nothing is written. 
 you pass to `insert` is measured by the static tier first and refused on a new P0 or P1:
 a clickable `div` is a finding whether this skill generated it or you typed it.
 
+## Editing copy in the page itself
+
+`text` takes the new wording on the command line, which is the wrong end of the
+problem: the person who knows a label is wrong is looking at the label, not at a
+terminal.
+
+```bash
+python3 scripts/ux_live.py edits watch          # Alt-click any text and rewrite it
+python3 scripts/ux_live.py edits list           # the batch, each resolved to a file
+python3 scripts/ux_live.py edits apply --who "NAME"
+python3 scripts/ux_live.py edits discard
+```
+
+Nothing reaches the source while you type. What lands in the page is a DOM change
+that disappears on the next reload; the source edit is a separate, checked, recorded
+step — an in-page editor that wrote straight to disk would be a way around every gate
+this skill has.
+
+`apply` runs the static tier over the whole batch before writing anything, so copy is
+checked like anything else: an error message rewritten to "Something went wrong" comes
+back refused with `S-CONTENT-ERRORTEXT` quoted. Each edit resolves independently, so
+one refusal does not discard the rest, and a refused edit **stays staged** rather than
+vanishing.
+
+Three things it refuses, and each one is a copy edit landing on the wrong string:
+
+- the text appears more than once in the source, so there is no single occurrence;
+- the element was located by its class rather than its text;
+- the element's text spans more than one source string — `locate` matched a prefix,
+  and replacing a prefix with the full new wording leaves the tail of the old one
+  behind, while trimming the new wording invents a cut point. Neither is knowable
+  from here.
+
 ## What this is not
 
 It has no framework adapter and no AST, so it resolves textually and refuses where a

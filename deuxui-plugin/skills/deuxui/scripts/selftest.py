@@ -559,6 +559,67 @@ def contract_checks():
             fails.append(f"removing {_uc2.SET_ASIDE} did not bring the record back, so "
                          f"the marker is not what decides it")
 
+    # The in-page copy editor stages edits; `edits apply` writes them. Its value is
+    # entirely in what it refuses, and one refusal was missing from the first version:
+    # `locate` resolves on progressively shorter PREFIXES of the captured text, so the
+    # anchor it matched is often not the whole string that was rewritten. Replacing a
+    # prefix with the full new wording leaves the tail of the old one behind. The code
+    # computed `after[:len(after)]` -- which is `after` -- behind a conditional that
+    # made the case look handled.
+    import ux_live                                                    # noqa: E402
+
+    class _A:
+        who = "Selftest"; why = None; dry_run = True; force = False
+        what = "apply"; url = None; timeout = 1
+    with tempfile.TemporaryDirectory() as _d7:
+        _r7 = Path(_d7)
+        (_r7 / "src").mkdir()
+        (_r7 / "src" / "Hero.tsx").write_text(
+            'export const Hero = () => (\n'
+            '  <section>\n'
+            '    <h1 className="t">Plans that scale with your team</h1>\n'
+            '    <div className="offer"><h3>Boiler service</h3><p>Due Friday</p></div>\n'
+            '    <p className="dup">Shared label</p>\n'
+            '  </section>\n);\n')
+        (_r7 / "src" / "Foot.tsx").write_text(
+            'export const Foot = () => <p className="dup">Shared label</p>;\n')
+        _e = _r7 / ".deuxui" / "edits"
+        _e.mkdir(parents=True)
+        _stage = [
+            ("EDIT-001", "Plans that scale with your team", "Pricing that grows", "t"),
+            ("EDIT-002", "Boiler service Due Friday", "Boiler service Monday", "offer"),
+            ("EDIT-003", "Shared label", "New label", "dup"),
+            ("EDIT-004", "Unchanged", "Unchanged", ""),
+        ]
+        for _rid, _b, _af, _cls in _stage:
+            (_e / f"{_rid}.yaml").write_text(yaml.safe_dump(
+                {"id": _rid, "before": _b, "after": _af, "selector": _cls,
+                 "tag": "p", "classes": _cls}, sort_keys=False))
+        _cwd = os.getcwd()
+        _err = io.StringIO()
+        try:
+            os.chdir(_r7)
+            with contextlib.redirect_stderr(_err):
+                _rc = ux_live._edits_apply(_A())
+        finally:
+            os.chdir(_cwd)
+        _out = _err.getvalue()
+        # One clean edit applies; three refuse, each for its own stated reason.
+        if "Pricing that grows" not in _out:
+            fails.append("edits apply refused an edit whose text is unique in the "
+                         "source and fully matched")
+        for _rid, _need in (("EDIT-002", "prefix"),
+                            ("EDIT-003", "no single place"),
+                            ("EDIT-004", "empty or unchanged")):
+            if _rid not in _out or _need not in _out:
+                fails.append(f"edits apply did not refuse {_rid} with the reason "
+                             f"{_need!r}; without it a copy edit lands on the wrong "
+                             f"string and still looks like it worked")
+        if _rc != 0:
+            fails.append(f"edits apply returned {_rc} on a batch with one applicable "
+                         f"edit; a batch is not all-or-nothing and a refusal on one "
+                         f"must not discard the rest")
+
     # comp_diff compares a build to the comp somebody approved. Every other check in
     # this skill compares an artefact to the CONTRACT, which catches a build that left
     # the system and cannot catch one that stayed inside it and is not the thing that
