@@ -256,14 +256,21 @@ def exercised(ev: list, blob: str) -> bool:
     return False
 
 
-def audit(deep: bool = False) -> dict:
+def audit(deep: bool = False, matrix=None) -> dict:
+    """Resolve every claim in the matrix. `matrix` overrides which file that is.
+
+    The override exists so the two refusals below can be TESTED. The rule that a
+    `mapped` row may not carry a gap is the one that caught a too-generous claim in
+    v5.10.0, and it was itself unexercised: with only one matrix in the tree, the
+    only way to prove the rule fires is to hand it a file that breaks it."""
+    src = Path(matrix) if matrix else MATRIX
     try:
-        doc = yaml.safe_load(MATRIX.read_text())
+        doc = yaml.safe_load(src.read_text())
     except OSError:
-        return {"ok": False, "fatal": f"{MATRIX} is missing", "rows": [],
-                "counts": {}, "problems": [f"{MATRIX} is missing"]}
+        return {"ok": False, "fatal": f"{src} is missing", "rows": [],
+                "counts": {}, "problems": [f"{src} is missing"]}
     except yaml.YAMLError as e:
-        return {"ok": False, "fatal": f"{MATRIX} is not valid YAML: {e}", "rows": [],
+        return {"ok": False, "fatal": f"{src} is not valid YAML: {e}", "rows": [],
                 "counts": {}, "problems": [str(e)]}
 
     dets = detector_ids()
@@ -343,8 +350,10 @@ def main(argv=None) -> int:
     ap.add_argument("--deep", action="store_true",
                     help="also RUN every cited script, because a present-but-broken "
                          "script satisfies a claim it cannot support")
+    ap.add_argument("--matrix", metavar="PATH",
+                    help="check this file instead of the shipped matrix")
     a = ap.parse_args(argv)
-    r = audit(a.deep)
+    r = audit(a.deep, a.matrix)
 
     if a.json:
         print(json.dumps(r, indent=1))

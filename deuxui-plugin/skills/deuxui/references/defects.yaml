@@ -1,0 +1,825 @@
+# Every defect this skill has shipped, and what would catch it again.
+#
+# Checked by `scripts/defects.py`, which resolves every citation below. Read that
+# file's docstring for why this is data rather than a paragraph saying "all fixed".
+#
+# The short version: "sixteen defects, all fixed" is the same shape of sentence as
+# "looks good". It is self-reported, it cannot be falsified, and it stays true in
+# prose long after somebody has undone the line it describes. So each row carries
+# the fix as a citation into the tree and the assertion that fails when the fix is
+# reverted -- and a row with no such assertion says UNGUARDED rather than blending
+# into a total.
+#
+# Writing this out found three things no release note had: two fixes whose control
+# did not exist (DEF-19, DEF-25), and one case where I was about to add a control
+# that was already there (DEF-15).
+
+scope: >-
+  Every defect found in the v5 series, from the rename at 5.0.0 to now. Earlier
+  releases fixed defects too -- v4.5.0 alone carried six field-reported detector
+  defects -- and they are deliberately out of scope here rather than half-recorded:
+  this file only claims what it checks.
+
+# class: what kind of wrong it was. The distinction is not cosmetic -- a wrong
+# result and a check that cannot fail need different kinds of control.
+#
+#   wrong-result   it ran and produced an answer that was not true
+#   never-worked   the feature could not work at all, in any project
+#   undetectable   a check that could not fail, or that skipped itself silently
+#   dead-end       the output was correct and left somebody with nowhere to go
+#   latent         reachable and not yet observed in the wild
+#   drift          a stated number or claim that no longer matched the artifact
+
+defects:
+  - id: DEF-01
+    title: the accept gate graded findings by a key a finding does not have
+    class: undetectable
+    found_in: "5.1.0"
+    fixed_in: "5.1.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      `accept` decided which findings were blocking by reading `finding["severity"]`.
+      Severity is a property of the RULE, in the registry, not of a finding -- so the
+      blocking list was empty every time.
+    consequence: >-
+      The gate accepted a variant putting grey on white at 1.98:1. A check that cannot
+      fail is not a check, which is this skill's own first argument, sitting in the one
+      place that decides whether a change reaches somebody's source.
+    fix: >-
+      `severity_of()` resolves each detector's severity from the registry, and the
+      control asserts the two detectors that matter most are graded P0/P1.
+    guard:
+      - file: scripts/ux_live.py
+        text: "def severity_of"
+    control:
+      - file: scripts/selftest.py
+        text: "so nothing can be graded"
+    verified_by_revert: true
+
+  - id: DEF-02
+    title: the review chrome was themed from hardcoded hex, in the tool that finds hex
+    class: wrong-result
+    found_in: "5.2.0"
+    fixed_in: "5.2.0"
+    surface: scripts/ux_review.py
+    symptom: >-
+      The review page carried literal warm greys, and `ux_question.py` four more. The
+      page also themed itself from the project under review.
+    consequence: >-
+      A project with a cool palette got a warm dark mode nobody chose, and a reviewer
+      comparing two variants of their product could not tell which pixels were the tool.
+      S-TOKEN-HEX calls a literal in a rule a token that escaped; this was that, in the
+      tool that reports it.
+    fix: >-
+      The frame reads DeuxUI's own declared contract; the framed variants keep theirs.
+      `selftest.py` then scans this skill's own review page with its own detectors.
+    guard:
+      - file: scripts/ux_review.py
+        text: uxconfig.brand_contract()
+    control:
+      - file: scripts/selftest.py
+        text: "deuxui's own review page violates deuxui's own contract"
+    verified_by_revert: true
+
+  - id: DEF-03
+    title: S-CONTRACT-FONT-AVAIL read a declared stack as one opaque face name
+    class: wrong-result
+    found_in: "5.2.0"
+    fixed_in: "5.2.0"
+    surface: scripts/fontindex.py
+    symptom: >-
+      `ui-sans-serif, system-ui, sans-serif` is a complete and honest declaration for a
+      product that ships no webfont. It was reported as a missing typeface.
+    consequence: >-
+      A false positive on the most conservative possible declaration, which is how a
+      detector teaches people to disable it.
+    fix: >-
+      The stack is read as CSS reads it: the first entry is the face whose availability
+      matters, and a leading generic always renders.
+    guard:
+      - file: scripts/fontindex.py
+        text: "def primary"
+    control:
+      - file: scripts/selftest.py
+        text: "deuxui's own review page violates deuxui's own contract"
+    verified_by_revert: true
+
+  - id: DEF-04
+    title: the composed dark theme was mixed rather than stepped down the declared ramp
+    class: wrong-result
+    found_in: "5.2.0"
+    fixed_in: "5.2.0"
+    surface: scripts/ux_question.py
+    symptom: >-
+      It produced #26282b at lightness 0.224 -- a step the contract does not declare.
+    consequence: >-
+      The tool that refuses off-ramp colour emitted one, on its own page. Contrast was
+      also being flipped rather than brought down.
+    fix: >-
+      `_dark()` holds the base hue and chroma and moves lightness to declared rungs,
+      which is what a ramp is for.
+    guard:
+      - file: scripts/ux_question.py
+        text: "def _dark"
+    control:
+      - file: scripts/selftest.py
+        text: "deuxui's own review page violates deuxui's own contract"
+    verified_by_revert: true
+
+  - id: DEF-05
+    title: "`show` bound a (ws, reason) tuple to one name, so its guard never fired"
+    class: never-worked
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      Two call sites bound `cdp.connect_page()` -- which returns a pair -- to a single
+      name. A tuple is always truthy, so the "no page is open" guard never fired and
+      `ws.call` raised AttributeError on the next line.
+    consequence: >-
+      The headline feature of v5.1.0 was a traceback, in every project, and the failure
+      surfaced as a stack trace rather than as the guard's message.
+    fix: >-
+      Unpacked at all three sites, plus an AST control over every script asserting that
+      nobody binds `connect_page` to one name again.
+    guard:
+      - file: scripts/ux_live.py
+        text: "ws, why = cdp.connect_page()"
+    control:
+      - file: scripts/selftest.py
+        text: 'nm != "connect_page"'
+    verified_by_revert: true
+
+  - id: DEF-06
+    title: the review proxy stripped CSP headers but not a meta policy
+    class: never-worked
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: scripts/ux_review.py
+    symptom: >-
+      A `<meta http-equiv="Content-Security-Policy">` sits in the body, so it survived
+      a proxy that only rewrote headers. The browser then refused the inline overlay.
+    consequence: >-
+      The refusal was logged to the framed page's console, not to the terminal the
+      reviewer was watching, so the feature quietly did not exist.
+    fix: >-
+      `strip_meta_csp` replaces the tag with a comment naming who removed it and why,
+      in the framed copy only, and the operator is told once per variant.
+    guard:
+      - file: scripts/ux_review.py
+        text: "def strip_meta_csp"
+    control:
+      - file: scripts/selftest.py
+        text: a non-CSP meta tag was rewritten
+    verified_by_revert: true
+
+  - id: DEF-07
+    title: an overlay's <style> is inline style whatever world created it
+    class: never-worked
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: scripts/cdp.py
+    symptom: >-
+      Code run over CDP is exempt from the page's policy; what it appends to the
+      document is not. Under `style-src 'self'` the highlight, badge and panel all
+      appended successfully and rendered with nothing applied.
+    consequence: >-
+      It read as "the overlay is broken", in a page whose own console held the answer.
+    fix: >-
+      `style_policy` measures it -- inject a probe rule, read back whether it took
+      effect, remove it -- and the callers refuse with the reason rather than drawing an
+      invisible overlay. v5.21.0 added `--bypass-csp` as an opt-in, still measured.
+    guard:
+      - file: scripts/cdp.py
+        text: "def style_policy"
+    control:
+      - file: scripts/selftest.py
+        text: style_policy trusts the rule count without measuring the effect
+    verified_by_revert: true
+
+  - id: DEF-08
+    title: coupled() searched only the files locate() had already proved unique
+    class: undetectable
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      It reported every OTHER place a rewritten literal appears, while searching the
+      same component sources `locate` had just proved held exactly one occurrence.
+    consequence: >-
+      It could only ever report nothing. Very nearly dead code -- and the commonest
+      coupling there is, an `en.json` keyed on the English string, was invisible to it.
+    fix: >-
+      `COUPLED_EXT` searches wider than `locate` on purpose: data, translation and
+      config files, which is where the same literal actually lives.
+    guard:
+      - file: scripts/ux_live.py
+        text: COUPLED_EXT
+    control:
+      - file: scripts/selftest.py
+        text: files locate() already proved unique
+    verified_by_revert: true
+
+  - id: DEF-09
+    title: the skill's own counts disagreed with its own registry
+    class: drift
+    found_in: "5.4.0"
+    fixed_in: "5.4.0"
+    surface: SKILL.md
+    symptom: >-
+      183 static checks against the shipped 184; "one of the 30 operations" two lines
+      above "all thirty-five"; and "213 of the 235 rules have an automated detector; the
+      other 21" -- two numbers that do not add up to 235, where the real split is 215
+      and 20.
+    consequence: >-
+      A document that miscounts its own contents is not evidence of anything, and this
+      one is the first thing an agent reads.
+    fix: >-
+      Corrected, and all six numbers are now recounted from the registry by a control.
+      That control caught its own first version miscounting `static` as one engine
+      rather than the tier -- a control enforcing its own miscount is worse than none.
+    guard:
+      - file: SKILL.md
+        text: 215 of the 235 rules
+    control:
+      - file: scripts/selftest.py
+        text: rules have an automated detector
+    verified_by_revert: true
+
+  - id: DEF-10
+    title: wrap moved the element's first child instead of the element
+    class: wrong-result
+    found_in: "5.5.0"
+    fixed_in: "5.5.0"
+    surface: scripts/jsxspan.py
+    symptom: >-
+      A `<section>`'s innerText begins with its first heading's text, so picking the
+      section and asking to wrap it wrapped the `<h1>`.
+    consequence: >-
+      It applied cleanly and looked right in a diff. It moved something nobody named,
+      which is the exact failure this write path exists to refuse.
+    fix: >-
+      The span is verified before any caller may write, including that the tag found in
+      source agrees with the DOM tag the browser reported. A capitalised name is a
+      component and still matches anything; a lowercase mismatch is provable and refuses.
+    guard:
+      - file: scripts/jsxspan.py
+        text: in the browser was a <
+    control:
+      - file: scripts/selftest.py
+        text: container picked, not its child
+    verified_by_revert: true
+
+  - id: DEF-11
+    title: a state directory was recognised by a remembered name, not by its contents
+    class: wrong-result
+    found_in: "5.6.0"
+    fixed_in: "5.6.0"
+    surface: scripts/uxconfig.py
+    symptom: >-
+      Detection matched one hardcoded directory name. A directory somebody copied or
+      renamed by hand held every contract version, decision and note the project ever
+      made, and nothing found it.
+    consequence: >-
+      The project read as one that had never declared anything, so every contract rule
+      reported NOT_RUN -- which looks like a clean scan to anybody not paying attention.
+    fix: >-
+      Any hidden directory holding a file only this tool writes is a record of ours,
+      whatever it is called. The name is the least reliable thing about a directory.
+    guard:
+      - file: scripts/uxconfig.py
+        text: STATE_MARKERS
+    control:
+      - file: scripts/selftest.py
+        text: legacy_state did not find a record under an arbitrary
+    verified_by_revert: true
+
+  - id: DEF-12
+    title: doctor said nothing when a second record sat beside the live one
+    class: undetectable
+    found_in: "5.6.0"
+    fixed_in: "5.6.0"
+    surface: scripts/doctor.py
+    symptom: >-
+      It reported "your records are in a directory this version cannot see" and had no
+      row at all for a rival record next to a live one -- the case actually in the wild.
+    consequence: >-
+      Everything in the second directory, including any approval a decision points at,
+      was ignored in silence.
+    fix: >-
+      `state_candidates` answers how MANY there are, which a None-or-path return cannot,
+      and doctor carries the missing half of the row.
+    guard:
+      - file: scripts/uxconfig.py
+        text: "def state_candidates"
+    control:
+      - file: scripts/selftest.py
+        text: state_candidates did not see the second record
+    verified_by_revert: true
+
+  - id: DEF-13
+    title: the archive --adopt created was detected as a new rival on the next run
+    class: never-worked
+    found_in: "5.8.0"
+    fixed_in: "5.8.0"
+    surface: scripts/uxconfig.py
+    symptom: >-
+      `migrate --adopt` archived the record somebody chose not to keep, and the next
+      probe read the archive as a live record of ours.
+    consequence: >-
+      Resolving one conflict manufactured a permanent one. No sequence of commands could
+      reach a clean state at all. Found only by running `migrate` again afterwards.
+    fix: >-
+      A `SET-ASIDE.md` marker, not a name pattern -- for the same reason as DEF-11, and
+      so that renaming an archive does not resurrect it.
+    guard:
+      - file: scripts/uxconfig.py
+        text: "SET_ASIDE = "
+    control:
+      - file: scripts/selftest.py
+        text: is still reported as a
+    verified_by_revert: true
+
+  - id: DEF-14
+    title: contrast was read as a dict when comp_spec reports a bare float
+    class: undetectable
+    found_in: "5.9.0"
+    fixed_in: "5.9.0"
+    surface: scripts/comp_diff.py
+    symptom: >-
+      `spec["ink_on_canvas"]["ratio"]` on a value that is a float. Every image returned
+      None and the ground dimension reported NOT_RUN.
+    consequence: >-
+      NOT_RUN on input it could measure perfectly well -- laundering an unrun check into
+      a clean-looking report, in code written to prevent exactly that.
+    fix: >-
+      Read as the float it is, with a self-comparison control that has to say AGREES.
+    guard:
+      - file: scripts/comp_diff.py
+        text: v = spec.get("ink_on_canvas")
+    control:
+      - file: scripts/selftest.py
+        text: comp_diff.ground_diff says
+    verified_by_revert: true
+
+  - id: DEF-15
+    title: a lost tonal step was printed as two rows with the same built percentage
+    class: wrong-result
+    found_in: "5.9.0"
+    fixed_in: "5.9.0"
+    surface: scripts/comp_diff.py
+    symptom: >-
+      Two distinct comp colours matching the SAME built colour is a tonal step the build
+      lost. It was reported as two happy matches carrying an identical number.
+    consequence: >-
+      A real finding read as a display bug, so the reader's conclusion was "the tool is
+      repeating itself" rather than "the build flattened two steps into one".
+    fix: >-
+      Reported as `collapsed`, and it counts toward the verdict.
+    guard:
+      - file: scripts/comp_diff.py
+        text: "collapsed = ["
+    control:
+      - file: scripts/selftest.py
+        text: did not report two comp colours collapsing
+      - file: scripts/selftest.py
+        text: so the finding fires on a faithful build
+    verified_by_revert: true
+
+  - id: DEF-16
+    title: hue decided whether two greys matched
+    class: wrong-result
+    found_in: "5.9.0"
+    fixed_in: "5.9.0"
+    surface: scripts/comp_diff.py
+    symptom: >-
+      Hue is numerically unstable as chroma approaches zero. `#808080` and `#818080` are
+      the same grey to anyone, and OKLCH puts their hues 73 degrees apart.
+    consequence: >-
+      Matching greys were rejected, so a faithful build was reported as having lost its
+      neutrals.
+    fix: >-
+      Below a chroma floor, hue does not get a vote.
+    guard:
+      - file: scripts/comp_diff.py
+        text: "if max(ca, cb) < 0.03:"
+    control:
+      - file: scripts/selftest.py
+        text: hue is unstable at zero chroma
+    verified_by_revert: true
+
+  - id: DEF-17
+    title: a wireframe's placeholder band was measured as design intent
+    class: wrong-result
+    found_in: "5.9.0"
+    fixed_in: "5.9.0"
+    surface: scripts/comp_diff.py
+    symptom: >-
+      17% of a rendered wireframe was a hatched panel standing in for a photograph
+      nobody has chosen. Its colour was compared against the build's.
+    consequence: >-
+      A faithful build was reported as DIFFERS. The first fix was also wrong: excluding
+      regions classified `plate` skipped nothing, because a synthetic hatch has high edge
+      density with few colours and classifies as `mixed`.
+    fix: >-
+      The file says what it is -- `ux_image.py render` writes a marker into every sheet
+      -- and the colour dimensions stand down to NOT_RUN with the reason. Asked of the
+      file, not inferred from the pixels.
+    guard:
+      - file: scripts/comp_diff.py
+        text: WIREFRAME_MARK
+    control:
+      - file: scripts/selftest.py
+        text: comp_diff.is_wireframe missed the marker
+    verified_by_revert: true
+
+  - id: DEF-18
+    title: a no-op slice made the prefix-anchor case look handled
+    class: wrong-result
+    found_in: "5.10.0"
+    fixed_in: "5.10.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      An element's text often spans more than one source string, so `locate` resolves on
+      a progressively shorter prefix. The rewrite loop computed `after[:len(after)]` --
+      which is `after` -- behind a conditional that made the case look handled.
+    consequence: >-
+      It would have half-rewritten every multi-string element, left the tail of the old
+      wording in place, and looked like it worked.
+    fix: >-
+      It refuses and names the file to edit by hand. Neither trimming the new wording nor
+      replacing a prefix with all of it is knowable from here.
+    guard:
+      - file: scripts/ux_live.py
+        text: this will not rewrite a prefix, because where
+    control:
+      - file: scripts/selftest.py
+        text: no single place
+    verified_by_revert: true
+
+  - id: DEF-19
+    title: a parity row was marked mapped while carrying a gap
+    class: drift
+    found_in: "5.10.0"
+    fixed_in: "5.10.0"
+    surface: scripts/parity.py
+    symptom: >-
+      I marked `comp-diff` mapped and left a `gap` on it. The checker refused the
+      release, which is what it is for.
+    consequence: >-
+      A row reading as complete while something inside it says otherwise is how a
+      coverage file rots into reassurance.
+    fix: >-
+      Both directions are refused: `mapped` with a gap, and `partial`/`absent` without
+      one. The rule existed from 5.4.0; until now nothing exercised it, because with one
+      matrix in the tree there was nothing to hand it that breaks the rule. `audit()`
+      takes a matrix path now, and both refusals are asserted.
+    guard:
+      - file: scripts/parity.py
+        text: "status is 'mapped' but a `gap` is recorded"
+    control:
+      - file: scripts/selftest.py
+        text: a `mapped` row carrying a gap was accepted
+      - file: scripts/selftest.py
+        text: a `partial` row with no gap was accepted
+    verified_by_revert: true
+
+  - id: DEF-20
+    title: locate dead-ended on text that lives in data rather than markup
+    class: dead-end
+    found_in: "5.11.0"
+    fixed_in: "5.11.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      When an element's text is nowhere in any component, it reported "no anchor resolved
+      to exactly one place in the source". True, and useless.
+    consequence: >-
+      It sent somebody grepping components for a string that was never in one. In a
+      component app the text usually lives in a mapped constant, a translation catalogue
+      or a fixture -- files `locate` does not search.
+    fix: >-
+      It names that file and line, and deliberately refuses to write there: the same row
+      may render in three places and the key beside it may be what an icon map or an
+      analytics event is keyed on.
+    guard:
+      - file: scripts/ux_live.py
+        text: "def _in_data"
+    control:
+      - file: scripts/selftest.py
+        text: locate did not name the data file the text actually lives in
+    verified_by_revert: true
+
+  - id: DEF-21
+    title: a word boundary before *ngFor can never match
+    class: never-worked
+    found_in: "5.12.0"
+    fixed_in: "5.12.0"
+    surface: scripts/jsxspan.py
+    symptom: >-
+      The character before `*` is a space, and two non-word characters have no boundary
+      between them.
+    consequence: >-
+      Angular's repeat form was silently undetectable, so an edit to one row of a
+      repeated list was reported as a local change.
+    fix: >-
+      A negative lookbehind, which works for every spelling and still refuses to match
+      inside `data-v-format`.
+    guard:
+      - file: scripts/jsxspan.py
+        text: "(?<![\\w-])(v-for|x-for|\\*ngFor|ng-repeat)"
+    control:
+      - file: scripts/selftest.py
+        text: '"angular ngFor"'
+    verified_by_revert: true
+
+  - id: DEF-22
+    title: the repeat check required a strict ancestor, and v-for sits on the element
+    class: never-worked
+    found_in: "5.12.0"
+    fixed_in: "5.12.0"
+    surface: scripts/jsxspan.py
+    symptom: >-
+      `v-for`, `x-for` and `ng-repeat` are attributes of the element being repeated, not
+      of an ancestor. Requiring a strict ancestor missed every Vue and Alpine case.
+    consequence: >-
+      Same as DEF-21, for three more frameworks: "wrapped the element" and "wrapped
+      every row" are different changes and only one was asked for.
+    fix: >-
+      The element somebody picked is allowed to be the one carrying the attribute.
+    guard:
+      - file: scripts/jsxspan.py
+        text: _ATTR_REPEAT.search(head)
+    control:
+      - file: scripts/selftest.py
+        text: '"vue v-for"'
+    verified_by_revert: true
+
+  - id: DEF-23
+    title: a .forEach() was reported as a .map()
+    class: wrong-result
+    found_in: "5.12.0"
+    fixed_in: "5.12.0"
+    surface: scripts/jsxspan.py
+    symptom: >-
+      Every repeater was labelled with the first pattern's name.
+    consequence: >-
+      A small lie about somebody's code, in the sentence they read to decide whether an
+      edit is safe to apply.
+    fix: >-
+      Each pattern carries its own label, and the label names the method that matched.
+    guard:
+      - file: scripts/jsxspan.py
+        text: "a .{0}() callback"
+    control:
+      - file: scripts/selftest.py
+        text: reported a .forEach() as a .map()
+    verified_by_revert: true
+
+  - id: DEF-24
+    title: the parity checker proved evidence existed, not that it worked
+    class: undetectable
+    found_in: "5.13.0"
+    fixed_in: "5.13.0"
+    surface: scripts/parity.py
+    symptom: >-
+      A row could cite a script that is present and broken. The claim resolved while the
+      capability did not, and twenty scripts were cited only as `script:` -- never run by
+      anything.
+    consequence: >-
+      A `mapped` row backed by a module that raises on import is exactly the
+      overstatement the matrix was written to prevent, and nothing in it could see that.
+      Proven on `typescale.py`: broken on import, shallow `--check` exits 0.
+    fix: >-
+      `--deep` runs each cited script's `--help`, which forces the whole import graph.
+    guard:
+      - file: scripts/parity.py
+        text: "def runs"
+    control:
+      - file: scripts/selftest.py
+        text: parity --deep ran no scripts
+    verified_by_revert: true
+
+  - id: DEF-25
+    title: a shadowed variable made every row in the deep report nameless
+    class: wrong-result
+    found_in: "5.13.0"
+    fixed_in: "5.13.0"
+    surface: scripts/parity.py
+    symptom: >-
+      The new block bound `name` inside the evidence loop, three lines below the row's
+      own `name`, and evidence kinds other than `script:` resolve it to None.
+    consequence: >-
+      Every row printed as `None`. A report that cannot say WHICH claim it is describing
+      is not a report. Caught by running it, not by reading it.
+    fix: >-
+      A separate name, and an assertion that no deep row is nameless. Until now nothing
+      checked this, which is why it is here. Reinstating the shadow does not actually
+      produce a nameless row -- it raises inside `audit`, where `sorted()` meets two
+      Nones -- so the control catches both: the exception is reported by name rather
+      than as a traceback about a sort, and the nameless assertion covers the variant
+      that would not crash.
+    guard:
+      - file: scripts/parity.py
+        text: cited = (rest if kind ==
+    control:
+      - file: scripts/selftest.py
+        text: row(s) with no name
+    verified_by_revert: true
+
+  - id: DEF-26
+    title: the provenance control pointed at a PNG that does not exist
+    class: undetectable
+    found_in: "5.14.0"
+    fixed_in: "5.14.0"
+    surface: scripts/checks/fixtures/provenance.png
+    symptom: >-
+      The case referenced `contrast.png`, absent from this tree, so the whole block was
+      skipped and the group reported all ok.
+    consequence: >-
+      A check that could not run, reporting a pass, inside the skill whose thesis is that
+      a check that did not run must never report one.
+    fix: >-
+      A 74-byte PNG fixture ships, and its absence is itself a failure rather than a
+      silent skip.
+    guard:
+      - file: scripts/checks/fixtures/provenance.png
+        text: PNG
+    control:
+      - file: scripts/selftest.py
+        text: so the provenance round-trip cannot be
+    verified_by_revert: true
+
+  - id: DEF-27
+    title: classify called the commonest generic in CSS a serif
+    class: wrong-result
+    found_in: "5.15.0"
+    fixed_in: "5.15.0"
+    surface: scripts/fontindex.py
+    symptom: >-
+      `CLASS_TOKENS` is ordered with serif before sans, and `sans-serif` contains
+      `serif`.
+    consequence: >-
+      Reachable from `--pair` and from `pairing()`, which classify whatever the caller
+      typed -- so the pairing advice could tell somebody their sans-serif clashed with
+      their sans-serif.
+    fix: >-
+      The compound generic is matched before the token loop can see the substring.
+    guard:
+      - file: scripts/fontindex.py
+        text: 'r"\bsans[- ]serif\b"'
+    control:
+      - file: scripts/selftest.py
+        text: '("sans-serif", "sans")'
+    verified_by_revert: true
+
+  - id: DEF-28
+    title: classify classified the whole stack rather than the face
+    class: wrong-result
+    found_in: "5.15.0"
+    fixed_in: "5.15.0"
+    surface: scripts/fontindex.py
+    symptom: >-
+      `primary()` exists for exactly this and was not used, so `Inter, Georgia, serif`
+      read as a serif.
+    consequence: >-
+      The class was decided by whichever family appeared anywhere in the value, which is
+      not the face a browser renders.
+    fix: >-
+      Resolve the primary face first, then classify that.
+    guard:
+      - file: scripts/fontindex.py
+        text: face = primary(name) or name
+    control:
+      - file: scripts/selftest.py
+        text: '("Inter, Georgia, serif", "sans")'
+    verified_by_revert: true
+
+  - id: DEF-29
+    title: two concurrent applies would each diff against a file the other had rewritten
+    class: latent
+    found_in: "5.20.0"
+    fixed_in: "5.20.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      Both runs read the staged batch, both resolved against the same pre-edit text, and
+      the second wrote a diff computed from a file that no longer existed.
+    consequence: >-
+      Silent corruption of somebody's source, with two decision records each describing
+      a change that was not what landed.
+    fix: >-
+      An exclusive `O_EXCL` lock. Not a lease -- one machine -- and a held lock is
+      reported with its age and holder rather than silently removed, because a lock
+      nobody can explain is how a tool teaches people to delete locks.
+    guard:
+      - file: scripts/ux_live.py
+        text: "def edits_lock"
+    control:
+      - file: scripts/selftest.py
+        text: edits_lock granted the same lock twice
+    verified_by_revert: true
+
+  - id: DEF-30
+    title: a stale anchor was explained as "reworded" in both of its two causes
+    class: wrong-result
+    found_in: "5.20.0"
+    fixed_in: "5.20.0"
+    surface: scripts/ux_live.py
+    symptom: >-
+      A prefix anchor has two causes -- the text was reworded after staging, or the
+      element's text always spanned more than one source string -- and in both the full
+      run is absent from the file now, so the current file cannot tell them apart. The
+      first fix asserted "reworded" in both.
+    consequence: >-
+      It tells somebody their markup is split when it was merely edited, and sends them
+      looking for a structural problem that does not exist.
+    fix: >-
+      What resolved AT STAGING TIME is recorded in the edit, so three outcomes are
+      distinguishable: reworded, always-spanning, and -- for an edit staged by a version
+      that did not record it -- neither claimed.
+    guard:
+      - file: scripts/ux_live.py
+        text: staged_contiguous
+    control:
+      - file: scripts/selftest.py
+        text: reworded since
+    verified_by_revert: true
+
+  - id: DEF-31
+    title: a batch of edits was scanned one file at a time
+    class: undetectable
+    found_in: "5.20.1"
+    fixed_in: "5.20.1"
+    surface: scripts/ux_live.py
+    symptom: >-
+      `_edits_apply` ran `check_delta` in a loop, and each call copied the tree and
+      applied ONE file's edit.
+    consequence: >-
+      Every scan saw a tree carrying a single change rather than the batch that would
+      ship, so a finding that only appears when two files change together could never be
+      produced. Also slow: the whole project was copied once per file.
+    fix: >-
+      `check_delta_many` takes the whole edit map -- one copy, every edit, one scan --
+      and `check_delta` delegates to it rather than keeping a second implementation.
+      Having two was how the batch path came to scan a tree that held one edit.
+    guard:
+      - file: scripts/ux_live.py
+        text: "def check_delta_many"
+    control:
+      - file: scripts/selftest.py
+        text: missed a P0/P1 introduced by the FIRST
+    verified_by_revert: true
+
+  - id: DEF-33
+    title: selftest had no argument parsing, so --help ran the whole suite
+    class: never-worked
+    found_in: "5.22.0"
+    fixed_in: "5.22.0"
+    surface: scripts/selftest.py
+    symptom: >-
+      `selftest.py` read no arguments at all, so `selftest.py --help` executed every
+      group. `parity.py --deep` probes each cited script by asking it for help, and
+      `selftest.py` is cited -- so the probe ran the suite. Latent until a group in the
+      suite called `parity.audit(deep=True)`, at which point each run spawned a run
+      which spawned a run, every level with its own 60 second timeout.
+    consequence: >-
+      `parity --deep` reported `selftest.py: cited but does not run -- TimeoutExpired`,
+      which is a false statement about a script that works, produced by the gate whose
+      whole job is to tell a working capability from a broken one. The full run went
+      from 16 seconds to 71, and the gate that found it would eventually have started
+      failing releases for the wrong reason.
+    fix: >-
+      A real front door: argparse, `--list`, and `--group` for one group at a time --
+      with every group it did not run reporting NOT RUN and the verdict downgraded to
+      PARTIAL, because a runner that prints PASS over six unrun groups is the exact
+      laundering this skill exists to refuse. `--help` now answers in 0.2s and runs
+      nothing.
+    guard:
+      - file: scripts/selftest.py
+        text: ap.parse_args(argv)
+    control:
+      - file: scripts/selftest.py
+        text: ran the suite instead of describing it
+    verified_by_revert: true
+
+  - id: DEF-32
+    title: the decision record described the last file, not the batch
+    class: wrong-result
+    found_in: "5.20.1"
+    fixed_in: "5.20.1"
+    surface: scripts/ux_live.py
+    symptom: >-
+      The loop variable was overwritten each iteration, so the record's `checks`
+      summarised whichever file happened to be last.
+    consequence: >-
+      A record that describes something other than what shipped, in the code that writes
+      the records. That is the failure this whole skill is built to refuse.
+    fix: >-
+      The record carries the batch's own result, including how many files were scanned --
+      a count that looks redundant and is what makes the record falsifiable.
+    guard:
+      - file: scripts/ux_live.py
+        text: '"files": delta.get("files")'
+    control:
+      - file: scripts/selftest.py
+        text: check_delta_many reported
+    verified_by_revert: true

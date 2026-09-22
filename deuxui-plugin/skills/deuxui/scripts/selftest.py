@@ -3,9 +3,19 @@
 
 A check that cannot fail its own negative case is not a check, it is a comment.
 Run this before trusting any report.
+
+    python3 selftest.py                  every group
+    python3 selftest.py --group spans    one group, and the rest report NOT RUN
+    python3 selftest.py --list           the group names
+
+`--help` returns immediately and runs nothing. That is not a courtesy: this file had
+no argument parsing at all, so `--help` ran the entire suite -- and `parity.py --deep`
+runs `--help` on every script it cites, including this one. Once a group in here
+called `parity.audit(deep=True)`, each run spawned a run which spawned a run. The
+front door of a test suite has to be answerable without running the suite.
 """
 from __future__ import annotations
-import os, shutil, subprocess, sys, tempfile, json, io, contextlib
+import argparse, os, shutil, subprocess, sys, tempfile, json, io, contextlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -1056,6 +1066,136 @@ def capabilities():
             finally:
                 os.chdir(cwd)
 
+    # 8. the parity matrix's own two refusals. The rule that a `mapped` row may not
+    #    carry a `gap` is what caught a too-generous claim of mine in v5.10.0, and it
+    #    had never been exercised -- with one matrix in the tree there was nothing to
+    #    hand it that breaks the rule. Both directions, plus the real file resolving,
+    #    because a rule that refuses everything is no better than one that refuses
+    #    nothing.
+    import parity
+    with tempfile.TemporaryDirectory() as td:
+        _m = Path(td) / "m.yaml"
+        _head = "source: {project: t}\ncommands:\n  - name: t\n    here: y\n"
+        for _body, _want, _why in (
+                ("    status: mapped\n    gap: something is missing\n", False,
+                 "a `mapped` row carrying a gap was accepted, so a row can read as "
+                 "complete while something in it says otherwise"),
+                ("    status: partial\n", False,
+                 "a `partial` row with no gap was accepted, which is how this file "
+                 "rots: a status softens and nobody can see what is still missing"),
+                ("    status: mapped\n", True,
+                 "a well-formed mapped row was refused, so the rule refuses "
+                 "everything and proves nothing")):
+            _m.write_text(_head + _body + "    evidence: [script:parity.py]\n")
+            if parity.audit(False, _m)["ok"] is not _want:
+                fails.append(_why)
+
+    # 9. `--deep` names the row it is talking about. The first version bound `name`
+    #    inside the evidence loop, three lines below the row's own `name`, so every row
+    #    in the report read `None` -- a report that cannot say WHICH claim failed is not
+    #    a report. Asserted against deep, because shallow never had the bug.
+    #    Wrapped, because reinstating the shadow does not produce a nameless row -- it
+    #    produces a TypeError deep inside `audit`, where `sorted()` meets a None among
+    #    the names. A traceback is detection of a sort and a terrible report: it names a
+    #    sort, not the claim that lost its name. Both outcomes say so by name now.
+    try:
+        _deep = parity.audit(True)
+    except Exception as _e:
+        _deep = {}
+        fails.append(f"parity --deep raised {type(_e).__name__}: {_e} -- the rows it "
+                     f"builds are malformed, most likely one with no name")
+    if _deep and not _deep.get("scripts_run"):
+        fails.append("parity --deep ran no scripts, so nothing was actually executed "
+                     "and `deep` means nothing")
+    _nameless = [i for i, x in enumerate(_deep.get("rows") or [])
+                 if not str(x.get("name") or "").strip()]
+    if _nameless:
+        fails.append(f"parity --deep produced {len(_nameless)} row(s) with no name, so "
+                     f"the report cannot say which claim it is describing")
+
+    # 10. the negative half of the collapse case. `contract invariants` already
+    #     asserts that two comp colours landing on one built colour is reported as a
+    #     lost tonal step; nothing asserted the other direction, so a `collapsed` that
+    #     fired on every faithful build would have passed. One colour matching one
+    #     colour must stay silent. (Not a second copy of the positive case -- writing
+    #     one was how I noticed the first was already there.)
+    import comp_diff
+    _fine = comp_diff.palette_diff(
+        {"semantic": {"palette": [{"hex": "#1f5eff", "coverage_pct": 30.0}]}},
+        {"semantic": {"palette": [{"hex": "#1f5eff", "coverage_pct": 31.0}]}})
+    if _fine["collapsed"] or _fine["verdict"] != "AGREES":
+        fails.append("comp_diff reports a collapsed tonal step when one comp colour "
+                     "matched one built colour, so the finding fires on a faithful build")
+
+    # 11. the defect ledger's own refusals. `references/defects.yaml` is the claim that
+    #     every defect this skill has shipped is fixed AND guarded, and a list like that
+    #     is the easiest document in a repository to stop believing. So the rules that
+    #     keep it honest are exercised the same way parity's are: by handing the checker
+    #     a file that breaks each one, and one that breaks none.
+    import defects
+    _good = {"id": "DEF-01", "title": "t", "class": "wrong-result",
+             "found_in": "5.0.0", "fixed_in": "5.0.0", "surface": "scripts/selftest.py",
+             "symptom": "s", "consequence": "c", "fix": "f",
+             "guard": [{"file": "scripts/selftest.py", "text": "def capabilities"}],
+             "control": [{"file": "scripts/selftest.py", "text": "def capabilities"}]}
+    _bad_control = dict(_good, control=[{"file": "references/index.md", "text": "#"}])
+    # Built by concatenation on purpose: written as one literal it would appear in THIS
+    # file, which is the file the citation points at, and the case would pass while
+    # proving nothing. The first version did exactly that.
+    _absent = "def " + "no_such_" + "function_9f3a1c"
+    _stale = dict(_good, guard=[{"file": "scripts/selftest.py", "text": _absent}])
+    _future = dict(_good, fixed_in="99.0.0")
+    _silent = {k: v for k, v in _good.items() if k != "control"}
+    with tempfile.TemporaryDirectory() as td:
+        _p = Path(td) / "d.yaml"
+        for _row, _want, _why in (
+                (_good, True, "a well-formed defect row was refused, so the ledger's "
+                              "rules refuse everything and prove nothing"),
+                (_bad_control, False,
+                 "a reference document was accepted as a control -- a document cannot "
+                 "catch a regression, which is the whole distinction this file draws"),
+                (_stale, False,
+                 "a guard citation that no longer resolves was accepted, so the ledger "
+                 "can describe a fix that is no longer in the tree"),
+                (_future, False,
+                 "a fix claimed in a release that does not exist was accepted"),
+                (_silent, False,
+                 "a row with no control and no reason for having none was accepted, so "
+                 "an unguarded fix can hide inside the total")):
+            _p.write_text(yaml.safe_dump({"scope": "t", "defects": [_row]}))
+            if defects.audit(_p)["ok"] is not _want:
+                fails.append(_why)
+    # 12. this file's own front door. It had no argument parsing, so `--help` ran the
+    #     whole suite -- and `parity.py --deep` runs `--help` on every script it cites,
+    #     this one included. The moment a group in here called `parity.audit(deep=True)`,
+    #     one run spawned another, each with its own 60s timeout. Asserted rather than
+    #     remembered: `--help` must answer immediately and must not run anything.
+    try:
+        _hr = subprocess.run([sys.executable, str(HERE / "selftest.py"), "--help"],
+                             capture_output=True, text=True, timeout=25)
+    except subprocess.TimeoutExpired:
+        # The shape the defect actually takes when reinstated. Caught and named rather
+        # than raised: a traceback here reads as a broken test, not as the finding.
+        _hr = None
+        fails.append("selftest.py --help did not answer inside 25s, so it is running "
+                     "the suite rather than describing it -- which is how `parity "
+                     "--deep` came to spawn a run inside a run")
+    if _hr is not None and _hr.returncode != 0:
+        fails.append(f"selftest.py --help exits {_hr.returncode}, so every tool that "
+                     f"probes a script by asking for help reports this one as broken")
+    if _hr is not None and "SELFTEST" in (_hr.stdout + _hr.stderr):
+        fails.append("selftest.py --help ran the suite instead of describing it, which "
+                     "is how `parity --deep` came to spawn a run inside a run")
+
+    _led = defects.audit()
+    if not _led["ok"]:
+        fails.append(f"the defect ledger does not resolve: {_led['problems'][:1]}")
+    elif _led["counts"]["unguarded"]:
+        # Not a failure -- an unguarded fix is allowed to exist and required to be
+        # declared. It is surfaced here so it cannot sit in a file nobody reads.
+        print(f"  note {_led['counts']['unguarded']} defect fix(es) are UNGUARDED; "
+              f"python3 scripts/defects.py --unguarded")
+
     for f in fails:
         print(f"  FAIL {f}")
     return fails
@@ -1944,17 +2084,47 @@ export default { async headers() { return [{ source: "/(.*)",
     return fails
 
 
-def main():
-    contract = contract_checks()
-    wiring = config_wiring()
-    bytecode = no_shipped_bytecode()
-    overlay = overlay_policy()
-    caps = capabilities()
-    spans = element_spans()
-    with tempfile.TemporaryDirectory() as d:
-        bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
-    with tempfile.TemporaryDirectory() as d:
-        good = run(Path(tempfile.mkdtemp(dir=d)), "good")
+GROUPS = {"contract": "contract invariants", "config": "config wiring",
+          "bytecode": "shipped bytecode", "csp": "overlay vs page CSP",
+          "capabilities": "capabilities", "spans": "element spans",
+          "corpus": "the known-bad and known-good fixtures"}
+
+NOT_RUN = "NOT RUN"
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--group", action="append", choices=sorted(GROUPS),
+                    help="run only this group; repeatable. Everything else reports "
+                         "NOT RUN, which is not a pass")
+    ap.add_argument("--list", action="store_true", help="the group names, and exit")
+    a = ap.parse_args(argv)
+    if a.list:
+        for k, v in sorted(GROUPS.items()):
+            print(f"  {k:<14} {v}")
+        return 0
+    want = set(a.group or GROUPS)
+
+    # A skipped group is NOT_RUN, never an empty pass. Same rule this whole skill is
+    # built on, applied to its own test runner: `--group spans` must not print a report
+    # that reads as though the other six had been checked and found clean.
+    def maybe(key, fn):
+        return fn() if key in want else NOT_RUN
+
+    contract = maybe("contract", contract_checks)
+    wiring = maybe("config", config_wiring)
+    bytecode = maybe("bytecode", no_shipped_bytecode)
+    overlay = maybe("csp", overlay_policy)
+    caps = maybe("capabilities", capabilities)
+    spans = maybe("spans", element_spans)
+    if "corpus" in want:
+        with tempfile.TemporaryDirectory() as d:
+            bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
+        with tempfile.TemporaryDirectory() as d:
+            good = run(Path(tempfile.mkdtemp(dir=d)), "good")
+    else:
+        bad, good = set(EXPECT), set()
 
     missed = [d for d in EXPECT if d not in bad]
     leaked = sorted(good)
@@ -1963,18 +2133,32 @@ def main():
         if mark == "FAIL":
             why = "silent on bad" if d not in bad else "fires on good"
             print(f"  {mark} {d:<22} {why}")
-    print(f"\nfired on bad:  {len(bad)}")
-    print(f"expected but silent: {missed or 'none'}")
-    print(f"false positives on good: {leaked or 'none'}")
-    print(f"contract invariants: {'all ok' if not contract else str(len(contract)) + ' FAILING'}")
-    print(f"config wiring:       {'all ok' if not wiring else str(len(wiring)) + ' FAILING'}")
-    print(f"shipped bytecode:    {'none' if not bytecode else str(len(bytecode)) + ' FOUND'}")
-    print(f"overlay vs page CSP: {'all ok' if not overlay else str(len(overlay)) + ' FAILING'}")
-    print(f"element spans:       {'all ok' if not spans else str(len(spans)) + ' FAILING'}")
-    print(f"capabilities:        {'all ok' if not caps else str(len(caps)) + ' FAILING'}")
-    ok = (not missed and not leaked and not contract and not wiring and not bytecode
-          and not overlay and not spans and not caps)
-    print("\nSELFTEST", "PASS" if ok else "FAIL")
+    def say(label, got, clean="all ok"):
+        if got == NOT_RUN:
+            return f"{label:<21}{NOT_RUN}"
+        return f"{label:<21}{clean if not got else str(len(got)) + ' FAILING'}"
+
+    if "corpus" in want:
+        print(f"\nfired on bad:  {len(bad)}")
+        print(f"expected but silent: {missed or 'none'}")
+        print(f"false positives on good: {leaked or 'none'}")
+    else:
+        print(f"\nthe known-bad and known-good fixtures: {NOT_RUN}")
+    print(say("contract invariants:", contract))
+    print(say("config wiring:", wiring))
+    print(say("shipped bytecode:", bytecode, clean="none"))
+    print(say("overlay vs page CSP:", overlay))
+    print(say("element spans:", spans))
+    print(say("capabilities:", caps))
+    ran = [g for g in (contract, wiring, bytecode, overlay, spans, caps)
+           if g != NOT_RUN]
+    ok = (not missed and not leaked and not any(ran))
+    skipped = sorted(set(GROUPS) - want)
+    # Not PASS. Every other part of this skill refuses to let an unrun check round up
+    # to a passing one, and its own runner does not get an exemption.
+    verdict = "FAIL" if not ok else ("PARTIAL" if skipped else "PASS")
+    tail = f" -- {len(skipped)} group(s) NOT RUN: {', '.join(skipped)}" if skipped else ""
+    print(f"\nSELFTEST {verdict}{tail}")
     return 0 if ok else 1
 
 

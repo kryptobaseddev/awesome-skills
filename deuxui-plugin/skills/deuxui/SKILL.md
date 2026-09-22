@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.21.0"
-  last_updated: "2026-09-22 07:11:30"
+  version: "5.22.0"
+  last_updated: "2026-09-22 07:45:58"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -347,6 +347,7 @@ Each reference is self-contained. Read the one you need.
 | `scripts/jsxspan.py` | **Where an element begins and ends, or a refusal.** Structural edits need boundaries, and scanning for `<` and `>` does not survive real code: `onClick={() => x}`, `{a > b}`, `title="a > b"`, `useState<Row[]>`, `{/* <Legacy /> */}` and `// <Old />` are all angle brackets that are not tag boundaries. A state machine that knows strings, template literals, both comment forms and brace depth — then the span is **verified** (same tag at both ends, the anchor exactly once inside, balanced within, and the tag agreeing with what the browser reported) before any caller is allowed to write. |
 | `scripts/parity.py` | **The coverage claim, made falsifiable.** `references/parity/impeccable.yaml` records what impeccable does row by row and what this skill does about it; this resolves every piece of evidence in it and refuses a `partial` or `absent` that does not say what is missing. "We have everything they have" is the same shape of unfalsifiable sentence as "looks good", so it is checked rather than asserted. `--deep` also RUNS every cited script, because a script that is present and broken satisfies a claim it cannot support — and it prints how many mapped rows an automated control actually exercises, separately from those that only start. That second number is the honest answer to "wired *and working*" and it is printed whatever it says. |
 | `scripts/lint_rules.py` | Proves no prose cites an invented rule ID, no detector claims coverage nobody implemented, and no rule is orphaned onto a detector that can never run. |
+| `scripts/defects.py` | **Every defect this skill has shipped, and what would catch it again.** `references/defects.yaml` records each one with two citations: the fix, still in the tree, and the assertion that fails when the fix is reverted. This resolves both. "All fixed" is the same unfalsifiable sentence as "looks good" — it stays true in prose long after somebody has undone the line it describes. A fix no control would catch reports **UNGUARDED** by name rather than blending into a total. |
 
 ## Common mistakes
 

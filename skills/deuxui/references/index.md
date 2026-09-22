@@ -72,6 +72,7 @@ be checked, which means it changes nothing.
 | `workflows/design.md` | Greenfield: originate a world and a contract, then build |
 | `workflows/uplift.md` | Brownfield: derive the contract from the code that is already there, then raise the floor |
 | `parity/impeccable.yaml` | **The coverage claim as data.** Every impeccable command, CLI entry point, live subcommand and subagent, with this skill's answer and — where there is one — the gap, stated. `scripts/parity.py` resolves every piece of evidence and fails on a `partial` whose gap was quietly removed |
+| `defects.yaml` | **Every defect this skill has shipped, as data.** Each row names the fix (still in the tree) and the assertion that fails when the fix is reverted, so "all fixed" is resolvable rather than reassuring. `scripts/defects.py` checks both and reports any fix no control would catch as UNGUARDED |
 | `rules/registry.yaml` | **Source of truth.** 235 rules, 49 sources, severities, applicability, and the 20 UX laws. 19 are enforceable (LAW-17 is an alias): **14 have a live detector, 5 are manual-only, 0 unreachable** — `lint_rules.py` prints the split and errors on an unreachable law |
 | `rules/detectors.yaml` | Which detector tests which rule, on which engine, with what confidence |
 | `rules/thresholds.yaml` | Every number, and which ones a project may override |
