@@ -330,15 +330,26 @@ cli:
     evidence: [op:hooks]
 
   - name: comp-diff
-    status: partial
-    here: "`ux_image.py verify` measures a comp against the contract, and the static
-           and runtime tiers measure the build against the same contract, so both
-           ends are bound to one declaration"
+    status: mapped
+    here: >-
+      `comp_diff.py` compares the build to the comp that was approved, which is the
+      gap `ux_image.py verify` cannot close: verify catches a build that left the
+      system, not one that stayed inside it and is not the thing somebody chose.
+      Deliberately not a pixel diff -- a comp is a fixed width, a screenshot is a
+      viewport with real copy and real data, and aligning those produces a number that
+      moves when nothing meaningful changed. It compares what each image is MADE OF:
+      the palette weighted by coverage, the canvas and ink with the contrast measured
+      between them, and the sequence of flat / mixed / photographic regions. It
+      rasterises an SVG or HTML comp through the browser so it can consume this skill's
+      own output, forces one viewport width on both captures, and states in every
+      report that type, spacing, hierarchy and motion are not measured here.
     gap: >-
-      no direct comp-to-implementation pixel diff. Both artefacts are compared to
-      the contract rather than to each other, which catches a build that left the
-      system but not a build that matches the system and not the approved comp.
-    evidence: [script:ux_image.py, sub:ux_image.py:verify, detector:S-CONTRACT-COLOR]
+      it refuses to compare colour against a WIREFRAME, and says so: a rendered sheet
+      settles structure and commits to nothing about colour, since its plate bands are
+      hatched stand-ins for images nobody has chosen. Colour comparison needs a
+      generated or photographed comp.
+    evidence: [script:comp_diff.py, script:comp_spec.py, script:ux_image.py,
+               sub:ux_image.py:verify, detector:S-CONTRACT-COLOR]
 
   - name: detect-csp
     status: mapped

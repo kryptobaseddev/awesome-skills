@@ -248,6 +248,59 @@ def evaluate(ws: WS, js: str):
     return v
 
 
+def screenshot(ws: WS, out: Path, full: bool = False) -> bool:
+    """The page as pixels, written to `out`. False when the browser would not give it.
+
+    Used by `comp_diff.py` to measure what was actually built against what was
+    approved. Deliberately the whole viewport and not an element crop: a comp is a
+    whole surface, and cropping to one node would compare a button to a page."""
+    try:
+        ws.call("Page.enable")
+    except Exception:
+        pass
+    try:
+        r = ws.call("Page.captureScreenshot",
+                    {"format": "png", "captureBeyondViewport": bool(full)})
+    except Exception:
+        return False
+    data = (r or {}).get("data")
+    if not data:
+        return False
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(base64.b64decode(data))
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def set_viewport(ws: WS, width: int, height: int = 900, dpr: int = 1) -> bool:
+    """Force the page's viewport, so two captures are comparable.
+
+    A comp is a fixed width and a screenshot is whatever the window happens to be.
+    Comparing them without setting this compares a 1440px build to a 1024px comp and
+    calls the difference a design change."""
+    try:
+        ws.call("Emulation.setDeviceMetricsOverride",
+                {"width": int(width), "height": int(height),
+                 "deviceScaleFactor": dpr, "mobile": False})
+        return True
+    except Exception:
+        return False
+
+
+def open_url(ws: WS, url: str, settle_ms: int = 900) -> bool:
+    """Navigate the attached tab and wait for it to settle. Used to rasterise a comp."""
+    try:
+        ws.call("Page.enable")
+        ws.call("Page.navigate", {"url": url})
+    except Exception:
+        return False
+    import time as _t
+    _t.sleep(max(0, settle_ms) / 1000.0)
+    return True
+
+
 def style_policy(ws: WS) -> dict:
     """Whether this page's CSP will let an injected overlay be styled, and how we know.
 

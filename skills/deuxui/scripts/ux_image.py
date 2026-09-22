@@ -621,6 +621,14 @@ class Sheet:
                 f'height="{self.h + self.CAPTION_H}" viewBox="0 0 {self.w} '
                 f'{self.h + self.CAPTION_H}">\n'
                 f'<title>{esc(self.brief.get("surface") or "comp")} — {esc(ttl)}</title>\n'
+                # Says what this IS, so a reader -- person or tool -- does not mistake
+                # a wireframe for a finished comp. `comp_diff.py` refuses to compare
+                # colour against one, because a wireframe's plate bands are hatched
+                # stand-ins for images nobody has chosen yet and its greys are
+                # structure. Without this it measured that hatch as design intent and
+                # reported a faithful build as wrong.
+                f'<desc>deuxui:wireframe rendered from the declared contract; '
+                f'plate regions are placeholders and commit to no colour</desc>\n'
                 f'{comp}\n' + "\n".join(cap) + "\n</svg>\n")
 
 

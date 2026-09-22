@@ -559,6 +559,85 @@ def contract_checks():
             fails.append(f"removing {_uc2.SET_ASIDE} did not bring the record back, so "
                          f"the marker is not what decides it")
 
+    # comp_diff compares a build to the comp somebody approved. Every other check in
+    # this skill compares an artefact to the CONTRACT, which catches a build that left
+    # the system and cannot catch one that stayed inside it and is not the thing that
+    # was chosen. Three real bugs lived in the first version, and all three made it
+    # report confidently about something it could not see.
+    import comp_diff as _cdiff                                       # noqa: E402
+
+    # (1) contrast was read as `spec["ink_on_canvas"]["ratio"]`; comp_spec reports a
+    # bare float. Every image returned None and the dimension said NOT_RUN on input it
+    # could measure perfectly -- laundering, in the code that exists to prevent it.
+    _same = {"canvas": "#f7f6f3", "ink": "#16181c", "ink_on_canvas": 15.8,
+             "palette": [{"hex": "#f7f6f3", "coverage_pct": 80.0},
+                         {"hex": "#16181c", "coverage_pct": 12.0}]}
+    _g = _cdiff.ground_diff({"semantic": _same}, {"semantic": _same})
+    if _g["verdict"] != "AGREES":
+        fails.append(f"comp_diff.ground_diff says {_g['verdict']} comparing an image "
+                     f"with itself: {_g['why']}")
+    _dark = dict(_same, canvas="#0b0d10", ink="#e8eaed", ink_on_canvas=14.9)
+    if _cdiff.ground_diff({"semantic": _same}, {"semantic": _dark})["verdict"] != "DIFFERS":
+        fails.append("comp_diff.ground_diff did not notice the ground inverting")
+
+    # (2) two comp colours matching the SAME built colour is a lost tonal step. It was
+    # reported as two rows carrying the same built percentage, which reads as a display
+    # bug rather than a finding.
+    _c = {"semantic": {"palette": [{"hex": "#ffffff", "coverage_pct": 40.0},
+                                   {"hex": "#f7f6f3", "coverage_pct": 35.0}]}}
+    _b = {"semantic": {"palette": [{"hex": "#fdfdfd", "coverage_pct": 75.0}]}}
+    _pd = _cdiff.palette_diff(_c, _b)
+    if not _pd["collapsed"] or _pd["verdict"] != "DIFFERS":
+        fails.append("comp_diff.palette_diff did not report two comp colours collapsing "
+                     "to one in the build as a lost tonal step")
+
+    # (3) hue is meaningless on a grey; comparing it there rejects matching greys.
+    # `#808080` and `#818080` are the same grey to anyone, and OKLCH puts their hues
+    # 73 degrees apart -- hue is numerically unstable as chroma approaches zero. The
+    # first version of this case used two warm greys whose hues happened to agree, so
+    # it passed with the grey guard deleted and proved nothing.
+    if not _cdiff.near("#808080", "#818080"):
+        fails.append("comp_diff.near rejected two greys that are the same colour -- "
+                     "hue is unstable at zero chroma and must not decide it")
+    if not _cdiff.near("#f7f6f3", "#f8f8f8"):
+        fails.append("comp_diff.near rejected two near-identical off-whites")
+    if _cdiff.near("#1f5eff", "#22c55e"):
+        fails.append("comp_diff.near called blue and green the same colour")
+
+    # A photographic band rebuilt as flat is the headline finding, not a rounding.
+    _sp = {"regions": [{"kind": "flat"}, {"kind": "plate"}, {"kind": "flat"}]}
+    _sf = {"regions": [{"kind": "flat"}, {"kind": "flat"}, {"kind": "flat"}]}
+    _sd = _cdiff.structure_diff(_sp, _sf)
+    if _sd["verdict"] != "DIFFERS" or "photographic" not in _sd["why"]:
+        fails.append("comp_diff.structure_diff did not flag a photographic region "
+                     "rebuilt as flat")
+
+    # A WIREFRAME settles structure and nothing about colour. Deriving that from the
+    # pixels was wrong -- a hatched plate placeholder has high edge density and FEW
+    # colours, so comp_spec calls it `mixed`, and an exclusion keyed on `plate` skipped
+    # the one band it existed for. The rendered sheet says so itself.
+    with tempfile.TemporaryDirectory() as _d6:
+        _r6 = Path(_d6)
+        _wf = _r6 / "a.svg"
+        _wf.write_text('<svg xmlns="http://www.w3.org/2000/svg"><desc>'
+                       + _cdiff.WIREFRAME_MARK + ' rendered</desc></svg>\n')
+        if not _cdiff.is_wireframe(_wf):
+            fails.append("comp_diff.is_wireframe missed the marker ux_image.py writes "
+                         "into every rendered sheet")
+        _plain = _r6 / "b.svg"
+        _plain.write_text('<svg xmlns="http://www.w3.org/2000/svg"><desc>a photograph'
+                          '</desc></svg>\n')
+        if _cdiff.is_wireframe(_plain):
+            fails.append("comp_diff.is_wireframe called a finished comp a wireframe, "
+                         "which would stand down the colour comparison silently")
+
+    # And the marker has to actually be in what ux_image renders, or the detection above
+    # is testing a string nothing writes.
+    import ux_image as _uxi                                          # noqa: E402
+    if _cdiff.WIREFRAME_MARK not in (HERE / "ux_image.py").read_text():
+        fails.append(f"ux_image.py does not write {_cdiff.WIREFRAME_MARK!r}, so "
+                     f"comp_diff can never recognise a rendered wireframe")
+
     # The CSP scanner. What it gets wrong is not "misses a policy" -- it is reading a
     # policy and reporting the WRONG verdict, which sends somebody to loosen a config
     # that was never the problem, or tells them nothing is wrong when the overlay
