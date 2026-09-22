@@ -232,7 +232,11 @@ def audit(ledger=None) -> dict:
                        "guarded": sum(1 for r in rows if r["guarded"]),
                        "unguarded": sum(1 for r in rows if not r["guarded"]),
                        "revert_verified": sum(1 for r in rows if r["reverted"]),
-                       "reverified": sum(1 for r in rows if r["reverified"])},
+                       "reverified": sum(1 for r in rows if r["reverified"]),
+                       "reverified_product": sum(1 for r in rows if r["reverified"]
+                                                 and r["kind"] == "product"),
+                       "reverified_control": sum(1 for r in rows if r["reverified"]
+                                                 and r["kind"] == "control")},
             "by_class": {k: sum(1 for r in rows if r["class"] == k)
                          for k in CLASSES if any(r["class"] == k for r in rows)}}
 
@@ -329,8 +333,13 @@ def main(argv=None) -> int:
       f"is counted as one.\n")
     w("  by kind:   " + " · ".join(f"{k} {n}" for k, n in r["by_class"].items()) + "\n")
     w(f"  {c['revert_verified']} had the control verified by deleting the mechanism it "
-      f"guards; {c['reverified']}\n  of those were re-verified against the current tree "
-      f"rather than at the time.\n")
+      f"guards, at the time.\n")
+    w(f"  re-verified against the CURRENT tree: {c['reverified_product']}/{c['product']} "
+      f"product, {c['reverified_control']}/{c['control']} control.\n")
+    if c["reverified_control"] < c["control"]:
+        w("  A control row is re-verified differently -- its weak fixture has to be put "
+          "back AND\n  the mechanism removed, to show the old case was blind -- so those "
+          "rows carry the\n  date only where that was actually done.\n")
     if c["unguarded"]:
         w("  An unguarded fix is one refactor from being undone. The rows above say so\n"
           "  rather than reading as though every fix were equally safe.\n")

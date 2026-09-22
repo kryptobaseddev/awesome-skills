@@ -133,6 +133,7 @@ defects:
       - file: scripts/selftest.py
         text: "deuxui's own review page violates deuxui's own contract"
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-04
     title: the composed dark theme was mixed rather than stepped down the declared ramp
@@ -156,6 +157,7 @@ defects:
       - file: scripts/selftest.py
         text: "deuxui's own review page violates deuxui's own contract"
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-05
     title: "`show` bound a (ws, reason) tuple to one name, so its guard never fired"
@@ -285,6 +287,7 @@ defects:
       - file: scripts/selftest.py
         text: rules have an automated detector
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-10
     title: wrap moved the element's first child instead of the element
@@ -513,6 +516,7 @@ defects:
       - file: scripts/selftest.py
         text: no single place
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-19
     title: a parity row was marked mapped while carrying a gap
@@ -617,6 +621,7 @@ defects:
       - file: scripts/selftest.py
         text: '"vue v-for"'
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-23
     title: a .forEach() was reported as a .map()
@@ -665,6 +670,7 @@ defects:
       - file: scripts/selftest.py
         text: parity --deep ran no scripts
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-25
     title: a shadowed variable made every row in the deep report nameless
@@ -906,6 +912,7 @@ defects:
       - file: scripts/selftest.py
         text: check_delta_many reported
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   # ---------------------------------------------------------------- control defects
   #
@@ -1229,6 +1236,7 @@ defects:
       - file: scripts/selftest.py
         text: proving nothing. The first version did exactly that.
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-49
     title: two controls raised inside the code they guard instead of reporting a finding
@@ -1254,6 +1262,7 @@ defects:
       - file: scripts/selftest.py
         text: A traceback is detection of a sort
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-50
     title: the own-page control compared the brand contract against itself
