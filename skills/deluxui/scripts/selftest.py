@@ -37,6 +37,7 @@ EXPECT = [
     "S-CRAFT-GRADIENT-TEXT", "S-CRAFT-ZINDEX", "S-CRAFT-GRAY-ON-COLOR",
     "S-CRAFT-TYPE-FLAT", "S-CRAFT-BALANCE", "S-CRAFT-SURFACES",
     # visual contract conformance
+    "S-STATE-DUPE", "S-TRUST-DESTRUCT", "S-COMP-DISABLED-MUTE",
     "S-CONTRACT-FAMILY", "S-CONTRACT-RADIUS", "S-CONTRACT-RAMP",
     "S-CONTRACT-FONT-AVAIL",
     # P0 family
@@ -98,6 +99,16 @@ def run(tmp: Path, which: str) -> set[str]:
     for extra, dest in ((f"{which}-ios.swift", "ios/ContentView.swift"),
                         (f"{which}-android.kt", "android/HomeScreen.kt"),
                         (f"{which}-native.tsx", "Toolbar.native.tsx")):
+        src = FIX / extra
+        if src.exists():
+            shutil.copy(src, tmp / dest)
+    # Field-reported cases, each in its own file. A ±2000-character evidence window
+    # means an unrelated "Confirm" elsewhere in a crowded fixture decides the
+    # outcome, so these cannot share one.
+    for extra, dest in ((f"{which}-peer.tsx", "peer-commit.tsx"),
+                        (f"{which}-peer2.tsx", "peer-dupe.tsx"),
+                        (f"{which}-peer3.tsx", "peer-destruct.tsx"),
+                        (f"{which}-peer4.tsx", "peer-disabled.tsx")):
         src = FIX / extra
         if src.exists():
             shutil.copy(src, tmp / dest)
@@ -295,6 +306,95 @@ def contract_checks():
         if "on.css" in files:
             fails.append("S-CONTRACT-RAMP fired on a colour ON the declared ramp, so "
                          "it reports conformance as a violation")
+
+    # R-FOCUS-WALK's reading-order rule, in isolation. The probe runs in a browser,
+    # so the corpus cannot reach it; the arithmetic is what was wrong. `top` alone
+    # read an ordinary column-major footer as scrambled, and the count tracked the
+    # grid's column count (1 at 320px, 5 at 1024px) rather than anything about order.
+    js = (HERE / "checks" / "browser" / "focus.js").read_text()
+    if "ROW_BAND" not in js or "b.left < a.left" not in js:
+        fails.append("focus.js no longer compares horizontal position, so a "
+                     "multi-column row reads as scrambled focus order")
+    if "pos === 'fixed'" not in js:
+        fails.append("focus.js no longer excludes fixed/sticky elements, so scrollY "
+                     "is added to an element that has no document position")
+    if shutil.which("node"):
+        probe = """
+          const ROW_BAND=24;
+          const walk=o=>{let b=0;for(let i=1;i<o.length;i++){const a=o[i-1],c=o[i];
+            const same=Math.abs(c.top-a.top)<=ROW_BAND;
+            if(same?c.left<a.left-ROW_BAND:c.top<a.top-ROW_BAND)b++;}return b;};
+          const row=[];for(let c=0;c<6;c++)row.push({top:900,left:100+c*120});
+          console.log(JSON.stringify({
+            ordered_row: walk(row),
+            scrambled_row: walk([{top:900,left:700},{top:900,left:100}]),
+            jump_up: walk([{top:900,left:0},{top:200,left:0}]),
+            normal_column: walk([{top:100,left:0},{top:200,left:0},{top:300,left:0}])}));
+        """
+        r = subprocess.run(["node", "-e", probe], capture_output=True, text=True)
+        try:
+            v = json.loads(r.stdout)
+        except ValueError:
+            fails.append("could not evaluate the focus-order rule")
+        else:
+            if v["ordered_row"] or v["normal_column"]:
+                fails.append(f"the focus-order rule reports a backjump in correct "
+                             f"order ({v}) -- a multi-column row is not scrambled")
+            if not v["scrambled_row"] or not v["jump_up"]:
+                fails.append(f"the focus-order rule misses a real backjump ({v})")
+
+    # The forced-state probes must not return a verdict about a condition that was
+    # never established. On a server-rendered route there is no client request to
+    # intercept, the page renders normally, and every clause of _state then reads
+    # that ordinary page as a defect. Four directions, because the dangerous failure
+    # is an inert route MASKING a real one in the same run.
+    import ux_report
+    page = {"probe": "state", "visible_text_length": 900, "mentions_failure": False,
+            "mentions_empty": False, "recovery_actions": [], "visible_spinners": 0}
+    fn = ux_report._state("abort", "An aborted request", None)
+    cases = {
+        "server-rendered route": ({
+            "_root__apiseen.json": {"probe": "apiseen", "api_seen": False},
+            "_root__state_abort.json": dict(page)}, "NOT_RUN"),
+        "client fetch, unhandled": ({
+            "_jobs__apiseen.json": {"probe": "apiseen", "api_seen": True},
+            "_jobs__state_abort.json": dict(page)}, "FAIL"),
+        "client fetch, handled": ({
+            "_jobs__apiseen.json": {"probe": "apiseen", "api_seen": True},
+            "_jobs__state_abort.json": {**page, "mentions_failure": True,
+                                        "recovery_actions": ["Try again"]}}, "PASS"),
+        "inert route beside a real one": ({
+            "_root__apiseen.json": {"probe": "apiseen", "api_seen": False},
+            "_root__state_abort.json": dict(page),
+            "_jobs__apiseen.json": {"probe": "apiseen", "api_seen": True},
+            "_jobs__state_abort.json": dict(page)}, "FAIL"),
+    }
+    for what, (raws, want) in cases.items():
+        got = fn(raws, {})[0]
+        if got != want:
+            fails.append(f"forced-state verdict for {what} is {got}, expected {want}")
+
+    # A comment must never decide a verdict, and the set-level corpus test cannot
+    # see this: S-COMMIT-REVIEW also fires on the P0 fixture, so "it fired somewhere"
+    # stays true while this specific case goes silent. Asserted per FILE, both ways.
+    # Its own project directory, because the evidence window is 2,000 characters and
+    # an unrelated "Confirm" in a neighbouring fixture decides the outcome otherwise.
+    for which, want in (("bad", True), ("good", False)):
+        src = FIX / f"{which}-peer.tsx"
+        if not src.exists():
+            continue
+        with tempfile.TemporaryDirectory() as td:
+            proj = Path(td)
+            shutil.copy(FIX / "package.json", proj / "package.json")
+            shutil.copy(src, proj / "checkout-commit.tsx")
+            hits = _scan(proj, extra=("--detector", "S-COMMIT-REVIEW")).get("findings", [])
+            if want and not hits:
+                fails.append("S-COMMIT-REVIEW stayed silent on a commitment whose only "
+                             "review step is in a comment -- a comment is never shown "
+                             "to anyone, so it cannot be the review")
+            if not want and hits:
+                fails.append("S-COMMIT-REVIEW fired on a commitment that shows a real "
+                             "review step in the interface")
 
     # The ledger's own commands, on a real project laid out the way one is. Only a
     # smoke test -- but `state` reads six surfaces and `show` resolves an archive, so

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import re
 from . import check, finding
+from ._util import read, strip_noncode
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 
@@ -91,6 +92,45 @@ def locale_formatting(f, p):
     return out
 
 
+# `onDelete: "cascade"` in a Drizzle or Prisma schema is a foreign-key referential
+# action. Nobody can press it, there is nothing to confirm, and no edit to the file
+# makes the finding go away -- it was exactly half of this check's findings on a real
+# app. Matched on the VALUE rather than by excluding schema paths, because the same
+# option appears in migrations, generated clients and inline table definitions.
+_REFERENTIAL = re.compile(r"""on(?:Delete|Update)\s*:\s*["']?"""
+                          r"""(?:cascade|set\s*null|set\s*default|restrict|no\s*action)""",
+                          re.I)
+# A prop is a wire, not a handler. `<DangerZone onDelete={remove} />` puts the
+# confirmation inside DangerZone -- and on the app this was found on, DangerZone made
+# the operator TYPE THE COMPANY NAME, the strongest confirmation in the product, while
+# the call site was reported as having none. Resolve the component and read it; if it
+# cannot be found, keep the finding rather than assume.
+_JSX_PROP = re.compile(r"<([A-Z][\w.]*)(?=[\s/>])")
+
+
+def _confirmed_downstream(code: str, m, f, p) -> bool:
+    if not re.match(r"on[A-Z]", m.group(0)):
+        return False
+    if "=" not in m.group(0):
+        return False                      # `onDelete:` in an object, not a JSX prop
+    open_at = code.rfind("<", max(0, m.start() - 400), m.start())
+    if open_at < 0:
+        return False
+    tag = _JSX_PROP.match(code, open_at)
+    if not tag:
+        return False
+    name = tag.group(1).split(".")[0]
+    rel = (p.inventory or {}).get(name)
+    if not rel:
+        return False
+    try:
+        body = strip_noncode(read(p.root / rel))
+    except OSError:
+        return False
+    return bool(re.search(r"confirm|AlertDialog|are you sure|undo|restore|"
+                          r"type\s+the\s+|requireConfirm|window\.confirm", body, re.I))
+
+
 @check("S-TRUST-DESTRUCT", exts=SRC)
 def destructive_no_recovery(f, p):
     out = []
@@ -102,14 +142,19 @@ def destructive_no_recovery(f, p):
     NOT_DESTRUCTIVE = re.compile(
         r"remove(?:EventListener|Item|Child|Attribute|Class|Listener|Query)|"
         r"delete(?:Property|Count)|\.(?:delete|remove)\(\s*\)")
-    for m in DESTRUCT.finditer(f.text):
-        if NOT_DESTRUCTIVE.search(f.text[max(0, m.start() - 30):m.end() + 30]):
+    code = strip_noncode(f.text)
+    for m in DESTRUCT.finditer(code):
+        if NOT_DESTRUCTIVE.search(code[max(0, m.start() - 30):m.end() + 30]):
             continue
-        win = f.text[max(0, m.start() - 400):m.start() + 1200]
+        if _REFERENTIAL.match(code[m.start():m.start() + 60]):
+            continue
+        win = code[max(0, m.start() - 400):m.start() + 1200]
         if re.search(r"confirm|AlertDialog|are you sure|undo|restore|trash|soft.?delete|"
                      r"requireConfirm|window\.confirm|toast\.\w*\(.*[Uu]ndo", win, re.I):
             continue
-        line = f.text[:m.start()].count("\n") + 1
+        if _confirmed_downstream(code, m, f, p):
+            continue
+        line = code[:m.start()].count("\n") + 1
         out.append(finding("S-TRUST-DESTRUCT", f, line, m.group(0),
                            "Destructive action with no confirmation and no undo. Prefer undo "
                            "over a confirm dialog where the data can be held briefly -- "

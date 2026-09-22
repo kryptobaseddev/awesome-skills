@@ -9,6 +9,7 @@ see while building. Every finding here is a state a real user will reach.
 from __future__ import annotations
 import re
 from . import check, finding
+from ._util import strip_noncode
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro")
 
@@ -96,17 +97,47 @@ def loading_state(f, p):
     return out
 
 
+# An import is where a name arrives, not where it is called. `import { useMutation }
+# from "@tanstack/react-query"` names the hook and invokes nothing, so it can carry no
+# in-flight guard and the finding has no fix. It was the top hit in every file that
+# used the library, at line 4 or line 6, which is also how a real finding further
+# down the same file got buried under it.
+_IMPORT_LINE = re.compile(r"""^\s*(?:import\b|export\s+(?:\*|\{)|"""
+                          r"""(?:const|let|var)\s+\{?[^=\n]*=\s*require\s*\()""")
+
+
+def _on_import_line(text: str, pos: int) -> bool:
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    return bool(_IMPORT_LINE.match(text[start:end if end != -1 else len(text)]))
+
+
 @check("S-STATE-DUPE", exts=SRC)
 def duplicate_submit(f, p):
     if not f.tags:
         return []
     out = []
-    for m in MUTATION.finditer(f.text):
-        win = _window(f.text, m.start(), 400, 1400)
-        if re.search(r"disabled|isPending|isSubmitting|isLoading|inFlight|guard|"
-                     r"idempotenc|abortControll|once\b", win, re.I):
+    code = strip_noncode(f.text)
+    seen_lines = set()
+    for m in MUTATION.finditer(code):
+        if _on_import_line(code, m.start()):
+            continue
+        win = _window(code, m.start(), 400, 1400)
+        # Word-bounded. Bare `guard` matched inside `UnguardedSubmit`, so a
+        # component named for the defect silenced the check that reports it --
+        # substring matching on identifiers inverts the meaning of the evidence.
+        if re.search(r"\bdisabled\b|\bisPending\b|\bisSubmitting\b|\bisLoading\b|"
+                     r"\binFlight\b|\bguard(?:ed|ing)?\b|\bidempotenc|"
+                     r"\babortControll|\bonce\b", win, re.I):
             continue
         line = f.text[:m.start()].count("\n") + 1
+        # One construct, one finding. `const createMutation = useMutation({...})`
+        # matched twice, because the variable name is in the same alternation as the
+        # call it is assigned from -- two findings for one mutation is the kind of
+        # duplication that makes a report look padded.
+        if line in seen_lines:
+            continue
+        seen_lines.add(line)
         out.append(finding("S-STATE-DUPE", f, line, m.group(0),
                            "Nothing here stops a second activation while the first is still "
                            "in flight. Double-clicking a submit must not commit twice. Guard "

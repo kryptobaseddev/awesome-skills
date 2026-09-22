@@ -8,7 +8,7 @@ the cost of having built it by hand anyway.
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import ancestors
+from ._util import ancestors, strip_noncode
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 VAGUE_LABEL = re.compile(r"^\s*(?:continue|ok|okay|yes|submit|next|done|confirm|proceed|go)\s*$",
@@ -58,9 +58,18 @@ def unexplained_disabled(f, p):
         if re.search(r"pending|submitting|loading|isBusy|inFlight|saving|uploading|"
                      r"disabled\s*$", val, re.I):
             continue
-        win = f.text[max(0, t.start - 500):t.end + 500]
-        if re.search(r"title=|aria-describedby|Tooltip|helperText|because|"
-                     r"requires|need to|first|until", win, re.I):
+        # The window already contains the control and its accessible name; the
+        # vocabulary was what missed. A button reading "Intake unavailable: required
+        # operational method missing" was reported for not saying why, while saying
+        # why -- the pattern had `requires`, and "required" is the commoner form.
+        # Stem it, and admit the other ways an interface states a blocked state.
+        # Stripped, for the same reason the commitment checks are: a comment is
+        # never shown to anyone, so it cannot be the explanation. The header comment
+        # of the fixture written to test this check was silencing it.
+        win = strip_noncode(f.text)[max(0, t.start - 500):t.end + 500]
+        if re.search(r"title=|aria-describedby|aria-description|Tooltip|helperText|"
+                     r"because|requir|need to|first|until|unavailable|missing|"
+                     r"not available|no longer|read.only|locked|awaiting", win, re.I):
             continue
         out.append(finding("S-COMP-DISABLED-MUTE", f, t.line, t.raw[:70],
                            "A disabled control with nothing nearby saying why. Say what "

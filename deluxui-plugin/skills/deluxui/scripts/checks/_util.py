@@ -94,6 +94,32 @@ def strip_comments(text: str) -> str:
     return _COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
+# A regex literal is a pattern, not prose and not a call. `confirm(` inside
+# `/(?:i|we)\s+confirm(?:ed)?/iu` is a non-capturing group, and a detector that
+# searches a window for the word "confirm" reads it as the page confirming
+# something. Only matched where a regex can legally begin -- after an operator, an
+# opening bracket, a comma, a colon or `return` -- because `a / b / c` is division
+# and blanking that would corrupt the code the other checks read.
+_REGEX_LIT = re.compile(r"(?<=[=(,:\[!&|?{;\n])\s*/(?![/*])(?:\\.|\[(?:\\.|[^\]])*\]"
+                        r"|[^/\n\\])+/[dgimsuvy]*")
+
+
+def strip_noncode(text: str) -> str:
+    """Blank comments and regex literals, keep strings.
+
+    Strings stay on purpose. For most checks a literal is noise, but the
+    commitment checks are looking for what the interface SAYS -- "Total", "Review
+    your order" -- and that lives in a string or in JSX text. Blanking those would
+    turn a page that discloses its price into a page that does not.
+
+    Comments and patterns are the opposite: neither is ever shown to anyone, and
+    both change the verdict. Worst case is a comment explaining a fix silencing the
+    check on the code the comment describes, which makes deleting the explanation
+    the cheapest way to a green run."""
+    return _REGEX_LIT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)),
+                          strip_comments(text))
+
+
 _STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.S | re.I)
 _STYLED_TPL = re.compile(r"(?:styled\.\w+|styled\([^)]*\)|css|createGlobalStyle)"
                          r"\s*`([^`]*)`", re.S)

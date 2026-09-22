@@ -7,7 +7,7 @@ cost, recipient, or reliability was never put in front of them.
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import strip_comments
+from ._util import strip_comments, strip_noncode
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 SERVER = (".ts", ".js", ".mjs")
@@ -25,6 +25,23 @@ def _line(text, pos):
     return text[:pos].count("\n") + 1
 
 
+def _code(f) -> str:
+    """`f.text` with comments and regex literals blanked, offsets preserved.
+
+    Every check in this file decides by searching a window around a control for
+    evidence -- an amount disclosed, a review step, a validation call. Read against
+    raw text, a comment is evidence: `// review the total before submitting` made
+    S-COMMIT-REVIEW pass on a checkout with no review step, and a comment written
+    to explain a fix silenced the check on the code it described. That makes
+    deleting the explanation the cheapest route to a green run, which is the
+    opposite of what a comment is for.
+
+    Strings are deliberately kept -- they are what the interface says, and they are
+    the disclosure these rules are about. `strip_noncode` blanks rather than
+    deletes, so every `t.start`/`t.end` offset still lines up."""
+    return strip_noncode(f.text)
+
+
 def _submit_controls(f):
     """Controls whose label reads like a financial or legal commitment.
 
@@ -32,7 +49,7 @@ def _submit_controls(f):
     settings dialog is not a purchase and reporting it as one is how a P0
     finding stops being read.
     """
-    if not re.search(MONEY_CONTEXT, f.text, re.I):
+    if not re.search(MONEY_CONTEXT, _code(f), re.I):
         return
     for t in f.tags:
         if not t.is_interactive():
@@ -46,6 +63,24 @@ def _submit_controls(f):
             yield t, " ".join(label.split())[:60]
 
 
+# Evidence that a review, confirmation or reversal exists near a commitment.
+#
+# The word must START a word: `(?<![A-Za-z])` then `\w*`. That is not cosmetic
+# bounding, it is the one distinction available in a substring match. camelCase puts
+# the leading word first, so `confirmPurchase` and `reviewStep` are evidence and
+# match; a negation pushes the word off the front, so `NoReviewStep` and
+# `PayWithoutReview` do not -- and naming a component after the step it lacks used to
+# silence the check that reports it lacking.
+#
+# The cost, stated rather than hidden: `handleReview` is real evidence and is missed,
+# because nothing in a substring tells `handle` apart from `without`. A missed
+# silencer produces a finding to dismiss; a wrong one produces a commitment flow
+# reported as safe. Given the choice this rule takes the first.
+_REVIEW_EVIDENCE = re.compile(
+    r"(?<![A-Za-z])(?:review|confirm|verif|summar|preview|undo|refund)\w*|"
+    r"are you sure|AlertDialog|step\s*[23]|checkout/confirm|cancel order", re.I)
+
+
 # ------------------------------------------------------------------ TRUST-001 / FORM-013 / FORM-014
 @check("S-COMMIT-DISCLOSURE", exts=SRC)
 def commitment_disclosure(f, p):
@@ -53,7 +88,7 @@ def commitment_disclosure(f, p):
     not on the receipt. After the commitment it is an apology, not a disclosure."""
     out = []
     for t, label in _submit_controls(f):
-        win = f.text[max(0, t.start - 2500):t.start]
+        win = _code(f)[max(0, t.start - 2500):t.start]
         has_amount = re.search(r"\b(?:total|amount|subtotal|price|cost)\b|"
                                r"Intl\.NumberFormat|currency", win, re.I)
         has_currency = re.search(r"currency|USD|EUR|GBP|[A-Z]{3}\b|currencyCode", win)
@@ -82,10 +117,8 @@ def commitment_review(f, p):
     review before, or correction after. SC 3.3.4 is explicit about it."""
     out = []
     for t, label in _submit_controls(f):
-        win = f.text[max(0, t.start - 2000):t.start + 2000]
-        if re.search(r"review|confirm|summary|are you sure|AlertDialog|verify|"
-                     r"preview|step\s*[23]|checkout/confirm|undo|refund|cancel order",
-                     win, re.I):
+        win = _code(f)[max(0, t.start - 2000):t.start + 2000]
+        if _REVIEW_EVIDENCE.search(win):
             continue
         out.append(finding("S-COMMIT-REVIEW", f, t.line, f'"{label}"',
                            "A financial or legal commitment with no review step, no "
@@ -103,14 +136,14 @@ def client_only_validation(f, p):
     out = []
     is_server = bool(re.search(r"^\s*[\"']use server[\"']|export async function (?:POST|PUT|PATCH|DELETE)"
                                r"|createServerFn|defineEventHandler|app\.(?:post|put|patch)\s*\(",
-                               f.text, re.M))
+                               _code(f), re.M))
     if not is_server:
         return out
     handlers = list(re.finditer(r"export async function (?:POST|PUT|PATCH|DELETE)|"
                                 r"app\.(?:post|put|patch|delete)\s*\(|"
-                                r"defineEventHandler\s*\(|[\"']use server[\"']", f.text))
+                                r"defineEventHandler\s*\(|[\"']use server[\"']", _code(f)))
     for m in handlers:
-        win = f.text[m.start():m.start() + 1800]
+        win = _code(f)[m.start():m.start() + 1800]
         validated = re.search(r"\bz\.|zod|yup|valibot|joi|ajv|superstruct|typebox|"
                               r"safeParse|\.parse\s*\(|validate\w*\s*\(|assert\w*\s*\(",
                               win, re.I)
@@ -138,8 +171,8 @@ def ui_only_authorization(f, p):
     the control was the only thing stopping anyone."""
     out = []
     for m in re.finditer(r"\{\s*(?:is|has|can)(Admin|Owner|Staff|Manager|SuperUser|"
-                         r"Permission|Role)\w*\s*&&", f.text):
-        win = f.text[m.start():m.start() + 900]
+                         r"Permission|Role)\w*\s*&&", _code(f)):
+        win = _code(f)[m.start():m.start() + 900]
         if not re.search(r"delete|remove|approve|publish|refund|payout|impersonate|"
                          r"promote|billing|settings|export", win, re.I):
             continue
@@ -160,7 +193,7 @@ def account_context(f, p):
     for t, label in _submit_controls(f):
         if not re.search(r"send|transfer|invite|share|publish|export", label, re.I):
             continue
-        win = f.text[max(0, t.start - 1800):t.start]
+        win = _code(f)[max(0, t.start - 1800):t.start]
         if re.search(r"workspace|organi[sz]ation|account|tenant|recipient|\bto\b\s*[:=]|"
                      r"currentOrg|activeAccount|sendingAs", win, re.I):
             continue
@@ -192,7 +225,7 @@ def ai_output_provenance(f, p):
     if not f.tags:
         return []
     out = []
-    code = strip_comments(f.text)
+    code = strip_noncode(f.text)
     # Require a call shape, not the English word "generates" in a sentence.
     gen = re.search(r"\b(?:useChat|useCompletion|streamText|generateText|generateObject|"
                     r"createMessage|chat\.completions|messages\.create|"
@@ -212,7 +245,7 @@ def ai_output_provenance(f, p):
                            "and say it needs checking (AI-001).", "medium"))
     for m in re.finditer(r"\b(?:toolCall|tool_call|functionCall|executeAction|runTool|"
                          r"onToolCall)\b", code):
-        win = f.text[max(0, m.start() - 600):m.start() + 900]
+        win = _code(f)[max(0, m.start() - 600):m.start() + 900]
         if re.search(r"confirm|approve|review|are you sure|AlertDialog|requireApproval|"
                      r"human.?in.?the.?loop|pending", win, re.I):
             continue

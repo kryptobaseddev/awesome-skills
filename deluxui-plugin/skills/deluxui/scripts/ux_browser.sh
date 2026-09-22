@@ -80,10 +80,14 @@ fi
 
 ab() { timeout 120 agent-browser "$@" 2>/dev/null; }
 probe() { # probe <name> <outfile>
-  local js; js="window.__uxTh=$TH_JSON;$(cat "$PROBES/$1.js")"
+  local js; js="window.__uxTh=$TH_JSON;window.__uxApi=${API_JSON};$(cat "$PROBES/$1.js")"
   ab eval "$js" > "$2" 2>/dev/null
   [ -s "$2" ] || echo '{"probe":"'"$1"'","error":"probe returned nothing"}' > "$2"
 }
+
+# The API glob, as a JS string literal, so a probe can tell whether the route it is
+# looking at actually fetches the pattern the forced states intercept.
+API_JSON=$(printf '%s' "${API:-}" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
 
 slug() { echo "$1" | sed 's#[^a-zA-Z0-9]#_#g; s#^_*##; s#_*$##' | sed 's#^$#root#'; }
 
@@ -96,6 +100,10 @@ for route in "${ROUTE_LIST[@]}"; do
   echo "route $route" >&2
   ab open "${BASE%/}${route}" >/dev/null
   ab wait --load networkidle >/dev/null
+  # Measured on the healthy load: whether this route fetches the intercepted pattern
+  # at all. Without it the forced-state probes report on a page where nothing was
+  # forced, which reads as a defect in the page rather than in the measurement.
+  [ -n "$API" ] && probe apiseen "$OUT/raw/${R}__apiseen.json"
 
   # --- reflow across the viewport matrix (NUM-009, NUM-019)
   for vp in "${VP_LIST[@]}"; do

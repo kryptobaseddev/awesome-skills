@@ -267,12 +267,32 @@ def _console(raws, texts, out):
             hits[:10])
 
 
+def _routes_without_client_fetch(raws) -> list:
+    """Routes where the intercepted pattern was never requested on a healthy load.
+
+    Forcing a condition on a request the page never makes forces nothing. The probe
+    then describes an ordinary page, and every clause below reads that as a defect:
+    a server-rendered route reported "request failed but the page says nothing about
+    it" when no request had failed. Neither PASS nor FAIL is available here -- the
+    condition was not established, which is what NOT_RUN means."""
+    out = []
+    for name, d in raws.items():
+        if "__apiseen.json" not in name or d.get("probe") != "apiseen":
+            continue
+        if not d.get("api_seen"):
+            out.append(name.split("__apiseen")[0])
+    return out
+
+
 def _state(mode, label, rules_hint):
     def fn(raws, out):
         found = False
         hits = []
+        inert = set(_routes_without_client_fetch(raws))
         for name, d in raws.items():
             if f"__state_{mode}.json" not in name or "probe" not in d:
+                continue
+            if name.split(f"__state_{mode}")[0] in inert:
                 continue
             found = True
             if d.get("stuck_spinner"):
@@ -288,6 +308,16 @@ def _state(mode, label, rules_hint):
             elif mode in ("abort", "offline") and not d.get("recovery_actions"):
                 hits.append(f"{name}: failure is shown but offers no way to recover")
         if not found:
+            if inert:
+                return ("NOT_RUN",
+                        f"The intercepted pattern was never requested on "
+                        f"{len(inert)} route(s), so this state was not forced on any "
+                        f"of them. These probes need a route that fetches on the "
+                        f"client; on a server-rendered route there is nothing to "
+                        f"intercept, and reporting the unchanged page as a result "
+                        f"would be a verdict about a condition that never happened.",
+                        [f"{r}: no client request matched the --api pattern"
+                         for r in sorted(inert)])
             return ("NOT_RUN", "No API route pattern was given, so this state was never "
                                "forced. Pass --api to ux_browser.sh.", [])
         if not hits:

@@ -14,6 +14,26 @@ not quietly skip them.
 for Supabase, `'**/graphql'`). Without it the three forced-state probes never run, and
 those find more real defects than everything else here combined.
 
+**They need a route that fetches on the client.** Forcing a condition on a request the
+page never makes forces nothing. A server-rendered route — a Next.js server component,
+an Astro page, a SvelteKit `load` on the server — completes its data fetch before the
+HTML reaches the browser, so there is no client request to abort, empty or take
+offline. The page then renders normally and the probe describes an ordinary page: in
+the field this reported *"request failed but the page says nothing about it"* when no
+request had failed, and measured an empty state against Chrome's own network error
+page.
+
+So each route is measured on its healthy first load for whether it requests the
+pattern at all (`R-STATE-*` reads `__apiseen.json`), and where it does not, the three
+states report **NOT_RUN** naming the route. Neither PASS nor FAIL is available for a
+condition that was never established — and an inert route never masks a real failure
+on another route in the same run.
+
+To exercise these rules on a server-rendered app, point `--routes` at a surface that
+fetches client-side — a search, a filtered table, an infinite list, anything behind a
+`useQuery` — or add one. It is the same reason this tier exists at all: the states
+nobody opens are the states nobody built.
+
 ## The probes
 
 | Detector | What it actually does | Rules |
