@@ -14,15 +14,26 @@
 # not exist (DEF-19, DEF-25), one case where I was about to add a control that was
 # already there (DEF-15), and a defect I created while doing it (DEF-33).
 #
-# On the number. Through the v5 release notes I carried a running count in prose, and
-# at v5.20.1 it read "sixteen defects". That figure was maintained by hand, it counted
-# some releases' clusters as one item and others individually, and it left out every
-# defect in a CONTROL. It cannot be reconciled row by row with anything, because it was
-# never derived from a list -- which is the whole argument for this file existing.
+# On the number, settled by counting rather than by argument. Through the v5 notes I
+# carried a running count in prose, and at v5.20.1 it read "sixteen defects". Three
+# figures can actually be derived, and none of them is sixteen:
+#
+#   22   what the release notes' own counted claims add up to. There are exactly eleven
+#        of them -- "Three bugs the controls caught" (5.1.0), "two defects in the
+#        DETECTORS" (5.2.0), "Three defects found by doing this properly" (5.4.0), and
+#        eight more -- and they sum to 22:
+#          git log --format='%b' skills/deuxui | grep -inE \
+#            '\b(a|one|two|three|four) (real |more )?(defect|bug|mistake)s?\b'
+#   32   the product defects enumerated below.
+#   49   with the control defects, which no release note ever counted.
+#
+# So "sixteen" was not a subset anyone can name, and it was not even consistent with
+# the notes' own headlines. It was a number maintained by hand in prose, which is the
+# argument for this file and the reason the count here is printed by a program.
 #
 # What can be checked, and is: every defect any v5 release note describes has a row
-# here. The sixteen are a subset of the forty-nine; the other thirty-three are not new
-# problems, they are the ones the prose never counted.
+# here. Nothing was dropped to make a number smaller, and nothing was split to make one
+# larger -- one row is one wrong behaviour with one fix.
 
 scope: >-
   Every defect found in the v5 series, from the rename at 5.0.0 to now, in two
