@@ -99,12 +99,60 @@ declared now. See [ledger.md](ledger.md).
 An accept is not a build approval: `approves_a_build: false`. It changed one
 element's rule; it did not say the surface is ready.
 
+## Copy, and structure
+
+`accept` moves declared values. Two other verbs change things values cannot reach, and
+both go through the same refusal discipline.
+
+```bash
+# what it SAYS
+python3 scripts/ux_live.py text REQ-001 --to "Pricing that scales with you" --who "NAME"
+
+# what it SITS IN
+python3 scripts/ux_live.py wrap REQ-001 --with div --attr 'className="hero"' --who "NAME"
+python3 scripts/ux_live.py insert REQ-001 --where after \
+        --markup '<p className="sub">Billed monthly, cancel any time.</p>' --who "NAME"
+```
+
+`text` requires the element to have been located by its **text**, and that the string
+appear exactly once in the file. It then reports every other place the same literal
+appears and leaves them alone — a translation catalogue keyed on the English string is
+the coupling this exists to surface, and renaming six files because one word matched is
+not something a tool should do on its own.
+
+`wrap` and `insert` need the element's **boundaries**, not just its line, and scanning
+for `<` and `>` does not survive real code. Each of these is an angle bracket that is
+not a tag boundary:
+
+```jsx
+<button onClick={() => setOpen(!open)}>   // an arrow in an expression
+<Cell value={a > b ? a : b} />            // a comparison in an expression
+<p title="a > b">                         // a bare > in an attribute string
+const [x] = useState<Row[]>([])           // a TypeScript generic
+{/* <Legacy /> was here */}               // a tag in a JSX comment
+```
+
+`jsxspan.py` scans past all of them and then **verifies** what it found: the span opens
+and closes with the same tag, contains the picked text exactly once, is balanced inside,
+and its tag agrees with the tag the browser reported for the element. That last check
+matters more than it looks — a `<section>`'s innerText starts with its first heading's
+text, so without it, picking the section and asking to wrap it wrapped the `<h1>`
+instead. The edit applied cleanly and read correctly in the diff.
+
+Anything it cannot verify is a refusal with the reason, and nothing is written. Markup
+you pass to `insert` is measured by the static tier first and refused on a new P0 or P1:
+a clickable `div` is a finding whether this skill generated it or you typed it.
+
 ## What this is not
 
-It is not a visual editor, and it does not write JSX. It moves declared values on one
-element and records why. Restructuring a component is [shape](shape.md) or
-[prototype](prototype.md); changing the system itself is [colorize](colorize.md),
-[typeset](typeset.md) or [layout](layout.md).
+It has no framework adapter and no AST, so it resolves textually and refuses where a
+compiler would succeed — markup inside a conditional or a `.map()` callback only
+resolves when the anchor is unique. It does not check HTML nesting validity: a `<p>`
+placed inside an `<h1>` lands where you asked and no detector currently objects.
+
+Originating a whole surface is [shape](shape.md) or [prototype](prototype.md); changing
+the system itself is [colorize](colorize.md), [typeset](typeset.md) or
+[layout](layout.md).
 
 It also does not revert. `discard` forgets the session; the rule already written stays,
 and git is what takes it back out.

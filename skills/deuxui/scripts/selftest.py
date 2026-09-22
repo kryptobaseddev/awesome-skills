@@ -346,6 +346,118 @@ def overlay_policy():
     return fails
 
 
+def element_spans():
+    """Every way a naive `<`/`>` scan gets an element's boundaries wrong.
+
+    Structural edits -- `ux_live.py wrap` and `insert` -- need to know where an element
+    opens and closes. Each case below is a `<` or `>` in real code that is not a tag
+    boundary, and getting any of them wrong shifts the span by a few characters, which
+    is worse than failing: the edit still applies and still looks plausible in a diff.
+
+    The refusal cases matter as much as the matches. A resolver that always answers is
+    the thing this must not become."""
+    import jsxspan                                                   # noqa: E402
+    fails = []
+    cases = [
+        ("plain jsx", '<div className="c">\n  <h3>Boiler service</h3>\n</div>',
+         "Boiler service", "h3", None),
+        ("arrow fn in an attribute",
+         '<button onClick={() => setOpen(!open)}>Save changes</button>',
+         "Save changes", "button", None),
+        # Self-closing on purpose: with a real `</Cell>` present this case passed even
+        # with brace tracking removed, because the span's outer brackets do not move.
+        # It only discriminates when the `>` inside the expression would be mistaken
+        # for the tag's end and the element would then look unclosed.
+        ("comparison inside a self-closing tag's expression",
+         '<div><Cell value={a > b ? a : b} label="Total due amount" /></div>',
+         "Total due amount", "Cell", None),
+        ("bare > inside an attribute string",
+         '<p title="a > b">Read the terms</p>', "Read the terms", "p", None),
+        ("typescript generic",
+         'const [r] = useState<Row[]>([]);\n<ul><li>First item</li></ul>',
+         "First item", "li", None),
+        # The commented tag must be UNBALANCED and inside the enclosing element. A
+        # commented `<Legacy />` is a self-closing sibling, so the span survives even
+        # when comments are not skipped -- that version of this case proved nothing.
+        ("unbalanced close tag inside a jsx comment",
+         '<div className="w">\n  {/* </div> removed in v2 */}\n  <p>Live copy</p>\n</div>',
+         "Live copy", "div", "div"),
+        # A commented CLOSE tag, which would pop a real open element and end its span
+        # early. A commented OPEN tag only leaves an orphan on the stack, so it proves
+        # nothing -- that was the first version of this case.
+        ("unbalanced close tag inside a line comment",
+         '<section>\n  // </section> old markup\n  <p>Current label</p>\n</section>',
+         "Current label", "section", "section"),
+        # A close tag inside a JS string, positioned so that failing to skip the string
+        # would pop the enclosing element and end its span before the anchor. A string
+        # OUTSIDE the markup proves nothing -- the stray close pops an empty stack and
+        # is discarded, so that version of this case passed with string skipping removed.
+        ("close tag inside a js string, inside the element",
+         '<section>\n  const s = "</section>";\n  <p>Kept copy</p>\n</section>',
+         "Kept copy", "section", "section"),
+        ("tag inside a block comment",
+         '/* <Old>x</Old> */\n<div><b>Bold thing</b></div>', "Bold thing", "b", None),
+        ("self-closing", '<div><img alt="A chart of revenue" /></div>',
+         "A chart of revenue", "img", None),
+        ("void element left unclosed",
+         '<form><input placeholder="Email address"><button>Go</button></form>',
+         "Email address", "input", None),
+        ("nested same tag name",
+         '<div class="o"><div class="i">Inner text</div></div>', "Inner text",
+         "div", None),
+        ("a script body is not markup",
+         '<body><script>if (a<b){x("H")}</script><h1>Real heading</h1></body>',
+         "Real heading", "h1", None),
+        ("template literal holding a tag",
+         '<div>{`<Fake />`}<em>Emphasis here</em></div>', "Emphasis here", "em", None),
+        # the picked tag decides which enclosing element is meant
+        ("container picked, not its child",
+         '<section class="p">\n  <h1>Plans that scale</h1>\n</section>',
+         "Plans that scale", "section", "section"),
+        ("child picked, not its container",
+         '<section class="p">\n  <h1>Plans that scale</h1>\n</section>',
+         "Plans that scale", "h1", "h1"),
+    ]
+    for label, src, anchor_, want, tag in cases:
+        r = jsxspan.find(src, anchor_, tag)
+        if not r["found"]:
+            fails.append(f"span not resolved ({label}): {r['why']}")
+        elif r["name"] != want:
+            fails.append(f"span resolved to <{r['name']}>, wanted <{want}> ({label})")
+        elif src[r["start"]:r["end"]] != r["source"]:
+            fails.append(f"span offsets do not match its own source ({label})")
+
+    refusals = [
+        ("the anchor appears twice", '<p>Repeat</p><p>Repeat</p>', "Repeat", None),
+        ("the anchor is absent", '<p>Something</p>', "Absent text", None),
+        ("no closing tag at all", '<div class="x">Dangling copy', "Dangling copy", None),
+        ("the picked tag is nowhere around it",
+         '<div><h1>Plans that scale</h1></div>', "Plans that scale", "button"),
+    ]
+    for label, src, anchor_, tag in refusals:
+        r = jsxspan.find(src, anchor_, tag)
+        if r["found"]:
+            fails.append(f"a span was resolved where it must refuse ({label}): "
+                         f"<{r['name']}>")
+
+    # `verify` is exercised directly. `find` rejects a non-unique anchor before verify
+    # ever sees one, so going through `find` could never test this check -- and a
+    # control that cannot fail is the thing this whole skill is about.
+    _src = '<ul><li>Repeat</li><li>Repeat</li></ul>'
+    _span = {"name": "ul", "start": 0, "end": len(_src), "open_end": 4, "self": False}
+    _ok, _why = jsxspan.verify(_src, _span, "Repeat")
+    if _ok:
+        fails.append("verify() accepted a span containing the anchor twice, so an edit "
+                     "would move more than the element that was picked")
+    _span2 = {"name": "li", "start": 4, "end": 19, "open_end": 8, "self": False}
+    if not jsxspan.verify(_src, _span2, "Repeat")[0]:
+        fails.append("verify() rejected a span that contains the anchor exactly once")
+
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 def contract_checks():
     """Invariants the check corpus cannot catch on its own."""
     fails = []
@@ -828,6 +940,7 @@ def main():
     wiring = config_wiring()
     bytecode = no_shipped_bytecode()
     overlay = overlay_policy()
+    spans = element_spans()
     with tempfile.TemporaryDirectory() as d:
         bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
     with tempfile.TemporaryDirectory() as d:
@@ -847,8 +960,9 @@ def main():
     print(f"config wiring:       {'all ok' if not wiring else str(len(wiring)) + ' FAILING'}")
     print(f"shipped bytecode:    {'none' if not bytecode else str(len(bytecode)) + ' FOUND'}")
     print(f"overlay vs page CSP: {'all ok' if not overlay else str(len(overlay)) + ' FAILING'}")
+    print(f"element spans:       {'all ok' if not spans else str(len(spans)) + ' FAILING'}")
     ok = (not missed and not leaked and not contract and not wiring and not bytecode
-          and not overlay)
+          and not overlay and not spans)
     print("\nSELFTEST", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

@@ -55,6 +55,7 @@ sys.path.insert(0, str(HERE))
 import yaml                                                        # noqa: E402
 import cdp                                                         # noqa: E402
 import ux_select                                                   # noqa: E402
+import jsxspan                                                     # noqa: E402
 import ux_image                                                    # noqa: E402
 import uxconfig                                                    # noqa: E402
 
@@ -1154,6 +1155,203 @@ def cmd_text(a) -> int:
     return 0
 
 
+# ------------------------------------------------------------ structural edits
+def _span_for(st: dict) -> dict:
+    """The picked element's exact source span, or a refusal carrying the reason.
+
+    Everything structural goes through here, and it refuses in three separate places
+    on purpose. The element has to have been located by its TEXT -- a class anchor
+    tells you which line, not which element, and wrapping the wrong element is an
+    edit that applies cleanly and moves something nobody asked about. Then the span
+    itself has to verify (see jsxspan.verify). Then the file has to still contain what
+    was picked."""
+    loc = st.get("source") or {}
+    if not loc.get("found"):
+        return {"ok": False, "why": "this element was never located in the source, so "
+                                    "there is nothing to edit around"}
+    if loc.get("anchor_kind") != "text":
+        return {"ok": False,
+                "why": f"this element was located by its {loc.get('anchor_kind')}, not "
+                       f"its text. A class tells you which LINE; a structural edit "
+                       f"needs to know which ELEMENT, and wrapping the wrong one "
+                       f"applies cleanly and moves something nobody asked about"}
+    f = Path.cwd() / loc["file"]
+    try:
+        text = f.read_text(errors="replace")
+    except OSError as e:
+        return {"ok": False, "why": f"could not read {loc['file']}: {e}"}
+    # The tag the browser reported, so a container picked on screen cannot silently
+    # resolve to its first child in the source. See jsxspan.find.
+    r = jsxspan.find(text, str(loc["anchor"]),
+                     str((st.get("element") or {}).get("tag") or "") or None)
+    if not r["found"]:
+        return {"ok": False, "why": r["why"], "rejected": r.get("rejected", []),
+                "file": f, "text": text}
+    r.update({"ok": True, "file": f, "text": text, "rel": loc["file"]})
+    return r
+
+
+def _structural(a, st: dict, span: dict, new_text: str, what: str, detail: dict) -> int:
+    """The shared tail of every structural edit: gate, check, diff, write, record.
+
+    One function because the gate and the record are the whole argument. An edit that
+    skipped either would be a visual editor with extra steps."""
+    f, rel = span["file"], span["rel"]
+    ok, why = phase_permits(f)
+    if not ok and not a.force:
+        w(f"\nThe phase gate refuses this write:\n  {why}\n\n")
+        return 1
+
+    delta = check_delta(Path.cwd(), f, new_text)
+    w(f"\n{a.id}  {what} at {rel}:{span['line']}  <{span['name']}>\n")
+    if delta.get("ran"):
+        w(f"  checks   {delta['before']} finding(s) before, {delta['after']} after\n")
+        if not delta.get("graded"):
+            w("           severity UNRESOLVED — the registry could not be read, so "
+              "nothing can be graded blocking and this write is NOT gated.\n")
+        for x in delta["introduced"]:
+            w(f"             + {x.get('severity') or '--'}  {x.get('detector')}  "
+              f"{x.get('file')}:{x.get('line')}\n")
+        if delta["blocking"] and not a.force:
+            w(f"\n  REFUSED. This introduces {len(delta['blocking'])} P0/P1 "
+              f"finding(s):\n")
+            for x in delta["blocking"]:
+                w(f"    {x.get('severity')}  {x.get('detector')}  {x.get('file')}:"
+                  f"{x.get('line')}\n      {x.get('snippet')}\n"
+                  f"      {str(x.get('fix'))[:160]}\n")
+            w("\n  Markup you supply is measured like markup this skill generates. A "
+              "clickable div or an undeclared colour is a finding either way.\n\n")
+            return 1
+    else:
+        w(f"  checks   NOT_RUN — {delta.get('why')}\n"
+          f"           Recorded as unchecked rather than as clean.\n")
+
+    diff = "".join(difflib.unified_diff(
+        span["text"].splitlines(True), new_text.splitlines(True),
+        fromfile=rel, tofile=f"{rel} ({what})", n=3))
+    if a.dry_run:
+        w(f"\n  --dry-run, nothing written:\n\n{diff}\n")
+        return 0
+    f.write_text(new_text)
+
+    did = _next_id(DECISIONS, "DEC")
+    rec = {"id": did,
+           "question": f"{what} on {(st.get('element') or {}).get('selector')}?",
+           "surface": (st.get("element") or {}).get("selector"),
+           "chosen": what, "outcome": f"accept:{what.replace(' ', '-')}",
+           "approves_a_build": False,
+           "who": a.who, "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+           "recorded_at": now(),
+           "rationale": a.why or f"{what} applied to <{span['name']}>",
+           "contract_sha": st.get("contract_sha"),
+           "axis": "structure", "declarations": detail,
+           "written_to": {"file": rel, "line": span["line"]},
+           "element_source": {"file": rel, "line": span["line"]},
+           "checks": {"ran": bool(delta.get("ran")), "before": delta.get("before"),
+                      "after": delta.get("after"),
+                      "introduced": len(delta.get("introduced") or [])},
+           "reviewed": [],
+           "source": f"ux_live.py ({what} on a picked element)",
+           "recorded_by": "deuxui/scripts/ux_live.py"}
+    DECISIONS.mkdir(parents=True, exist_ok=True)
+    dp = DECISIONS / f"{did}.yaml"
+    dp.write_text(yaml.safe_dump(rec, sort_keys=False, allow_unicode=True, width=92))
+    try:
+        import ux_ledger
+        ux_ledger.archive(by=f"ux_live.py ({what} accepted into the source)")
+    except Exception:
+        pass
+    st.setdefault("structural", []).append(
+        {"at": now(), "what": what, "detail": detail, "decision": did})
+    session(a.id).write_text(yaml.safe_dump(st, sort_keys=False, allow_unicode=True,
+                                            width=92))
+    w(f"\n  written  {rel}\n  recorded {dp}\n\n{diff}\n")
+    return 0
+
+
+def _refuse_span(span: dict) -> int:
+    w(f"\nREFUSED. {span['why']}\n")
+    for x in span.get("rejected", [])[:4]:
+        w(f"    <{x['name']}> line {x['line']}: {x['why']}\n")
+    w("\n  Nothing was written. A structural edit whose boundaries are guessed still "
+      "applies\n  and still looks plausible, which is the one outcome worse than not "
+      "running.\n\n")
+    return 2
+
+
+def cmd_wrap(a) -> int:
+    """Wrap the picked element in a new element, keeping its own source intact."""
+    st = load(session(a.id)) or {}
+    if not st:
+        w(f"\nNo live session for {a.id}. `ux_live.py pick` starts one.\n\n")
+        return 2
+    if not a.who:
+        w("\nA structural change needs a person's name on it. Pass --who \"NAME\".\n\n")
+        return 2
+    span = _span_for(st)
+    if not span.get("ok"):
+        return _refuse_span(span)
+
+    attrs = ""
+    if a.attr:
+        attrs = " " + " ".join(a.attr)
+    ind = span["indent"]
+    inner = "\n".join((ind + "  " + ln.lstrip()) if i else (ind + "  " + ln)
+                       for i, ln in enumerate(span["source"].splitlines()))
+    wrapped = (f"<{a.with_}{attrs}>\n{inner}\n{ind}</{a.with_}>")
+    new_text = span["text"][:span["start"]] + wrapped + span["text"][span["end"]:]
+    return _structural(a, st, span, new_text, "wrap",
+                       {"wrapper": a.with_, "attrs": a.attr or [],
+                        "wrapped": span["name"]})
+
+
+def cmd_insert(a) -> int:
+    """Place new markup relative to the picked element, at the right indentation."""
+    st = load(session(a.id)) or {}
+    if not st:
+        w(f"\nNo live session for {a.id}. `ux_live.py pick` starts one.\n\n")
+        return 2
+    if not a.who:
+        w("\nA structural change needs a person's name on it. Pass --who \"NAME\".\n\n")
+        return 2
+    span = _span_for(st)
+    if not span.get("ok"):
+        return _refuse_span(span)
+    if span["self"] and a.where in ("prepend", "append"):
+        w(f"\nREFUSED. <{span['name']}> is self-closing, so it has no inside to "
+          f"{a.where} into. Use --where before or after.\n\n")
+        return 2
+
+    ind, text = span["indent"], span["text"]
+    markup = a.markup.strip()
+    if a.where == "before":
+        at, piece = span["start"], markup + "\n" + ind
+    elif a.where == "after":
+        at, piece = span["end"], "\n" + ind + markup
+    elif a.where == "prepend":
+        at = span["open_end"]
+        piece = "\n" + ind + "  " + markup
+        # When the element's content was all on one line, break after the inserted
+        # markup too. Otherwise the existing text ends up glued to the new closing
+        # tag -- valid, and unreadable, which is how a helpful edit earns a revert.
+        if at < len(text) and text[at] not in "\n\r":
+            piece += "\n" + ind + "  "
+    else:                                              # append, before the close tag
+        close = text.rfind("</", span["start"], span["end"])
+        if close == -1:
+            w("\nREFUSED. This element's closing tag could not be located inside its "
+              "own span, so there is no end to append to.\n\n")
+            return 2
+        # Keep whatever whitespace already sat before the close tag.
+        at, piece = close, markup + "\n" + ind
+        lead = text[:close]
+        if not lead.endswith(("\n", " ", "\t")):
+            piece = "\n" + ind + "  " + markup + "\n" + ind
+    new_text = text[:at] + piece + text[at:]
+    return _structural(a, st, span, new_text, f"insert {a.where}",
+                       {"where": a.where, "markup": markup, "relative_to": span["name"]})
+
+
 def cmd_status(a) -> int:
     rows = sorted(LIVE.glob("*.yaml")) if LIVE.exists() else []
     if not rows:
@@ -1232,6 +1430,35 @@ def main(argv=None) -> int:
                    help="write despite a blocking finding or a closed phase gate. "
                         "Recorded in the decision either way.")
     s.set_defaults(fn=cmd_text)
+
+    s = sub.add_parser("wrap", help="wrap the picked element in a new element")
+    s.add_argument("id")
+    s.add_argument("--with", dest="with_", required=True, metavar="TAG",
+                   help="the wrapper element, e.g. div, Card, fieldset")
+    s.add_argument("--attr", action="append", metavar="A=\"B\"",
+                   help='an attribute on the wrapper, e.g. --attr \'className="grid"\'. '
+                        'Repeatable.')
+    s.add_argument("--who", help="the person deciding, by name")
+    s.add_argument("--why")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--force", action="store_true",
+                   help="write despite a blocking finding or a closed phase gate. "
+                        "Recorded in the decision either way.")
+    s.set_defaults(fn=cmd_wrap)
+
+    s = sub.add_parser("insert", help="place new markup relative to the picked element")
+    s.add_argument("id")
+    s.add_argument("--markup", required=True,
+                   help="the markup to place. Measured by the static tier before it is "
+                        "written, exactly like markup this skill generates.")
+    s.add_argument("--where", default="after",
+                   choices=["before", "after", "prepend", "append"],
+                   help="before/after place a sibling; prepend/append go inside")
+    s.add_argument("--who", help="the person deciding, by name")
+    s.add_argument("--why")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--force", action="store_true")
+    s.set_defaults(fn=cmd_insert)
 
     s = sub.add_parser("status", help="what is open")
     s.set_defaults(fn=cmd_status)
