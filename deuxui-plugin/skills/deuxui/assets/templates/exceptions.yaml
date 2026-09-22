@@ -1,0 +1,28 @@
+# .deuxui/exceptions.yaml -- owner rulings on PROJECT-class rules.
+#
+# Read by ux_check.py and ux_report.py --merge. A record that is APPROVED, names a
+# PROJECT-class rule, and has not passed its review date turns that rule's FAIL
+# into APPROVED_EXCEPTION: still measured as failing, not blocking, and carrying who
+# decided. It cannot touch a STANDARD rule -- a claim against one fails the report's
+# own A-EXCEPTIONS-VALID audit. Field meanings: assets/templates/exception.md.
+#
+# One record, a list of records, or `exceptions: [...]` are all accepted.
+- exception_id: EXC-001
+  rule_id: NUM-015
+  rule_class: PROJECT
+  scope: "Secondary metadata in the lab queues (sample IDs, timestamps), staff desktop only"
+  reason: >-
+    Staff scan forty rows at once; 11px secondary text keeps a row on one line.
+    Primary values stay at 14px.
+  alternatives_considered:
+    - "12px everywhere -- rejected, every table gained a column of wrap"
+  user_impact: "Secondary text is smaller; primary values are unaffected."
+  safety_and_accessibility_impact: "Browser zoom and text resize still reflow (NUM-008 passes)."
+  compensating_controls:
+    - "Full value on hover and focus"
+  owner: "the lab-operations product owner"
+  approved_by: "the accessibility reviewer"
+  approved_at: "2026-09-22"
+  expires_or_review_on: "2027-03-22"
+  status: PENDING            # PENDING | APPROVED | EXPIRED -- only APPROVED applies
+  retest_evidence: []

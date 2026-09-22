@@ -9,7 +9,12 @@ bash scripts/ux_browser.sh <url> --routes <routes> \
 ```
 
 `R-REFLOW` reports the narrowest viewport where the page scrolls sideways and names
-the elements sticking out. `R-ZOOM` applies 200% text and `R-TEXTSPACING` applies the
+the elements sticking out. It cannot see a table in its own scroll box -- the page
+does not scroll, and SC 1.4.10 exempts data tables anyway -- so `R-TABLE-HIDDEN`
+reads every scroll box whose content is wider than the box and fails the data tables
+among them: "669px hidden, last column Action". A horizontal scroll is not a
+narrow-width strategy for a data table; a card layout below a breakpoint, or a last
+column pinned with `sticky right-0`, is (LAY-006, `S-RESP-TABLE` at the static tier). `R-ZOOM` applies 200% text and `R-TEXTSPACING` applies the
 SC 1.4.12 overrides, then look for content that got clipped or pushed off screen —
 both are about surviving a user's own settings, not your breakpoints.
 

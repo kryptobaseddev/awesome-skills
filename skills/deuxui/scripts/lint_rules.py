@@ -37,6 +37,15 @@ def main() -> int:
     det = yaml.safe_load((RULES / "detectors.yaml").read_text())
     yaml.safe_load((RULES / "thresholds.yaml").read_text())   # must parse
 
+    # The readable packs are projections of the registry. A stale one tells a
+    # reader a rule does not exist, or that nothing tests it.
+    import build_rule_packs
+    for fname, (text, _n) in build_rule_packs.render().items():
+        on_disk = (RULES / fname).read_text() if (RULES / fname).exists() else ""
+        if on_disk != text:
+            errors.append(f"rule pack {fname} is stale against registry.yaml/"
+                          "detectors.yaml; run scripts/build_rule_packs.py")
+
     rule_ids = {r["id"] for r in reg["rules"]}
     test_ids = {t["id"] for t in reg["tests"]}
     law_ids = {l["id"] for l in reg["laws"]}

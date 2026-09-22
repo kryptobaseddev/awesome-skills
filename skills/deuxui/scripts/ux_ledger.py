@@ -311,6 +311,19 @@ def events() -> list:
                    "integrity": None,
                    "detail": {"variant": d.get("variant"), "chip": d.get("chip"),
                               "selector": d.get("selector")}})
+    # Owner rulings. EXCEPTIONS was declared here and never read, so the one kind
+    # of decision that changes a rule's verdict was the one the ledger left out.
+    if EXCEPTIONS.exists():
+        for e in uxconfig.exceptions({}, root=ROOT.parent):
+            ev.append({"at": e.get("approved_at"), "kind": "ruling",
+                       "id": e.get("exception_id") or e["rule_id"],
+                       "what": f"{e['rule_id']} ruled an exception: "
+                               f"{str(e.get('scope') or e.get('reason') or '').strip()[:90]}",
+                       "who": e.get("approved_by") or e.get("owner"), "ref": str(EXCEPTIONS),
+                       "integrity": (None if e["active"] else
+                                     f"not in force: {e['inactive_reason']}"),
+                       "detail": {"rule_class": e.get("rule_class"),
+                                  "review": e.get("expires_or_review_on")}})
     for p in sorted(REPORTS.glob("agent_report*.yaml")) if REPORTS.exists() else []:
         r = load(p) or {}
         g = (r.get("gate") or {}) if isinstance(r.get("gate"), dict) else {}

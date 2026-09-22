@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.24.4"
-  last_updated: "2026-09-22 08:26:29"
+  version: "5.25.0"
+  last_updated: "2026-09-22 14:56:22"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
@@ -93,7 +93,7 @@ Read this table first — each row is a failure that reaches real users.
 | **A clickable `div` or `Card` is not a button.** | No keyboard, no role, no name. If it already contains buttons, you also get two competing targets and a `stopPropagation` workaround. |
 | **Contrast fails by tiny margins.** | Indigo-500 with white text is 4.47:1 — it fails 4.5:1 and no human eye will catch it. Only measurement will. |
 | **Colour cannot be guessed from source.** | Tailwind v4 themes are OKLCH `--color-*` variables. The checks resolve colours from your project; unresolvable pairs report NOT_RUN instead of a made-up verdict. |
-| **The static tier is heuristic.** | It scans source text and is wrong sometimes. Every finding carries a confidence. The runtime tier is what settles arguments. |
+| **The static tier is heuristic.** | It scans source text and is wrong sometimes. Each finding is tagged with its detector's *declared* confidence -- not a measured precision -- and counts read "N matched, M listed" because a capped list is not a total. Lead with the rule matrix, not the finding count. The runtime tier is what settles arguments. |
 | **Creating is easier than reading.** | This is why agents turn mature apps into a collage of unrelated screens. The preserve ladder exists to make that cost visible. |
 | **An exception may lower a PROJECT rule, never a STANDARD.** | You can document a deviation. You cannot relabel a failed WCAG criterion as passing. |
 | **Design craft is checked against a declaration, never against taste.** | `.deuxui/design.contract.yaml` states the type roles, colour roles, one depth metaphor, radii and motion band *before* the code is written. The `S-CONTRACT-*` checks then compare the artifact to it. With no contract they report NOT_RUN — an undeclared system cannot be conformed to, and "is this beautiful?" has no decision procedure while "does this match what was declared?" does. |

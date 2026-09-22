@@ -53,8 +53,22 @@ performance:                    # NUM-012, NUM-013, NUM-014
 
 typography:                     # NUM-015, NUM-016
   body_rem: 1.0
+  # NUM-015 is PROJECT-class: 12px is a screen default, not a standard. A dense
+  # staff tool may lower it, and the override is recorded (GOV-008) rather than
+  # the finding being swept. Print stylesheets are never measured against it.
+  min_text_px: 12
   measure_ch_min: 45
   measure_ch_max: 75
+  overridable: true
+
+responsive:                     # LAY-006
+  # A table wider than this many columns, whose only narrow-width strategy is a
+  # horizontal scroll box, hides data off to the right. Rightmost is where row
+  # actions live, so a table whose last column is interactive fails from a lower
+  # count: two columns and a Delete button fit on a phone, four columns and an
+  # Action menu usually do not.
+  table_scroll_max_columns: 6
+  table_actions_min_columns: 4
   overridable: true
 
 spacing:                        # NUM-017

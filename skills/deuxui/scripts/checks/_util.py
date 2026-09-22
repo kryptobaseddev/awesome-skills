@@ -94,6 +94,21 @@ def strip_comments(text: str) -> str:
     return _COMMENT.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
+_MARKUP_COMMENT = re.compile(r"/\*.*?\*/|^[ \t]*//[^\n]*|<!--.*?-->", re.S | re.M)
+
+
+def comment_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of every comment that can hold markup: block comments (which
+    covers JSX `{/* */}`), HTML comments, and `//` lines. A `//` that starts
+    mid-line is left alone -- in JSX text it is prose ("Terms // Privacy"), and
+    dropping the tags after it would hide real links."""
+    return [m.span() for m in _MARKUP_COMMENT.finditer(text)]
+
+
+def in_spans(pos: int, spans) -> bool:
+    return any(a <= pos < b for a, b in spans)
+
+
 # A regex literal is a pattern, not prose and not a call. `confirm(` inside
 # `/(?:i|we)\s+confirm(?:ed)?/iu` is a non-capturing group, and a detector that
 # searches a window for the word "confirm" reads it as the page confirming
@@ -231,7 +246,13 @@ def _parse_attrs(chunk: str) -> dict:
 
 
 def scan_tags(text: str) -> list[Tag]:
-    """Flat list of tags with parent/child links. Unmatched tags are tolerated."""
+    """Flat list of tags with parent/child links. Unmatched tags are tolerated.
+
+    Markup inside a comment is not on the page. It used to be scanned as real
+    tags, so a commented-out `<table>` drew a "no header cells" finding and could
+    have satisfied or failed a narrow-layout check on behalf of a table nobody
+    renders."""
+    skip = comment_spans(text)
     tags: list[Tag] = []
     stack: list[Tag] = []
     i, n = 0, len(text)
@@ -252,6 +273,9 @@ def scan_tags(text: str) -> list[Tag]:
         if not m:
             break
         start, closing, name = m.start(), m.group(1) == "/", m.group(2)
+        if skip and in_spans(start, skip):
+            i = next(b for a, b in skip if a <= start < b)
+            continue
         j = m.end()
         # walk to the matching '>' honouring {...} and quoted strings
         while j < n:

@@ -408,6 +408,66 @@ def main(argv=None) -> int:
                              + (str(sl.get('reason', ''))[:120] if not sl.get('ran') else
                                 str((sl.get('findings') or [''])[0])[:120]))
 
+        # ------------------------------------------------------ R-TABLE-HIDDEN
+        # A table in its own scroll box never makes the page scroll, so R-REFLOW
+        # passes it -- correctly, since SC 1.4.10 exempts data tables. The field
+        # report's queue hid 445px including the Action column and every tier said
+        # PASS. One page, three boxes that all overflow: only the one hiding row
+        # actions may fail, and R-REFLOW must stay PASS on all of it.
+        w("\nR-TABLE-HIDDEN -- a scroll box hiding the Action column\n")
+        sys.path.insert(0, str(HERE))
+        import ux_report as _ur
+        ab("open", f"{url}table-overflow.html")
+        th_json = json.dumps(_ur.TH)
+        try:
+            lay = run_probe("layout", th_json)
+        except Exception as e:
+            lay = {}
+            fails.append(f"layout probe did not run on table-overflow.html: {e}")
+        raws = {"table__layout_1024.json": lay}
+        by_id = {}
+        for c in lay.get("containers") or []:
+            by_id[c.get("lastColumn")] = c
+        for label, want in (("Action", True), ("Since", False), ("Actions", False)):
+            c = by_id.get(label)
+            got = bool(c and c.get("dataTable") and not c.get("pinned"))
+            w(f"  {'hides' if want else 'clear':<5} last column {label!r:<10} "
+              f"hiddenPx={c and c.get('hiddenPx')} dataTable={c and c.get('dataTable')} "
+              f"pinned={c and c.get('pinned')} -> {'hides' if got else 'clear'}\n")
+            if c is None:
+                fails.append(f"table-overflow.html: no scroll box recorded for the table "
+                             f"ending {label!r}; the container pass cannot see it")
+            elif got != want:
+                fails.append(f"table-overflow.html: the table ending {label!r} came out "
+                             f"{'hiding' if got else 'clear'}, the fixture declares "
+                             f"{'hiding' if want else 'clear'}")
+        # At 320px the boxes still fit (300px + margin) but every table inside runs
+        # far past the viewport edge. Those tables are reachable by their own scroll
+        # box, so they are not page offenders -- listing them buried the element to
+        # fix under the thead, tr and th of every scrolled table on the page.
+        ab("set", "viewport", "320", "900")
+        ab("wait", "250")
+        try:
+            narrow = run_probe("layout", th_json)
+        except Exception as e:
+            narrow = {}
+            fails.append(f"layout probe did not run at 320px: {e}")
+        w(f"  320px: page_overflows={narrow.get('page_overflows')} "
+          f"offenders={len(narrow.get('offenders') or [])}\n")
+        if narrow.get("offenders"):
+            fails.append("layout.js listed tables inside their own scroll boxes as page "
+                         "offenders: " + ", ".join(o["tag"] for o in narrow["offenders"][:5]))
+        ab("set", "viewport", "1280", "800")
+        st, note, hits = _ur._table_hidden(raws, None)
+        rst, _rn, _rh = _ur._reflow(raws, None)
+        w(f"  R-TABLE-HIDDEN {st}  ({len(hits)} hit)   R-REFLOW {rst}\n")
+        if st != "FAIL" or len(hits) != 1 or '"Action"' not in hits[0]:
+            fails.append(f"R-TABLE-HIDDEN must FAIL exactly the Action table and name it; "
+                         f"got {st} with {hits}")
+        if rst != "PASS":
+            fails.append("R-REFLOW failed a page that does not scroll sideways: a table "
+                         "in its own scroll box is not a reflow failure (SC 1.4.10)")
+
         w("\n" + "-" * 70 + "\n")
         for n in notes:
             w(f"  note  {n}\n")

@@ -25,30 +25,72 @@ def _css_rules(text):
         yield m.start(), m.group(1).strip(), m.group(2)
 
 
+_PRINT_FILE = re.compile(r"(?:^|[./_-])print(?:[._-]|$)", re.I)
+_PRINT_MEDIA = re.compile(r"@media\b([^{]*)\{", re.I)
+
+
+def _print_spans(css):
+    """(start, end) of every @media block that only applies on paper. A CSS pixel
+    on a 300dpi page is not a screen pixel at arm's length, and the floor NUM-015
+    states is a screen floor -- so a certificate's 8px footnote is not a finding."""
+    spans = []
+    for m in _PRINT_MEDIA.finditer(css):
+        q = m.group(1).lower()
+        if "print" not in q or re.search(r"\b(?:screen|all)\b", q):
+            continue
+        depth, i = 1, m.end()
+        while i < len(css) and depth:
+            depth += {"{": 1, "}": -1}.get(css[i], 0)
+            i += 1
+        spans.append((m.start(), i))
+    return spans
+
+
 @check("S-TYPE-TINY")
 def tiny_text(f, p):
     """Below about 12px, text stops being readable for a large share of people
-    and cannot be fixed by zooming on a fixed-layout page (NUM-015)."""
+    and cannot be fixed by zooming on a fixed-layout page (NUM-015).
+
+    NUM-015 is PROJECT-class: the floor is `typography.min_text_px`, which a dense
+    staff tool may lower through its config (recorded under GOV-008). Print
+    stylesheets and react-pdf documents are paper, and never measured against it."""
     out = []
+    floor = float(p.num("typography", "min_text_px", 12))
+    if _PRINT_FILE.search(f.path.name) or re.search(
+            r"""from\s+['"]@react-pdf/renderer['"]""", f.text):
+        return out
     if f.css:
-        for pos, sel, body in _css_rules(f.css):
+        css = strip_comments(f.css)
+        printed = _print_spans(css)
+        for pos, sel, body in _css_rules(css):
             m = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
-            if not m or float(m.group(1)) >= 12:
+            if not m or float(m.group(1)) >= floor or any(a <= pos < b for a, b in printed):
                 continue
-            out.append(finding("S-TYPE-TINY", f, _line(f.css, pos),
+            # f.css is an extract for a component (its <style> blocks), so find the
+            # declaration in the file itself or the line number points nowhere.
+            decl = m.group(0)
+            at = f.text.find(decl) if f.css is not f.text else -1
+            line = _line(f.text, at) if at >= 0 else _line(css, pos + len(sel) - len(sel.lstrip()))
+            out.append(finding("S-TYPE-TINY", f, line,
                                f"{sel[:36]} {{ font-size: {m.group(1)}px }}",
-                               f"{m.group(1)}px is below the ~12px floor where text stops "
+                               f"{m.group(1)}px is below the {floor:g}px floor where text stops "
                                "being comfortably readable. Legal and caption text is where "
                                "this always creeps in, and it is exactly the text people "
-                               "most need to read (NUM-015).", "medium"))
-        return out[:8]
-    for m in re.finditer(r"(?<![\w-])text-\[(\d+(?:\.\d+)?)px\]", f.text):
-        if float(m.group(1)) >= 12:
+                               "most need to read (NUM-015, a PROJECT default -- the owner may "
+                               "set typography.min_text_px for a dense tool).", "medium"))
+    if f.ext in CSS:
+        return out
+    # Tailwind classes are checked even when the component also has a <style>
+    # block. Returning after the CSS pass skipped every text-[10px] in such a file.
+    for m in re.finditer(r"(?<![\w-])text-\[(\d+(?:\.\d+)?)px\]", strip_comments(f.text)):
+        if float(m.group(1)) >= floor:
             continue
         out.append(finding("S-TYPE-TINY", f, _line(f.text, m.start()), m.group(0),
-                           f"{m.group(1)}px text. Below ~12px this is unreadable for many "
-                           "people and no zoom fixes a fixed layout (NUM-015).", "medium"))
-    return out[:8]
+                           f"{m.group(1)}px text. Below ~{floor:g}px this is unreadable for "
+                           "many people and no zoom fixes a fixed layout (NUM-015, a PROJECT "
+                           "default the owner may lower via typography.min_text_px).",
+                           "medium"))
+    return out
 
 
 # Selectors that name reading content, and properties that mean a rule is
@@ -92,7 +134,7 @@ def line_length(f, p):
                                f"About {ch:.0f} characters per line for reading content. "
                                f"Past ~{cap:g} the return sweep starts failing and people "
                                "re-read lines (NUM-016).", "low"))
-        return out[:6]
+        return out
     for m in re.finditer(r"(?<![\w-])max-w-(\[(\d+)px\]|screen-2xl|full)\b", f.text):
         win = f.text[max(0, m.start() - 200):m.start() + 200]
         if not re.search(r"\bprose\b|article|<p[\s>]|paragraph|body-copy", win, re.I):
@@ -101,7 +143,7 @@ def line_length(f, p):
                            "Reading content with no character-based measure. Cap it around "
                            f"{p.num('typography', 'measure_ch_min', 45):g}-{cap:g}ch so the "
                            "line return stays findable (NUM-016).", "low"))
-    return out[:6]
+    return out
 
 
 # A fluid heading is written `clamp(26px, 3.4vw, 40px)`, and a plain
@@ -150,7 +192,7 @@ def tight_leading(f, p):
                                f"Leading of {lh} on body-sized text crowds the lines. Aim for "
                                "1.5, which is also what the text-spacing criterion expects "
                                "you to survive (NUM-010).", "low"))
-        return out[:6]
+        return out
     for m in re.finditer(r"(?<![\w-])leading-(none|tight)\b", f.text):
         win = f.text[max(0, m.start() - 160):m.start() + 160]
         if re.search(r"text-(?:3xl|4xl|5xl|6xl|7xl|8xl|9xl)|<h1|<h2", win):
@@ -158,7 +200,7 @@ def tight_leading(f, p):
         out.append(finding("S-TYPE-LEADING", f, _line(f.text, m.start()), m.group(0),
                            f"`leading-{m.group(1)}` on text that is not display-sized. "
                            "Descenders collide with the next line (NUM-010).", "low"))
-    return out[:6]
+    return out
 
 
 @check("S-TYPE-ALLCAPS")
@@ -176,7 +218,7 @@ def all_caps_body(f, p):
             out.append(finding("S-TYPE-ALLCAPS", f, _line(f.css, pos), sel[:50],
                                "Uppercase applied at body size. It strips word shape and "
                                "slows reading measurably; keep it for short labels.", "low"))
-        return out[:5]
+        return out
     for t in f.tags:
         if t.name.lower() not in ("p", "li", "blockquote", "td"):
             continue
@@ -185,7 +227,7 @@ def all_caps_body(f, p):
         out.append(finding("S-TYPE-ALLCAPS", f, t.line, " ".join(t.classes())[:60],
                            "Uppercase on a block of running text. It removes the word shapes "
                            "readers navigate by.", "low"))
-    return out[:5]
+    return out
 
 
 @check("S-TYPE-JUSTIFY")
@@ -202,7 +244,7 @@ def justified_text(f, p):
                            "Justified text with no hyphenation. The uneven word spacing "
                            "creates vertical rivers that are hard to read past, particularly "
                            "for dyslexic readers. Prefer ragged-right.", "low"))
-    return out[:4]
+    return out
 
 
 @check("S-TYPE-TRACKING-WIDE")
@@ -221,7 +263,7 @@ def wide_tracking_body(f, p):
             out.append(finding("S-TYPE-TRACKING-WIDE", f, _line(f.css, pos), sel[:40],
                                f"Letter-spacing of .{m.group(1)}em at body size separates "
                                "letters faster than the eye groups them into words.", "low"))
-        return out[:5]
+        return out
     for t in f.tags:
         if t.name.lower() not in ("p", "li", "blockquote"):
             continue
@@ -230,7 +272,7 @@ def wide_tracking_body(f, p):
         out.append(finding("S-TYPE-TRACKING-WIDE", f, t.line, " ".join(t.classes())[:60],
                            "Wide tracking on running text pulls letters out of words.",
                            "low"))
-    return out[:5]
+    return out
 
 
 @check("S-TYPE-CRAMPED")
@@ -253,7 +295,7 @@ def cramped_padding(f, p):
                            f"{pv:g}px padding around {size:g}px text (about {need:.0f}px "
                            "would breathe). It reads as a rendering fault, and on a control "
                            "it shrinks the target too (NUM-005).", "low"))
-    return out[:6]
+    return out
 
 
 @check("S-TYPE-EDGE")
@@ -283,4 +325,4 @@ def text_to_viewport_edge(f, p):
                            "A top-level text container with no horizontal gutter. On a phone "
                            "the first and last characters sit under the screen curve and the "
                            "holding thumb -- 16px is the usual minimum (LAY-002).", "low"))
-    return out[:3]
+    return out

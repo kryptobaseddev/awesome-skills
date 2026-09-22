@@ -247,7 +247,7 @@ def eyebrow_label(f, p):
                                "label above a heading. It adds hierarchy carrying no "
                                "information, and uppercase plus wide tracking is measurably "
                                "slower to read (VIS-006, VIS-002).", "low"))
-        return out[:4]
+        return out
     hits = []
     for t in f.tags:
         cls = " ".join(t.classes())
@@ -293,7 +293,7 @@ def extreme_tracking(f, p):
                            f"Tracking of {desc} closes letter counters and collides "
                            "diagonals. Tighten display type if you must, but check it at "
                            "the smallest size it renders (VIS-006).", "low"))
-    return out[:6]
+    return out
 
 
 @check("S-SLOP-PALETTE")

@@ -51,7 +51,7 @@ def depth_metaphor(f, p):
                     "A coloured glow on a dark surface. It reads as a screenshot of a "
                     "developer tool rather than a product, and it costs contrast on "
                     "anything sitting inside it (VIS-006).")
-    return out[:4]
+    return out
 
 
 @check("S-CRAFT-TYPESYSTEM")
@@ -86,7 +86,7 @@ def type_system(f, p):
         out += _one("S-CRAFT-TYPESYSTEM", f, italic_serif.start(), italic_serif.group(0)[:50],
                     "Large italic serif display type. It is the default gesture for "
                     "'sophisticated' and it is recognisable as exactly that (VIS-006).")
-    return out[:3]
+    return out
 
 
 @check("S-CRAFT-DECOR")
@@ -122,7 +122,7 @@ def decorative_reflex(f, p):
                     f"{tiles} icons in tinted rounded squares down a list. It is the "
                     "default feature-grid shape, and the tiles add visual weight without "
                     "adding meaning (VIS-006).")
-    return out[:4]
+    return out
 
 
 @check("S-CRAFT-PALETTE-WARM")
@@ -168,7 +168,7 @@ def motion_reflex(f, p):
                     "An image that scales or rotates on hover. It is a recurring "
                     "generated-UI signature, it does not survive touch, and it costs a "
                     "repaint of the largest element on screen.")
-    return out[:3]
+    return out
 
 
 @check("S-CRAFT-RHYTHM")
@@ -200,7 +200,7 @@ def spacing_rhythm(f, p):
         out += _one("S-CRAFT-RHYTHM", f, m.start() if m else 0, f"{numbered} 0N markers",
                     "Zero-padded section numbers (01, 02, 03). A strong editorial signal "
                     "used decoratively, on content with no actual sequence.")
-    return out[:3]
+    return out
 
 
 @check("S-CRAFT-VOICE", exts=SRC)
@@ -236,4 +236,4 @@ def copy_voice(f, p):
         out += _one("S-CRAFT-VOICE", f, h1.start(), h1.group(0),
                     "Display type past roughly 72px. Scale substituting for hierarchy -- it "
                     "also forces a second, unrelated layout at narrow widths (VIS-002).")
-    return out[:4]
+    return out

@@ -97,7 +97,7 @@ def type_scale(f, p):
                            f"{', '.join(f'{x:g}' for x in sorted(allowed))} -- the nearest "
                            f"is {near:g}px. Use the role, or add the step to the contract "
                            f"and say what job it does (VIS-002, VIS-001).", "high"))
-    return out[:5]
+    return out
 
 
 @check("S-CONTRACT-FAMILY")
@@ -123,7 +123,7 @@ def type_family(f, p):
                            f"{', '.join(sorted(allowed))}. A fourth voice is a decision "
                            f"somebody made locally -- either it belongs to the system or "
                            f"it does not belong (VIS-002, VIS-001).", "high"))
-    return out[:4]
+    return out
 
 
 # ---------------------------------------------------------------------- colour
@@ -147,7 +147,7 @@ def color_roles(f, p):
                            f"roles. Name the role instead -- a literal cannot follow a "
                            f"theme, and it is dark mode that collects on that (VIS-001).",
                            "high"))
-    return out[:5]
+    return out
 
 
 # ----------------------------------------------------------------------- depth
@@ -189,7 +189,7 @@ def depth_metaphor(f, p):
                            f"The contract declares depth by `{metaphor}`, and this surface "
                            f"uses {other}. Two metaphors on one system means neither is "
                            f"carrying the elevation (VIS-006, VIS-001).", "medium"))
-    return out[:3]
+    return out
 
 
 @check("S-CONTRACT-ELEVATION")
@@ -218,7 +218,7 @@ def elevation_set(f, p):
                            f"elevations. Use a declared step, or reference it as a token "
                            f"-- a one-off shadow cannot be re-tuned with the system "
                            f"(VIS-001, VIS-006).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-CONTRACT-RAMP")
@@ -278,7 +278,7 @@ def ramp_steps(f, p):
                            f"nearest step is {near:.3f}. A value between two steps "
                            f"reads as a tier the system does not have, and it cannot "
                            f"be re-tuned with the rest (VIS-001).", "medium"))
-    return out[:4]
+    return out
 
 
 # --------------------------------------------------------------------- spacing
@@ -308,7 +308,7 @@ def radius_set(f, p):
                            f"{', '.join(f'{x:g}px' for x in sorted(allowed))}. Radius drift "
                            f"is the fastest way a set of components stops looking like one "
                            f"set (VIS-001).", "medium"))
-    return out[:4]
+    return out
 
 
 # ---------------------------------------------------------------------- motion
@@ -349,7 +349,7 @@ def motion_budget(f, p):
                            f"{'Slower than this reads as lag' if v > hi else 'Faster than this is not perceived as motion'}"
                            f" -- and a band nobody keeps is not a motion system (NUM-018).",
                            "low"))
-    return out[:4]
+    return out
 
 
 # ------------------------------------------------------------ face availability

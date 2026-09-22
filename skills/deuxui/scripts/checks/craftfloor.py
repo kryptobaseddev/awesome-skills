@@ -58,7 +58,7 @@ def hero_scale(f, p):
             out.append(finding("S-CRAFT-HERO-SCALE", f, _line(hay, m.start()), m.group(0),
                                f"{m.group(1)}rem is past the {cap:g}rem display ceiling "
                                f"(VIS-002).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-CRAFT-TYPE-FLAT")
@@ -160,7 +160,7 @@ def glow_halo(f, p):
                            "four sides is decoration standing in for elevation. If it is "
                            "a focus ring, say so with outline or ring utilities (VIS-006).",
                            "low"))
-    return out[:4]
+    return out
 
 
 @check("S-CRAFT-HARD-SHADOW")
@@ -183,7 +183,7 @@ def hard_offset_shadow(f, p):
                            "it reads as a costume rather than a depth system. Give the "
                            "shadow a blur, or commit to the style deliberately (VIS-006).",
                            "low"))
-    return out[:3]
+    return out
 
 
 @check("S-CRAFT-CARD-RADIUS")
@@ -206,7 +206,7 @@ def card_radius(f, p):
                            f"{v:g}px radius on a card. Cards read best at {lo:g}-{hi:g}px; "
                            f"past that a content surface starts reading as a control. "
                            f"Pills are for small controls (VIS-006).", "low"))
-    return out[:3]
+    return out
 
 
 # ----------------------------------------------------------------- motion rules
@@ -234,7 +234,7 @@ def hidden_at_rest(f, p):
                            "headless renderers or for search crawlers, so this section "
                            "ships blank. Animate up from an already-visible default "
                            "instead (LAY-010, A11Y-010).", "medium"))
-    return out[:4]
+    return out
 
 
 @check("S-CRAFT-EASING")
@@ -258,7 +258,7 @@ def easing_choice(f, p):
                            "A negative control point means overshoot -- bounce or elastic. "
                            "It reads as a template's personality rather than this "
                            "product's. Ease out without overshoot (NUM-018).", "low"))
-    return out[:4]
+    return out
 
 
 # ------------------------------------------------------------- browser surfaces
@@ -357,7 +357,7 @@ def stripe_background(f, p):
                            "a canvas. With no such material in the design it is noise. "
                            "Backgrounds are surfaces; texture them from the subject's "
                            "world or leave them flat (VIS-006).", "low"))
-    return out[:3]
+    return out
 
 
 @check("S-CRAFT-GRADIENT-TEXT")
@@ -376,7 +376,7 @@ def gradient_text(f, p):
                            "is the most recognisable generated-UI signature there is. "
                            "Emphasis comes from weight and size (NUM-001, VIS-006).",
                            "medium"))
-    return out[:3]
+    return out
 
 
 # -------------------------------------------------------------------- z-index
@@ -399,7 +399,7 @@ def zindex_scale(f, p):
                            "order is no longer stated anywhere. Name the layers instead "
                            "-- dropdown, sticky, backdrop, modal, toast, tooltip "
                            "(VIS-001).", "low"))
-    return out[:4]
+    return out
 
 
 # ------------------------------------------------------------- colour on colour
@@ -440,4 +440,4 @@ def gray_on_color(f, p):
                            "surface carries hue and the text carries none. Derive the "
                            "secondary tone from the surface's own hue, or use a "
                            "transparency of the foreground (VIS-001, NUM-001).", "low"))
-    return out[:4]
+    return out

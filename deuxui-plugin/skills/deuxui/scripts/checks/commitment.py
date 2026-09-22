@@ -108,7 +108,7 @@ def commitment_disclosure(f, p):
                            + " shown beforehand. Put the consequence in front of the "
                            "commitment, not on the confirmation screen "
                            "(TRUST-001, FORM-014).", "medium"))
-    return out[:8]
+    return out
 
 
 @check("S-COMMIT-REVIEW", exts=SRC)
@@ -125,7 +125,7 @@ def commitment_review(f, p):
                            "confirmation and no stated reversal path anywhere near it. "
                            "WCAG SC 3.3.4 asks for reversible, checked, or confirmed "
                            "(FORM-013).", "medium"))
-    return out[:6]
+    return out
 
 
 # ------------------------------------------------------------------ FORM-009 / TRUST-004
@@ -162,7 +162,7 @@ def client_only_validation(f, p):
                            "A server mutation handler with no " + " and no ".join(missing)
                            + ". Whatever the form enforces, this endpoint accepts "
                            "(FORM-009, TRUST-004).", "medium"))
-    return out[:6]
+    return out
 
 
 @check("S-AUTHZ-UI-ONLY", exts=SRC)
@@ -181,7 +181,7 @@ def ui_only_authorization(f, p):
                            "hides the button; it does not stop the request. Confirm the "
                            "server enforces the same rule -- hidden UI is not access "
                            "control (TRUST-004).", "low"))
-    return out[:6]
+    return out
 
 
 # ------------------------------------------------------------------ TRUST-008
@@ -202,7 +202,7 @@ def account_context(f, p):
                            "workspace or recipient context near it. State which account is "
                            "acting and who receives it, before the button (TRUST-008).",
                            "low"))
-    return out[:6]
+    return out
 
 
 # ------------------------------------------------------------------ AI-001 / AI-003
@@ -254,4 +254,4 @@ def ai_output_provenance(f, p):
                            "consequential the model decides to do needs a human confirmation "
                            "before it happens, not an undo after (AI-003).", "medium"))
         break
-    return out[:6]
+    return out
