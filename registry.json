@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-21 19:03:48",
-  "total_skills": 24,
+  "generated_at": "2026-09-22 02:04:31",
+  "total_skills": 25,
   "total_categories": 14,
   "categories": [
     {
@@ -110,6 +110,19 @@
       "name": "Frontend & UI",
       "icon": "\ud83c\udfa8",
       "skills": [
+        {
+          "name": "deluxui",
+          "path": "skills/deluxui",
+          "description": "DEPRECATED POINTER \u2014 this skill was renamed to `deuxui` (DeuxUI). It exists only so existing installs receive the rename notice on their next update. Do not use it for real work: install and use the `deuxui` skill instead, which carries the whole 235-rule UX/UI contract, 246 detectors across static, browser, native, process and manual tiers, the wireframe and prototype review stages, the design decision ledger, and the release gate where NOT_RUN is never a pass. If this skill triggers on a UX, UI, design-system, accessibility, responsive or interface question, read the `deuxui` skill and answer from there.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "5.0.0",
+            "last_updated": "2026-09-22 02:30:00",
+            "category": "frontend",
+            "tags": "ux, ui, design-system, deprecated, moved",
+            "superseded_by": "deuxui"
+          }
+        },
         {
           "name": "deuxui",
           "path": "skills/deuxui",
