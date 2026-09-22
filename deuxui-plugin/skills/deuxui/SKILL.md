@@ -10,8 +10,8 @@ compatibility: >-
   HTML/CSS, Tailwind v3 and v4, shadcn, Radix, Base UI, Three.js and Remotion.
 metadata:
   author: github.com/kryptobaseddev
-  version: "5.24.3"
-  last_updated: "2026-09-22 08:24:11"
+  version: "5.24.4"
+  last_updated: "2026-09-22 08:26:29"
   category: frontend
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---

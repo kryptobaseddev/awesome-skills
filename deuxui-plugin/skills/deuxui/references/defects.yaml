@@ -944,6 +944,7 @@ defects:
       - file: scripts/selftest.py
         text: is the TIER, not one engine
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-35
     title: a commented-out sibling tag proved nothing about comment skipping
@@ -1093,6 +1094,7 @@ defects:
       - file: scripts/parity.py
         text: it never executes, so both the shallow
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-42
     title: the classify revert changed nothing until the fixture held a disagreeing stack
@@ -1136,6 +1138,7 @@ defects:
       - file: scripts/selftest.py
         text: The first version of this case asserted it should
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-44
     title: emptying PATH broke the script before it reached the branch under test
@@ -1157,6 +1160,7 @@ defects:
       - file: scripts/selftest.py
         text: rather than a bogus
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-45
     title: the lowercase-tag case asserted the outcome and not the reason
@@ -1200,6 +1204,7 @@ defects:
       - file: scripts/selftest.py
         text: passed with the code removed.
     verified_by_revert: true
+    revert_reverified: "2026-09-22"
 
   - id: DEF-47
     title: a control asserted a limit that a correct improvement made untrue
