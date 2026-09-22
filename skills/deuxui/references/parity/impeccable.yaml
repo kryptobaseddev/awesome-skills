@@ -511,11 +511,14 @@ live:
       definition was picked -- by the class the browser reported, which is authored in
       the component's own file. I had written that this needed the render graph; it does
       not, for the case that comes up.
-      It still needs the render graph for the case it refuses: an element with no class
-      of its own, or whose only class is a utility like `mt-8` that says how much margin
-      it has rather than which element it is. Then nothing in the definition
-      distinguishes it from its siblings and picking one is guessing. Two files defining
-      one component name is refused with both listed.
+      A classless element resolves too when its TAG is unique in the definition, because
+      then there is nothing for position to disambiguate. What is left needing the render
+      graph is narrower again: an element with no distinguishing class whose tag appears
+      more than once -- two `<span>`s side by side. Then picking one lands the edit on
+      the wrong one half the time, so it refuses and says how many candidates there were.
+      A utility class is never an anchor: `mt-8` says how much margin an element has, not
+      which element it is, and the next sibling to get a margin would move the same pick.
+      Two files defining one component name is refused with both listed.
       It refuses rather than guesses -- an
       element located by its class instead of its text, a span whose tag disagrees with
       what was picked on screen, unbalanced boundaries, or an anchor appearing more than

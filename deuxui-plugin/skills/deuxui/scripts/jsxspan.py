@@ -369,12 +369,37 @@ def inside_component(name: str, root, rec: dict) -> dict:
                 return {"found": True, "file": d["file"], "line": r["line"],
                         "name": r["name"], "how": f"matched on the class {cls!r}",
                         "defined_at": d["line"], "tried": tried}
+    # No class to go on. There is still one case that is decidable without a render
+    # graph, and I wrote it off with the rest: if the definition contains exactly ONE
+    # element of the picked tag, position cannot matter -- there is nothing for it to
+    # disambiguate. A `<Card>` whose markup has a single `<h3>` resolves; one with three
+    # `<span>`s does not, and that is where the render graph is genuinely required.
+    tag = str(rec.get("tag") or "").strip().lower()
+    if tag and tag[:1].islower():
+        same = [s for s in spans(text) if s["name"].lower() == tag]
+        tried.append({"anchor": f"<{tag}>", "hits": len(same)})
+        if len(same) == 1:
+            s = same[0]
+            ok, why = verify(text, s, text[s["start"]:s["open_end"]])
+            if ok or "anchor" in why:      # the anchor check does not apply here
+                return {"found": True, "file": d["file"],
+                        "line": text[:s["start"]].count("\n") + 1,
+                        "name": s["name"],
+                        "how": f"the only <{tag}> in the component",
+                        "defined_at": d["line"], "tried": tried}
+        if len(same) > 1:
+            return {"found": False, "file": d["file"], "defined_at": d["line"],
+                    "tried": tried,
+                    "why": (f"<{name}> is defined at {d['file']}:{d['line']} and "
+                            f"contains {len(same)} <{tag}> elements. The one that was "
+                            f"picked has no class to tell them apart, so which it is "
+                            f"needs the render graph, which this does not have.")}
     return {"found": False, "file": d["file"], "defined_at": d["line"], "tried": tried,
             "why": (f"<{name}> is defined at {d['file']}:{d['line']}, but nothing in "
                     f"the element that was picked distinguishes it from its siblings "
-                    f"THERE -- no class of its own, or one that is not unique in that "
-                    f"file. Which node inside the component this is needs the render "
-                    f"graph, which this does not have.")}
+                    f"THERE -- no class of its own, and no <{tag or '?'}> to match on. "
+                    f"Which node inside the component this is needs the render graph, "
+                    f"which this does not have.")}
 
 
 def verify(text: str, s: dict, anchor: str) -> tuple[bool, str]:

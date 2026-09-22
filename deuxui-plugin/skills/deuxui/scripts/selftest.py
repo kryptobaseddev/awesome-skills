@@ -525,12 +525,43 @@ def element_spans():
                          "first")
         elif _in2["line"] == (_in.get("line") if _in.get("found") else None):
             fails.append("inside_component gave two different elements the same line")
-        # And the case that genuinely CANNOT resolve has to say so rather than guess.
-        _no = jsxspan.inside_component("Card", _r9, {"classes": "", "tag": "h3"})
+        # No class at all, but the tag is unique in the definition. I wrote this case
+        # off with the rest of the classless ones; it is decidable without a render
+        # graph, because when there is exactly one element of that tag there is nothing
+        # for position to disambiguate.
+        with tempfile.TemporaryDirectory() as _da:
+            _ra = Path(_da)
+            (_ra / "One.tsx").write_text(
+                'export function One() {\n'
+                '  return <div className="w"><h3>{t}</h3><p>{p}</p></div>;\n}\n')
+            (_ra / "Many.tsx").write_text(
+                'export function Many() {\n'
+                '  return <ul className="l"><span>a</span><span>b</span></ul>;\n}\n')
+            _one = jsxspan.inside_component("One", _ra, {"classes": "", "tag": "h3"})
+            if not _one.get("found") or _one.get("name") != "h3":
+                fails.append(f"inside_component refused a classless element whose tag "
+                             f"appears exactly once in the component; there is nothing "
+                             f"for position to disambiguate: {_one.get('why')}")
+            _many = jsxspan.inside_component("Many", _ra, {"classes": "", "tag": "span"})
+            if _many.get("found"):
+                fails.append("inside_component picked one of two identical <span>s with "
+                             "nothing to tell them apart -- THAT is the case that needs "
+                             "the render graph, and guessing lands the edit on the wrong "
+                             "one half the time")
+            elif "2 <span>" not in str(_many.get("why", "")):
+                fails.append("inside_component refused an ambiguous tag without saying "
+                             "how many candidates there were")
+
+        # The case that genuinely CANNOT resolve. This used to assert that ANY classless
+        # element was undecidable, which stopped being true when the unique-tag fallback
+        # landed: `Card` has exactly one `<h3>`, so it resolves now and should. The
+        # undecidable case is narrower -- two `card-row` spans with nothing to tell them
+        # apart -- and asserting the old limit would have blocked a correct improvement.
+        _no = jsxspan.inside_component("Card", _r9, {"classes": "", "tag": "span"})
         if _no.get("found"):
-            fails.append("inside_component placed an element with no class of its own, "
-                         "which it cannot distinguish from its siblings -- that is the "
-                         "case that needs the render graph and it must refuse")
+            fails.append("inside_component placed one of two identical <span>s with "
+                         "nothing to tell them apart -- that is the case that needs the "
+                         "render graph and it must refuse")
         elif "render graph" not in str(_no.get("why", "")):
             fails.append("inside_component refused without saying what would be needed "
                          "to resolve it, so the refusal is a dead end")
@@ -539,9 +570,15 @@ def element_spans():
         # refuses on its own and the guard proves nothing. `mt-8` here is on exactly one
         # element, and matching it is still coincidence -- the next sibling to get a
         # margin moves the same pick somewhere else.
+        # TWO <b>s, so the tag fallback cannot decide it either and only the class
+        # could -- which is the only arrangement where the utility guard is what
+        # determines the outcome. With one <b> the element resolves by tag, correctly,
+        # and this case proved nothing about the guard.
         (_r9 / "src" / "Solo.tsx").write_text(
             'export function Solo() {\n'
-            '  return <section className="wrap"><b className="mt-8">x</b></section>;\n}\n')
+            '  return (\n    <section className="wrap">\n'
+            '      <b className="mt-8">x</b>\n      <b>y</b>\n'
+            '    </section>\n  );\n}\n')
         _util = jsxspan.inside_component("Solo", _r9, {"classes": "mt-8", "tag": "b"})
         if _util.get("found"):
             fails.append("inside_component located an element by a utility class that "
