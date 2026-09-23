@@ -2160,6 +2160,34 @@ export default { async headers() { return [{ source: "/(.*)",
             fails.append("typography.min_text_px does not reach S-TYPE-TINY: a project "
                          "floor of 10px still flagged 10-11px text, or stopped flagging 9px")
 
+    # Documents are not screens (5.25.0 field report, second pass): 21 of
+    # S-RESP-TABLE's 44 matches were HTML email templates and PDF builders, where
+    # <table> is the required primitive and "switch to cards below a breakpoint"
+    # does not exist. Each file is named neutrally, so only what it DOES -- its
+    # imports -- can decide; and a screen whose name starts with "Email" must still
+    # be read as a screen, or the exemption swallows a real defect.
+    with tempfile.TemporaryDirectory() as td:
+        proj = Path(td)
+        for name in ("package.json", "theme.css"):
+            shutil.copy(FIX / name, proj / name)
+        (proj / "lib").mkdir()
+        shutil.copy(FIX / "good-email.tsx", proj / "OrderConfirmation.tsx")
+        shutil.copy(FIX / "good-pdf.ts", proj / "lib" / "certificate.ts")
+        shutil.copy(FIX / "bad-email.tsx", proj / "EmailDeliveryLog.tsx")
+        res = _scan(proj, extra=("--detector", "S-RESP-TABLE", "--detector", "S-TOKEN-HEX",
+                                 "--detector", "S-COMP-TABLE-SEMANTICS"))
+        by = {}
+        for h in res.get("findings", []):
+            by.setdefault(Path(h["file"]).name, set()).add(h["detector"])
+        for doc in ("OrderConfirmation.tsx", "certificate.ts"):
+            if by.get(doc):
+                fails.append(f"a document was judged as a screen: {sorted(by[doc])} fired "
+                             f"on {doc}, an email or PDF where <table> is the layout "
+                             "primitive and colours can only be literal")
+        if "S-RESP-TABLE" not in by.get("EmailDeliveryLog.tsx", set()):
+            fails.append("the document exemption swallowed a screen: EmailDeliveryLog.tsx "
+                         "is a page with a scrolled 8-column table ending in Action")
+
     # A count is a count. Ten real colours in one file: the report lists five (the
     # per-file cap) and must say ten were matched. Before, `(total 5)` was printed
     # as though it were the total, and a detector's own `out[:12]` threw findings

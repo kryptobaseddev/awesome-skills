@@ -14,7 +14,13 @@ does not scroll, and SC 1.4.10 exempts data tables anyway -- so `R-TABLE-HIDDEN`
 reads every scroll box whose content is wider than the box and fails the data tables
 among them: "669px hidden, last column Action". A horizontal scroll is not a
 narrow-width strategy for a data table; a card layout below a breakpoint, or a last
-column pinned with `sticky right-0`, is (LAY-006, `S-RESP-TABLE` at the static tier). `R-ZOOM` applies 200% text and `R-TEXTSPACING` applies the
+column pinned with `sticky right-0`, is (LAY-006, `S-RESP-TABLE` at the static tier).
+The commoner failure does not overflow at all: a `width: 100%` table with automatic
+layout wraps its cells until the columns fit, and pays in height. `R-TABLE-SQUEEZE`
+reads median row height against four of the cell's own lines -- an eleven-column queue
+at 1118px "fit" with 133px rows. Drop or merge columns at that width, or switch to
+cards. Email templates and PDF builders are documents, not screens, and the table
+checks leave them alone. `R-ZOOM` applies 200% text and `R-TEXTSPACING` applies the
 SC 1.4.12 overrides, then look for content that got clipped or pushed off screen —
 both are about surviving a user's own settings, not your breakpoints.
 

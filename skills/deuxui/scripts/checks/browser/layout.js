@@ -1,5 +1,6 @@
 // R-REFLOW -- horizontal overflow and clipping at the current viewport. NUM-009.
 // R-TABLE-HIDDEN -- content hidden sideways inside a scroll box. LAY-006.
+// R-TABLE-SQUEEZE -- a table that 'fits' by wrapping every row tall. LAY-006.
 //
 // Two different questions. R-REFLOW asks whether the PAGE scrolls sideways, which
 // is what WCAG 1.4.10 measures -- and 1.4.10 exempts data tables, so a table in its
@@ -77,7 +78,51 @@
                       dataTable: !!table && (columns > maxCols || (interactive && columns >= actCols)) });
     if (containers.length >= 25) break;
   }
+  // R-TABLE-SQUEEZE. A width:100% table with automatic layout does not overflow if
+  // it can avoid it: it wraps cell text until the columns fit, and pays in height.
+  // The field report's eleven-column queue measured 1118px in a 1118px box -- no
+  // overflow at all -- with every row 133px, five wrapped lines. Width cannot see
+  // that; row height can. The cap is derived from the cell's own line height, not
+  // guessed, and only data tables are judged: a glossary whose definitions run to
+  // a paragraph is meant to wrap.
+  const maxLines = th.table_row_max_lines || 4;
+  const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const tables = [];
+  for (const table of document.querySelectorAll('table')) {
+    const tr = table.getBoundingClientRect();
+    if (tr.width === 0 || tr.height === 0) continue;
+    const rows = [...table.querySelectorAll('tr')].filter((r) => r.querySelector('td'));
+    if (!rows.length) continue;
+    const heads = table.querySelectorAll('thead th');
+    const columns = heads.length || rows[0].children.length;
+    const lastHead = heads.length ? heads[heads.length - 1] : null;
+    const lastColumn = lastHead ? (lastHead.textContent || '').trim().slice(0, 40) : null;
+    const lastCells = rows.map((r) => r.children[r.children.length - 1]).filter(Boolean);
+    const interactive = /^(actions?|edit|manage|options|more|menu|controls?)$/i.test(lastColumn || '') ||
+      lastCells.some((c) => c.querySelector('button, a[href], input, select, [role=button], [role=menuitem]'));
+    const td = rows[0].querySelector('td');
+    const cs = getComputedStyle(td);
+    const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+    const cap = maxLines * line + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const rowHeight = median(rows.map((r) => r.getBoundingClientRect().height));
+    // The column doing the wrapping: the tallest cell's header, in the tallest row.
+    let wrapColumn = null;
+    const tallest = rows.reduce((a, r) => (r.getBoundingClientRect().height > a.getBoundingClientRect().height ? r : a));
+    let best = 0;
+    [...tallest.children].forEach((c, i) => {
+      const h = c.scrollHeight;
+      if (h > best) { best = h; wrapColumn = heads[i] ? (heads[i].textContent || '').trim().slice(0, 40) : `column ${i + 1}`; }
+    });
+    const dataTable = columns > maxCols || (interactive && columns >= actCols);
+    tables.push({ columns, lastColumn, interactive, dataTable,
+                  widthPx: Math.round(tr.width), rowHeight: Math.round(rowHeight),
+                  capPx: Math.round(cap),
+                  lines: Math.round(((rowHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)) / line) * 10) / 10,
+                  squeezed: rowHeight > cap, wrapColumn,
+                  cls: (table.className || '').toString().slice(0, 60) });
+    if (tables.length >= 25) break;
+  }
   return { probe: 'layout', viewport: vw, scrollWidth: doc,
            page_overflows: doc > vw + 1, offenders, offender_count: offenderCount,
-           containers };
+           containers, tables };
 })()

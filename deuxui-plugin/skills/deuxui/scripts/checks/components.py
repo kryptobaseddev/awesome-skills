@@ -8,7 +8,7 @@ the cost of having built it by hand anyway.
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import ancestors, strip_noncode
+from ._util import ancestors, document_kind, is_layout_table, strip_noncode
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 VAGUE_LABEL = re.compile(r"^\s*(?:continue|ok|okay|yes|submit|next|done|confirm|proceed|go)\s*$",
@@ -138,8 +138,10 @@ def table_semantics(f, p):
     """Without header cells the relationship between a value and its column
     exists only visually, which is no relationship at all (COMP-014)."""
     out = []
+    email = document_kind(f.path, f.text) == "email"
     for t in f.tags:
-        if t.name.lower() != "table":
+        # A layout table correctly has no header cells: it has no columns of data.
+        if t.name.lower() != "table" or is_layout_table(t):
             continue
         inner = t.inner or ""
         problems = []
@@ -150,11 +152,17 @@ def table_semantics(f, p):
             problems.append("sortable columns with no aria-sort")
         if not problems:
             continue
+        if email and problems == ["no header cells"]:
+            fix = ("An email table with no header cells. If it lays the message out, say "
+                   "so with role=\"presentation\" and a screen reader stops announcing "
+                   "rows and columns; if it holds data -- an order summary -- give it "
+                   "<th> cells (COMP-014).")
+        else:
+            fix = ("A data table with " + " and ".join(problems)
+                   + ". Screen-reader users navigate a table by its headers; "
+                   "without them every cell is an orphan value (COMP-014).")
         out.append(finding("S-COMP-TABLE-SEMANTICS", f, t.line, ", ".join(problems),
-                           "A data table with " + " and ".join(problems)
-                           + ". Screen-reader users navigate a table by its headers; "
-                           "without them every cell is an orphan value (COMP-014).",
-                           "medium"))
+                           fix, "medium"))
     return out
 
 

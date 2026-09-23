@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import ancestors
+from ._util import ancestors, document_kind, is_layout_table
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 CSS = (".css", ".scss", ".sass", ".less")
@@ -116,10 +116,14 @@ def _ancestors_until(t, stop):
 @check("S-RESP-TABLE", exts=SRC)
 def table_narrow(f, p):
     out = []
+    # An email or a PDF is not a screen that reflows: <table> is the layout
+    # primitive there, and "switch to cards below a breakpoint" does not exist.
+    if document_kind(f.path, f.text):
+        return out
     max_cols = p.num("responsive", "table_scroll_max_columns", 6)
     act_cols = p.num("responsive", "table_actions_min_columns", 4)
     for t in f.tags:
-        if t.name.lower() != "table":
+        if t.name.lower() != "table" or is_layout_table(t):
             continue
         up = [a for _i, a in zip(range(4), ancestors(t))]
         near = [t] + up + ([s for s in t.parent.children if s is not t] if t.parent else [])

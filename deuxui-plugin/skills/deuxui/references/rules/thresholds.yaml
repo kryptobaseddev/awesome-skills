@@ -69,6 +69,9 @@ responsive:                     # LAY-006
   # Action menu usually do not.
   table_scroll_max_columns: 6
   table_actions_min_columns: 4
+  # A data table that fits its width by wrapping: rows taller than this many of
+  # the cell's own lines (plus padding) fail. Five-line rows were the field case.
+  table_row_max_lines: 4
   overridable: true
 
 spacing:                        # NUM-017

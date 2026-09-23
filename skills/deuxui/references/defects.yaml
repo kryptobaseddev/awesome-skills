@@ -1738,3 +1738,78 @@ defects:
         text: is stale against registry.yaml
     verified_by_revert: true
     revert_reverified: "2026-09-22"
+
+  # --- 5.26.0: the field report's second pass against 5.25.0, which confirmed the
+  # five original defects fixed and found the two below.
+
+  - id: DEF-66
+    title: a data table that fit its width by wrapping every row tall passed every check
+    class: undetectable
+    kind: product
+    found_in: "5.25.0"
+    fixed_in: "5.26.0"
+    surface: scripts/checks/browser/layout.js
+    symptom: >-
+      A `width: 100%` table with automatic layout does not overflow if it can avoid it;
+      it wraps cell text until the columns fit. The field queue measured 1118px in a
+      1118px box with 133px rows -- five wrapped lines -- and R-TABLE-HIDDEN, reading
+      scrollWidth against clientWidth, saw 1118 against 1118 and a clean fit. Nothing
+      under checks/browser/ measured row height.
+    consequence: >-
+      The tables people actually complain about are the ones that "fit". The report's
+      own width-only solver dropped nothing on the exact screen the bug was filed
+      against; so did 5.25.0.
+    fix: >-
+      layout.js measures each table's median body-row height against a cap of
+      `responsive.table_row_max_lines` of the cell's own line height plus padding --
+      derived, not guessed -- and a new R-TABLE-SQUEEZE on LAY-006 fails the data tables
+      over it, naming the column that wraps most. A glossary meant to wrap is not a data
+      table and is not judged.
+    guard:
+      - file: scripts/checks/browser/layout.js
+        text: Width cannot see
+      - file: scripts/ux_report.py
+        text: def _table_squeeze
+    control:
+      - file: scripts/browsertest.py
+        text: table has no row-height
+      - file: scripts/browsertest.py
+        text: R-TABLE-SQUEEZE must FAIL exactly the squeezed queue
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"
+
+  - id: DEF-67
+    title: the table checks judged email templates and PDF builders as screens
+    class: wrong-result
+    kind: product
+    found_in: "5.25.0"
+    fixed_in: "5.26.0"
+    surface: scripts/checks/_util.py
+    symptom: >-
+      21 of S-RESP-TABLE's 44 matches in the field were HTML email templates and PDF
+      builders, told to "switch to a card layout below a breakpoint" -- which does not
+      exist in either. S-COMP-TABLE-SEMANTICS asked an email's role="presentation"
+      layout table for header cells it correctly does not have. DEF-56 had taught
+      S-TOKEN-HEX this context one detector at a time; the table rules inherited none of it.
+    consequence: >-
+      The real screen-table backlog was 14, reported as 44: the same context blindness
+      the first report named, reappearing in a new rule.
+    fix: >-
+      One `document_kind()` in _util decides email, PDF or print from what a file does
+      (its imports and calls), then where it lives and what it is called -- a screen
+      named EmailDeliveryLog stays a screen. S-RESP-TABLE skips documents and layout
+      tables; S-COMP-TABLE-SEMANTICS skips layout tables and, in an email, says to mark
+      a layout table role="presentation"; S-TOKEN-HEX and S-TYPE-TINY use the same
+      helper instead of their own lists.
+    guard:
+      - file: scripts/checks/_util.py
+        text: def document_kind
+      - file: scripts/checks/_util.py
+        text: def is_layout_table
+    control:
+      - file: scripts/selftest.py
+        text: a document was judged as a screen
+      - file: scripts/selftest.py
+        text: the document exemption swallowed a screen
+    verified_by_revert: true
+    revert_reverified: "2026-09-22"

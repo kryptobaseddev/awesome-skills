@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R-TABLE-SQUEEZE fixture</title>
+<!-- No table here overflows: each is width:100% with automatic layout, so the
+     browser fits the columns by wrapping. R-TABLE-HIDDEN passes all three, which is
+     the point. Only the first pays for the fit in row height. -->
+<style>
+  body { margin: 0; font: 14px/20px system-ui, sans-serif; }
+  .box { width: 700px; margin: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 4px 6px; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+  <!-- known positive: the field report's queue, squeezed into its box -->
+  <div class="box" id="queue">
+    <table class="queue">
+      <thead><tr><th>Rush service</th><th>Sample / AX ID</th><th>Product</th><th>Target</th><th>Customer</th><th>Testing</th><th>Vial plan</th><th>Intake</th><th>Facility</th><th>Waiting</th><th>Action</th></tr></thead>
+      <tbody><tr><td>Standard turnaround, no rush service was requested</td><td>AX-104233 / lot 7</td><td>Retatrutide 10mg vial</td><td>Purity and identity</td><td>Northwind Research Laboratories, west coast division</td><td>HPLC, MS, endotoxin</td><td>Two vials sent, one retained as the reference sample</td><td>Received Monday morning at the north loading dock</td><td>Denver receiving dock</td><td>Three business days</td><td><button>Open sample</button></td></tr><tr><td>Standard turnaround, no rush service was requested</td><td>AX-104233 / lot 7</td><td>Retatrutide 10mg vial</td><td>Purity and identity</td><td>Northwind Research Laboratories, west coast division</td><td>HPLC, MS, endotoxin</td><td>Two vials sent, one retained as the reference sample</td><td>Received Monday morning at the north loading dock</td><td>Denver receiving dock</td><td>Three business days</td><td><button>Open sample</button></td></tr><tr><td>Standard turnaround, no rush service was requested</td><td>AX-104233 / lot 7</td><td>Retatrutide 10mg vial</td><td>Purity and identity</td><td>Northwind Research Laboratories, west coast division</td><td>HPLC, MS, endotoxin</td><td>Two vials sent, one retained as the reference sample</td><td>Received Monday morning at the north loading dock</td><td>Denver receiving dock</td><td>Three business days</td><td><button>Open sample</button></td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- known negative: the same eleven columns with values that fit on one line -->
+  <div class="box" id="compact">
+    <table class="compact">
+      <thead><tr><th>R</th><th>ID</th><th>Pr</th><th>Tg</th><th>Cu</th><th>Te</th><th>V</th><th>In</th><th>Fa</th><th>Wa</th><th>Act</th></tr></thead>
+      <tbody><tr><td>Y</td><td>A1</td><td>P</td><td>T</td><td>C</td><td>T</td><td>2</td><td>M</td><td>F</td><td>3d</td><td><button>Go</button></td></tr><tr><td>Y</td><td>A1</td><td>P</td><td>T</td><td>C</td><td>T</td><td>2</td><td>M</td><td>F</td><td>3d</td><td><button>Go</button></td></tr><tr><td>Y</td><td>A1</td><td>P</td><td>T</td><td>C</td><td>T</td><td>2</td><td>M</td><td>F</td><td>3d</td><td><button>Go</button></td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- known negative: a glossary, whose definitions are meant to wrap -->
+  <div class="box" id="glossary">
+    <table class="glossary">
+      <thead><tr><th>Term</th><th>Meaning</th><th>Since</th></tr></thead>
+      <tbody><tr><td>Lot</td><td>A batch of samples received together, tracked from intake
+        through certificate, with every vial in it sharing one chain of custody and one
+        set of receiving conditions, which is why a lot is the unit a recall names.</td>
+        <td>2024</td></tr></tbody>
+    </table>
+  </div>
+</body>
+</html>

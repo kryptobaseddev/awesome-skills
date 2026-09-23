@@ -468,6 +468,45 @@ def main(argv=None) -> int:
             fails.append("R-REFLOW failed a page that does not scroll sideways: a table "
                          "in its own scroll box is not a reflow failure (SC 1.4.10)")
 
+        # ----------------------------------------------------- R-TABLE-SQUEEZE
+        # The field report's second failure mode, and the commoner one: a width:100%
+        # table does not overflow, it wraps. Their queue measured 1118px in a 1118px
+        # box, rows 133px tall -- R-TABLE-HIDDEN saw a clean fit. Three tables, none
+        # overflowing: only the eleven-column one squeezed into five-line rows may fail.
+        w("\nR-TABLE-SQUEEZE -- a table that fits by wrapping every row tall\n")
+        ab("open", f"{url}table-squeeze.html")
+        try:
+            sq = run_probe("layout", th_json)
+        except Exception as e:
+            sq = {}
+            fails.append(f"layout probe did not run on table-squeeze.html: {e}")
+        by_cls = {t.get("cls"): t for t in sq.get("tables") or []}
+        for cls, want in (("queue", True), ("compact", False), ("glossary", False)):
+            t = by_cls.get(cls)
+            got = bool(t and t.get("dataTable") and t.get("squeezed"))
+            w(f"  {'tall' if want else 'fits':<5} {cls:<9} rowHeight={t and t.get('rowHeight')} "
+              f"cap={t and t.get('capPx')} lines={t and t.get('lines')} "
+              f"dataTable={t and t.get('dataTable')} -> {'tall' if got else 'fits'}\n")
+            if t is None:
+                fails.append(f"table-squeeze.html: the {cls} table has no row-height "
+                             "measurement, so a table that fits by wrapping is invisible")
+            elif got != want:
+                fails.append(f"table-squeeze.html: the {cls} table came out "
+                             f"{'squeezed' if got else 'fitting'}, the fixture declares "
+                             f"{'squeezed' if want else 'fitting'}")
+        sq_raws = {"squeeze__layout_1280.json": sq}
+        # Named, not raised: a missing verdict function is a report, not a traceback.
+        squeeze = getattr(_ur, "_table_squeeze", None) or (
+            lambda _r, _o: ("MISSING", "", []))
+        st, _n, hits = squeeze(sq_raws, None)
+        hst, _hn, _hh = _ur._table_hidden(sq_raws, None)
+        w(f"  R-TABLE-SQUEEZE {st} ({len(hits)} hit)   R-TABLE-HIDDEN {hst}\n")
+        if st != "FAIL" or len(hits) != 1:
+            fails.append(f"R-TABLE-SQUEEZE must FAIL exactly the squeezed queue; got {st} "
+                         f"with {hits}")
+        if hst != "PASS":
+            fails.append("R-TABLE-HIDDEN failed a page where no table overflows its box")
+
         w("\n" + "-" * 70 + "\n")
         for n in notes:
             w(f"  note  {n}\n")
