@@ -96,6 +96,41 @@ def _table_hidden(raws, out):
                     "pinned last column keeps them in view (LAY-006).", hits)
 
 
+def _table_squeeze(raws, out):
+    """LAY-006, the commoner failure. A width:100% table does not overflow if it
+    can avoid it; it wraps cell text until the columns fit. R-TABLE-HIDDEN reads
+    scrollWidth against clientWidth, which on the field report's eleven-column
+    queue was 1118 against 1118 -- a clean fit -- while every row was five lines
+    tall. This reads median row height against the cell's own line height."""
+    hits, seen, measured = [], set(), False
+    for name, d in raws.items():
+        if "__layout_" not in name or "tables" not in d:
+            continue
+        measured = True
+        suffix = name.rsplit("_", 1)[-1].removesuffix(".json")
+        route = name.split("__layout_")[0]
+        for t in d["tables"]:
+            if not (t.get("dataTable") and t.get("squeezed")):
+                continue
+            key = (route, t.get("cls"), t.get("columns"), t.get("lastColumn"))
+            if key in seen:
+                continue
+            seen.add(key)
+            wrap = f'; "{t["wrapColumn"]}" wraps most' if t.get("wrapColumn") else ""
+            hits.append(f"{route} @ {suffix}: {t['columns']}-column table {t['widthPx']}px "
+                        f"wide -- median row {t['rowHeight']}px, about {t['lines']} lines, "
+                        f"against a cap of {t['capPx']}px{wrap}")
+    if not measured:
+        return ("NOT_RUN", "No layout capture recorded table row heights (layout.js "
+                           "predates this check, or the layout probe did not run).", [])
+    if not hits:
+        return ("PASS", "No data table fits its width by wrapping its rows past the "
+                        "line cap at any tested viewport.", [])
+    return ("FAIL", f"{len(hits)} data table(s) 'fit' by wrapping every row tall. No "
+                    "overflow, and unusable: drop or merge columns at this width, or "
+                    "switch to a card layout (LAY-006).", hits)
+
+
 def _targets(raws, out):
     hits = []
     for name, d in raws.items():
@@ -739,6 +774,7 @@ def _native(platform: str, want_pairs: bool):
 RUNTIME = {
     "R-REFLOW": _reflow,
     "R-TABLE-HIDDEN": _table_hidden,
+    "R-TABLE-SQUEEZE": _table_squeeze,
     "R-TARGET": _targets,
     "R-TARGET-COARSE": _target_coarse,
     "R-CONTRAST": _contrast,

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import strip_comments
+from ._util import document_kind, strip_comments
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro")
 CSS = (".css", ".scss", ".sass", ".less")
@@ -37,11 +37,9 @@ _HEX = re.compile(r"(?<![&\w])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[
 # value, an argument, a string. An all-digit hex anywhere else is a PR number,
 # an issue, an invoice -- "Fixed in #856", "mailbox #4784".
 _COLOUR_POS = re.compile(r"[:=(\[,'\"`]\s*$")
-# Renderers with no cascade: literal colours are the only colours they have, so
-# a literal there is not a token that escaped. react-pdf pages, HTML email and QR
-# builders (whose colours must stay literal or scanners fail).
-_NO_CASCADE = re.compile(r"""from\s+['"](?:@react-pdf/renderer|@react-email/[\w-]+|react-email|"""
-                         r"""mjml(?:-react)?|qrcode(?:\.react)?|react-qr-code|qr-code-styling)['"]""")
+# QR builders keep literal colours or scanners fail. Email and PDF come from the
+# shared document_kind(): neither has a cascade, so a literal is not an escaped token.
+_QR = re.compile(r"""from\s+['"](?:qrcode(?:\.react)?|react-qr-code|qr-code-styling)['"]""")
 
 
 @check("S-TOKEN-HEX", requires=lambda p: bool(p.cssvars))
@@ -55,7 +53,7 @@ def raw_colors(f, p):
     out = []
     if f.ext in CSS and re.search(r"@theme|:root", f.text):
         return out                      # this file is where colours are allowed to live
-    if _NO_CASCADE.search(f.text):
+    if _QR.search(f.text) or document_kind(f.path, f.text) in ("email", "pdf"):
         return out
     text = strip_comments(f.text)
     seen = set()

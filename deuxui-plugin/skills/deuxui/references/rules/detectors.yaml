@@ -193,6 +193,7 @@ detectors:
   R-TARGET-COARSE:   {engine: computed, rules: [NUM-005], confidence: high, laws: [LAW-02]}
   R-REFLOW:          {engine: computed, rules: [NUM-009, NUM-019, LAY-002], confidence: high, laws: [LAW-12]}
   R-TABLE-HIDDEN:    {engine: computed, rules: [LAY-006], confidence: high}
+  R-TABLE-SQUEEZE:   {engine: computed, rules: [LAY-006], confidence: medium}
   R-ZOOM:            {engine: computed, rules: [NUM-008], confidence: high}
   R-TEXTSPACING:     {engine: computed, rules: [NUM-010], confidence: high}
   R-FOCUS-WALK:      {engine: computed, rules: [A11Y-002, A11Y-003, A11Y-004, NUM-011,

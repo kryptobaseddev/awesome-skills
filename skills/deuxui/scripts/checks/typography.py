@@ -7,7 +7,7 @@ vision, dyslexia, or a small phone in bright sunlight.
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import strip_comments
+from ._util import document_kind, strip_comments
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 CSS = (".css", ".scss", ".sass", ".less")
@@ -25,7 +25,6 @@ def _css_rules(text):
         yield m.start(), m.group(1).strip(), m.group(2)
 
 
-_PRINT_FILE = re.compile(r"(?:^|[./_-])print(?:[._-]|$)", re.I)
 _PRINT_MEDIA = re.compile(r"@media\b([^{]*)\{", re.I)
 
 
@@ -56,8 +55,8 @@ def tiny_text(f, p):
     stylesheets and react-pdf documents are paper, and never measured against it."""
     out = []
     floor = float(p.num("typography", "min_text_px", 12))
-    if _PRINT_FILE.search(f.path.name) or re.search(
-            r"""from\s+['"]@react-pdf/renderer['"]""", f.text):
+    # Paper, not a screen. Email is still read on a screen, so it is measured.
+    if document_kind(f.path, f.text) in ("pdf", "print"):
         return out
     if f.css:
         css = strip_comments(f.css)

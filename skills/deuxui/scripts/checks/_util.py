@@ -135,6 +135,66 @@ def strip_noncode(text: str) -> str:
                           strip_comments(text))
 
 
+# ------------------------------------------------------------ not a screen
+# Some source renders documents, not screens: HTML email, PDF, print. Their rules
+# differ in ways the screen rules cannot know -- a `<table>` is the required layout
+# primitive in email, a card layout below a breakpoint does not exist in a PDF, and
+# a literal colour is the only colour either can have. A field report found 21 of
+# S-RESP-TABLE's 44 matches in email templates and PDF builders.
+_DOC_IMPORT = {
+    "email": re.compile(r"""from\s+['"](?:@react-email/[\w-]+|react-email|mjml(?:-react)?|"""
+                        r"""nodemailer|@sendgrid/mail|resend|postmark|mailgun\.js)['"]"""),
+    "pdf": re.compile(r"""from\s+['"](?:@react-pdf/renderer|jspdf|pdfmake(?:/[\w/]+)?|pdf-lib|"""
+                      r"""html-pdf(?:-node)?|puppeteer(?:-core)?|playwright(?:-core)?)['"]"""),
+}
+_DOC_CALL = {
+    "email": re.compile(r"\bsendMail\(|\bemails\.send\(|renderToStaticMarkup\("),
+    "pdf": re.compile(r"\.pdf\(\s*\{|new\s+jsPDF\b|createPdf\("),
+}
+_DOC_DIRS = {"email": {"email", "emails", "mail", "mails", "mailer", "mailers"},
+             "pdf": {"pdf", "pdfs"}, "print": {"print"}}
+_DOC_FILE = {
+    "email": re.compile(r"(?:[._-][Ee]mail|[a-z]Email)\.(?:tsx|jsx|ts|js|html?|vue|svelte)$"),
+    "pdf": re.compile(r"(?:^|[._-])pdf(?:[._-]|$)|[a-z](?:Pdf|PDF)\.", re.I),
+    "print": re.compile(r"(?:^|[._-])print(?:[._-]|$)", re.I),
+}
+
+
+def document_kind(path, text: str = "") -> str | None:
+    """'email', 'pdf' or 'print' when this file renders a document rather than a
+    screen, else None. Read from imports and calls first -- they are what the file
+    does -- then from where it lives and what it is called. A file named for a
+    form field (EmailInput.tsx, email-form.tsx) is a screen and stays one."""
+    for kind, pat in _DOC_IMPORT.items():
+        if pat.search(text):
+            return kind
+    for kind, pat in _DOC_CALL.items():
+        if pat.search(text):
+            return kind
+    parts = {s.lower() for s in Path(str(path)).parts[:-1]}
+    for kind, dirs in _DOC_DIRS.items():
+        if parts & dirs:
+            return kind
+    name = Path(str(path)).name
+    for kind, pat in _DOC_FILE.items():
+        if pat.search(name):
+            return kind
+    return None
+
+
+_LAYOUT_ATTRS = ("cellpadding", "cellspacing", "bgcolor", "border", "align", "valign")
+
+
+def is_layout_table(tag) -> bool:
+    """A table used for layout, not data: role=presentation/none, or the legacy
+    attributes that only HTML email still writes. It has no header cells because it
+    has no columns of data, and saying `role="presentation"` is how it tells a screen
+    reader so."""
+    role = (tag.attr("role") or "").strip("{}'\" ").lower()
+    return role in ("presentation", "none") or any(
+        tag.has(a) or tag.has(a.capitalize()) for a in _LAYOUT_ATTRS) or tag.has("cellPadding", "cellSpacing")
+
+
 _STYLE_BLOCK = re.compile(r"<style[^>]*>(.*?)</style>", re.S | re.I)
 _STYLED_TPL = re.compile(r"(?:styled\.\w+|styled\([^)]*\)|css|createGlobalStyle)"
                          r"\s*`([^`]*)`", re.S)

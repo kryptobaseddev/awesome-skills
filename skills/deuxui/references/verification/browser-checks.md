@@ -40,6 +40,7 @@ nobody opens are the states nobody built.
 |---|---|---|
 | `R-REFLOW` | Sets each viewport, compares `scrollWidth` to the client width, names the outermost elements extending past the edge (children of their own scroll box are reachable, so not listed) | NUM-009, NUM-019, LAY-002 |
 | `R-TABLE-HIDDEN` | Same captures: every scroll box whose content is wider than the box, with the hidden px and the last column's header. Fails a data table (last column interactive, or more columns than `responsive.table_scroll_max_columns`) unless its last column is pinned in view | LAY-006 |
+| `R-TABLE-SQUEEZE` | Same captures: every table's median body-row height against a cap of `responsive.table_row_max_lines` of the cell's own line height plus padding. Fails a data table that "fits" its width by wrapping every row tall -- no overflow, so R-TABLE-HIDDEN cannot see it -- and names the column wrapping most | LAY-006 |
 | `R-TARGET` | Measures every interactive element's real box; for anything under 24px, tests whether a 24px circle on it clashes with a neighbour (the SC 2.5.8 spacing exception). NUM-006/007 are iOS pt and Android dp and cannot be established from a browser — they stay manual | NUM-004 |
 | `R-TARGET-COARSE` | The 44px coarse-pointer default — a PROJECT choice, not a standard | NUM-005 |
 | `R-CONTRAST` | Walks every visible text node, composites through transparent ancestors to the real painted backdrop, applies the large-text rule by rendered size and weight | NUM-001, NUM-002, NUM-003 |
