@@ -103,6 +103,9 @@ flarectl zone list
 # Verify API Token validity (API Token only)
 curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
   -H "Authorization: Bearer $CF_API_TOKEN" | jq .
+# Account-owned tokens fail the call above with "Invalid API Token" (1000) even when valid:
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/tokens/verify" \
+  -H "Authorization: Bearer $CF_API_TOKEN" | jq .
 ```
 
 ## Recommended Token Permissions

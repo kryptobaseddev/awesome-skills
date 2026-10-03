@@ -38,8 +38,11 @@ Precedence: `CF_API_TOKEN` wins if set. Otherwise both `CF_API_KEY` and `CF_API_
 Run `scripts/cf-check-access.sh` to verify token validity and test common permissions. Or manually:
 
 ```bash
-# Verify token is valid (API Token only)
+# Verify token is valid (API Token only). Account-owned tokens return
+# "Invalid API Token" (1000) here — verify those at the account endpoint below.
 curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+  -H "Authorization: Bearer $CF_API_TOKEN" | jq .
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/tokens/verify" \
   -H "Authorization: Bearer $CF_API_TOKEN" | jq .
 
 # List token details and policies
@@ -83,7 +86,9 @@ See [references/command-reference.md](references/command-reference.md) for the c
 --version, -v     Show version
 ```
 
-Always use `--json` when parsing output programmatically.
+Always use `--json` when parsing output programmatically. It is a global flag, so it goes before the subcommand: `flarectl --json zone list` (`flarectl zone list --json` fails with "flag provided but not defined").
+
+Account-owned API tokens work for every zone/DNS/firewall command, but `flarectl user info` always fails for them (code 9109) because it needs a user-level token.
 
 ## Common Workflows
 

@@ -13,7 +13,7 @@
 ### List zones
 ```bash
 flarectl zone list
-flarectl zone list --json
+flarectl --json zone list   # --json is global: it goes before the subcommand
 ```
 Output: ID, Name, Plan, Status
 
