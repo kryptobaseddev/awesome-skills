@@ -1,0 +1,22 @@
+[
+  {"query": "my useReactTable call blows up after npm update, says useReactTable is not exported from @tanstack/react-table?? package.json now has ^9.2.6. fix src/components/OrdersGrid.tsx", "should_trigger": true},
+  {"query": "scaffold a new tanstack start app with clerk auth and netlify deploy, non-interactive so it runs in our github action", "should_trigger": true},
+  {"query": "in our start app the loader for /dashboard reads process.env.STRIPE_KEY and someone said that leaks to the browser — is that true and how do I restructure it with server functions", "should_trigger": true},
+  {"query": "we have 40k log lines in a react list and scrolling is janky, rows are different heights. we already use tanstack query for fetching pages from /api/logs?cursor=", "should_trigger": true},
+  {"query": "how do i prefetch a query in a tanstack router loader so the component doesnt show a spinner, using react-query 5.104", "should_trigger": true},
+  {"query": "add a debounced search box + keyboard shortcut (cmd+k) to focus it in my admin panel, we use tanstack everything already", "should_trigger": true},
+  {"query": "set up tanstack form with zod for a signup form, password confirm must match, and show server errors from my createServerFn", "should_trigger": true},
+  {"query": "what's the difference between tanstack db and tanstack query, should our offline-first notes app use db collections with electric?", "should_trigger": true},
+  {"query": "use the tanstack cli to pull the docs page for router search params and summarize how validateSearch works with zod 4", "should_trigger": true},
+  {"query": "build a streaming chat endpoint with @tanstack/ai and anthropic, with a tool that looks up order status, in my start server routes", "should_trigger": true},
+  {"query": "migrate our app from react-query v4 to v5, there are like 60 useQuery calls with positional args and cacheTime everywhere", "should_trigger": true},
+  {"query": "our nextjs app router project needs a data table with sorting — we use shadcn's DataTable component, can you add a column for status badges", "should_trigger": true},
+  {"query": "set up react-router v7 framework mode loaders and actions for a remix-style blog", "should_trigger": false},
+  {"query": "write a SWR hook that refetches the user's profile when the window regains focus", "should_trigger": false},
+  {"query": "add zustand store for cart state in my vite react app, persisted to localStorage", "should_trigger": false},
+  {"query": "configure AG Grid enterprise with server-side row model and row grouping for our trading blotter", "should_trigger": false},
+  {"query": "my react-hook-form + yup form doesn't show errors on blur, here's the code", "should_trigger": false},
+  {"query": "build a vercel ai sdk useChat route in next.js with openai and tool calling", "should_trigger": false},
+  {"query": "write a lodash-free debounce utility in plain typescript with unit tests for our node cli", "should_trigger": false},
+  {"query": "explain what a headless UI library is and compare radix and headless ui for building a dropdown", "should_trigger": false}
+]

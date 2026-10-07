@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-05 14:50:10",
-  "total_skills": 25,
+  "generated_at": "2026-10-07 10:03:49",
+  "total_skills": 26,
   "total_categories": 15,
   "categories": [
     {
@@ -126,6 +126,18 @@
           "path": "skills/svelte5-sveltekit",
           "description": "Comprehensive guide for building modern web applications with Svelte 5 and SvelteKit. Use when creating Svelte components, implementing Svelte 5 runes ($state, $derived, $effect, $props), building SvelteKit applications with filesystem routing, loading data, handling forms, styling components, or deploying Svelte/SvelteKit apps. Essential for questions about Svelte reactivity, SvelteKit project structure, SSR/CSR configuration, form actions, adapters, or migration from Svelte 4.",
           "metadata": {}
+        },
+        {
+          "name": "tanstack",
+          "path": "skills/tanstack",
+          "description": "Use the whole TanStack ecosystem correctly at its CURRENT versions, plus the TanStack CLI (`tanstack`, `npx @tanstack/cli`). Covers Start (server functions, middleware, SSR), Router, Query, Table v9, Form, DB, Store, Virtual, Pacer, Hotkeys, AI, Charts, Markdown, Highlight, Devtools, Intent (version-matched skills in node_modules) and Config. Use whenever code imports any @tanstack/* package, or the user wants to scaffold a TanStack app or add add-ons (tanstack create / add, .cta.json), fetch TanStack docs via the CLI, combine libraries (Table + Query + Virtual, Router + Query, Start + Form), or upgrade or debug TanStack code - even if they only say 'useQuery', 'createServerFn', 'useReactTable', 'createFileRoute', 'react-query' or 'TanStack'. APIs moved in 2025-2026 (Table v9, queryClient.query, Store 0.9, Start's Vite plugin), so code from memory is often wrong. Not for React, Next.js or Remix work that uses no TanStack library.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-10-07 09:48:22",
+            "category": "frontend",
+            "tags": "tanstack, react, frontend, cli, data-fetching, routing, tables, forms"
+          }
         }
       ]
     },
