@@ -1,0 +1,117 @@
+{
+  "skill_name": "tanstack",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I've got a little admin app (package.json and our api.ts are in evals/files/users-admin/). Build me src/UsersTable.tsx: a users table where paging, sorting by any column and a search box all happen on the server via fetchUsers, with checkboxes to select rows (selection must survive page changes) and the 'select all' header checkbox. Use TanStack Table and TanStack Query, whatever versions are in package.json. The search box shouldn't hammer the API on every keystroke. Write the file plus a short NOTES.md on anything I need to know.",
+      "expected_output": "A UsersTable.tsx written against Table v9 (useTable + tableFeatures, no useReactTable/getCoreRowModel), manual server-side pagination/sorting/filtering with Query keyed on all server state, pageIndex reset on sort/search change, stable getRowId, debounced search, correct select-all indeterminate logic.",
+      "files": [
+        "evals/files/users-admin/package.json",
+        "evals/files/users-admin/api.ts"
+      ],
+      "assertions": [
+        "Uses Table v9 useTable, not v8 useReactTable",
+        "Registers features via tableFeatures()",
+        "No v8 getCoreRowModel/getPaginationRowModel options",
+        "manualPagination and manualSorting enabled",
+        "queryKey includes paging, sorting and search state",
+        "Resets pageIndex to 0 when sort/search changes",
+        "Stable getRowId from record id",
+        "Search input is debounced",
+        "Keeps previous page data while fetching",
+        "Select-all indeterminate = some && !all (v9 semantics)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "need a new tanstack start project for a client: react, postgres via drizzle (they're on sqlite for now actually, switch later), better auth for login, deploying to cloudflare workers, biome not eslint, and i dont want any of the demo junk pages. give me the exact one-shot command(s) i can paste into CI (no prompts), then what to run later in the same repo when they want tanstack table added. put it all in SCAFFOLD.md",
+      "expected_output": "SCAFFOLD.md with a non-interactive `npx @tanstack/cli create` command using explicit add-on ids (drizzle, better-auth), --add-on-config selecting sqlite for drizzle, --deployment cloudflare, --toolchain biome, --no-examples (or clean-demos), no --router-only, and a later `tanstack add table` with --forced, noting .cta.json.",
+      "files": [],
+      "assertions": [
+        "Uses the TanStack CLI create (not create-tsrouter-app / create-start-app)",
+        "--add-ons lists drizzle and better-auth ids",
+        "--add-on-config selects sqlite for drizzle",
+        "--deployment cloudflare (or cloudflare add-on)",
+        "--toolchain biome",
+        "No demo pages (--no-examples or clean-demos)",
+        "Non-interactive flag (-y/--yes/--non-interactive)",
+        "Does not use --router-only",
+        "Later step uses `tanstack add table`",
+        "`add` made non-interactive with --forced"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "In my TanStack Start blog (package.json, src/router.tsx and src/server/db.ts are in evals/files/blog-start/) add a post page at /posts/$postId that SSRs the post through TanStack Query (the router is already wired with the ssr-query integration), plus an inline 'edit title' form that saves via a server function. Title must be 1-120 chars, validated on the server too. DATABASE_URL must never reach the browser. After saving the page should show the new title without a full reload. Write the files you'd add under out/ mirroring src/ paths, plus NOTES.md.",
+      "expected_output": "A file route createFileRoute('/posts/$postId') whose loader warms the cache via context.queryClient (queryClient.query with staleTime 'static' preferred on 5.104, not deprecated ensureQueryData), component uses useSuspenseQuery with shared queryOptions, server functions via createServerFn with .validator(zod schema) (not deprecated .inputValidator), DB access only inside server function handlers, mutation invalidates the post query.",
+      "files": [
+        "evals/files/blog-start/package.json",
+        "evals/files/blog-start/router.tsx",
+        "evals/files/blog-start/db.ts"
+      ],
+      "assertions": [
+        "File route createFileRoute('/posts/$postId')",
+        "Uses createServerFn for read and update",
+        "Uses current .validator(), not deprecated .inputValidator()",
+        "Title rule 1-120 enforced in a schema",
+        "Loader avoids deprecated ensureQueryData/prefetchQuery/fetchQuery (Query 5.104)",
+        "Component reads with useSuspenseQuery",
+        "Mutation invalidates the post query",
+        "No process.env read in route files"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "notes app (evals/files/notes-app/ has package.json + api.ts). I need two things: (1) a small global UI store: sidebarOpen, theme ('light'|'dark'), and a list of open note ids, plus a derived 'openCount'; components should only re-render for the slice they read. (2) a NoteEditor component (title + body) that autosaves through saveNote() 800ms after the user stops typing, shows 'Saving\u2026' / 'Saved' / error, has a 'Save now' button that skips the wait, and doesn't fire a stale save after unmount. Use TanStack Store and TanStack Pacer at the versions in package.json. Write src/uiStore.ts, src/NoteEditor.tsx and NOTES.md.",
+      "expected_output": "Store 0.11 API (createStore/createAtom, derived via createStore(() => ...), useSelector with selectors, no new Store/new Derived/useStore) and Pacer 0.24 hooks with an explicit state selector, flush() for save-now, and cancel/abort on unmount.",
+      "files": [
+        "evals/files/notes-app/package.json",
+        "evals/files/notes-app/api.ts"
+      ],
+      "assertions": [
+        "Uses createStore/createAtom (Store 0.9+), not new Store()",
+        "No new Derived()/new Effect() (removed in 0.9)",
+        "Derived openCount via createStore(() => \u2026) or a selector",
+        "Reads with useSelector (useStore deprecated in 0.11)",
+        "Uses a Pacer debouncer hook",
+        "Pacer state read through a selector (3rd arg) or Subscribe",
+        "Save now uses flush()",
+        "Cancels/aborts pending save on unmount"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "support bot for our TanStack Start shop (evals/files/support-bot/: package.json, and orders.ts which is src/server/orders.ts). Add a streaming chat: POST /api/chat in Start using TanStack AI with Claude (model id claude-sonnet-5-5), temperature 0.2, max 600 output tokens. Give the model a getOrderStatus tool that runs on the server via lookupOrder(orderId, customerId) \u2014 customerId must come from the session cookie 'cid', never from the model. Plus a React chat panel with a Stop button. Write files under out/ mirroring src/ and NOTES.md. Use the exact package versions installed.",
+      "expected_output": "Server route via createFileRoute('/api/chat')({ server: { handlers: { POST } } }), chatParamsFromRequest, chat({ adapter: anthropicText('claude-sonnet-5-5'), modelOptions: { temperature, max_tokens } }), toolDefinition(...).server(...) with customerId from the cookie, toServerSentEventsResponse with abortController, client useChat + fetchServerSentEvents + stop.",
+      "files": [
+        "evals/files/support-bot/package.json",
+        "evals/files/support-bot/orders.ts"
+      ],
+      "assertions": [
+        "Server route createFileRoute(...)({ server: { handlers } }), not createAPIFileRoute",
+        "Adapter anthropicText('claude-sonnet-5-5') (model on the adapter)",
+        "Parses body with chatParamsFromRequest, not request.json()",
+        "Sampling in modelOptions with Anthropic max_tokens (no root maxTokens)",
+        "Tool declared with toolDefinition and executed server-side",
+        "customerId read from cookie, not a tool input",
+        "Responds with toServerSentEventsResponse",
+        "Client uses useChat + fetchServerSentEvents and stop()"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "we want a purely static SPA (no SSR, no server functions) on Netlify: tanstack router with file-based routes + react query. Give me the exact non-interactive tanstack cli command to scaffold it, then the src/main.tsx (or router file) wiring the QueryClient into router context so loaders can prefetch, and one example route /projects whose loader prefetches the list. Everything into SPA.md.",
+      "expected_output": "`tanstack create --router-only` WITHOUT relying on --deployment/--add-ons (they are silently dropped), manual install of @tanstack/react-query, createRootRouteWithContext<{queryClient}>, QueryClientProvider + RouterProvider context, loader using queryClient.query/ensureQueryData-equivalent, Netlify SPA fallback.",
+      "files": [],
+      "assertions": [
+        "Scaffold uses --router-only",
+        "Does not rely on --deployment or --add-ons with --router-only (or states they are dropped)",
+        "Installs @tanstack/react-query manually",
+        "Root route uses createRootRouteWithContext with queryClient",
+        "QueryClient passed in router context",
+        "Loader prefetches via context.queryClient (query() with staleTime 'static' on 5.102+, or ensureQueryData)",
+        "Netlify SPA fallback (/* /index.html 200)"
+      ]
+    }
+  ]
+}
