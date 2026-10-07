@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_24 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-09-21 19:30:22._
+_25 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-10-05 14:48:38._
 
 ### 🧰 Skill Development
 
@@ -188,6 +188,12 @@ _24 skills across 14 categories — auto-generated from `skills/*/SKILL.md`. Las
 | [`drizzle-orm`](skills/drizzle-orm/) | Expert guidance for Drizzle ORM and drizzle-kit, covering the v1.0.0-beta (RQBv2, defineRelations, new migration folder structure, consolidated validators) and stable 0.x releases. Includes Node 24… |
 | [`neon`](skills/neon/) | Neon CLI (`neon`, formerly `neonctl`) for Lakebase Postgres — projects, branches, databases, roles, connection strings, snapshots, Functions, object-storage buckets, the Data API, Managed Better Au… |
 | [`neonctl`](skills/neonctl/) | DEPRECATED POINTER — this skill was renamed to `neon` when the Neon CLI itself was renamed from `neonctl` to `neon`. It exists only so existing installs receive the rename notice on their next upda… |
+
+### 🤖 AI Agents & LLMs
+
+| Skill | Description |
+|---|---|
+| [`tanstack-ai-chat`](skills/tanstack-ai-chat/) | Build, debug, scale, and review production AI chat agents with TanStack AI. Use when integrating @tanstack/ai, useChat, streaming chat, tool calls or approval interrupts; building a persistent rout… |
 
 ### 📧 Communication & Email
 

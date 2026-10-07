@@ -1,0 +1,82 @@
+[
+  {
+    "query": "Add an assistant to our authenticated inventory dashboard; it should use selected rows and keep replying while I navigate.",
+    "should_trigger": true
+  },
+  {
+    "query": "Our @tanstack/ai-react useChat hook remounts when the drawer closes. Fix the persistent runtime design.",
+    "should_trigger": true
+  },
+  {
+    "query": "Plan a TanStack AI migration from Vercel chat without breaking stored tool messages and pending approvals.",
+    "should_trigger": true
+  },
+  {
+    "query": "We need shared durable SSE replay across four chat backend instances and a safe way to stop runs.",
+    "should_trigger": true
+  },
+  {
+    "query": "Review our approval interrupts: users can edit the proposal and resubmit after the invoice revision changes.",
+    "should_trigger": true
+  },
+  {
+    "query": "Make our AI chat production-ready for 30 turns per second with noisy tenants and expensive tool loops.",
+    "should_trigger": true
+  },
+  {
+    "query": "Build a dockable dashboard assistant with named container queries, IME-safe composer and a mobile sheet.",
+    "should_trigger": true
+  },
+  {
+    "query": "Our agent sends duplicate emails when the network reconnects. Audit idempotency, receipts and retries.",
+    "should_trigger": true
+  },
+  {
+    "query": "Help reduce AI chat cost without losing recent user intent, tool outcomes or pending approvals.",
+    "should_trigger": true
+  },
+  {
+    "query": "Our TanStack chat remembers messages on reload but loses the unfinished run. Explain and implement the missing recovery layer.",
+    "should_trigger": true
+  },
+  {
+    "query": "Optimize TanStack Table rendering in our inventory dashboard; there is no AI feature.",
+    "should_trigger": false
+  },
+  {
+    "query": "Fix TanStack Query invalidation after a normal invoice form saves.",
+    "should_trigger": false
+  },
+  {
+    "query": "Build a peer-to-peer support inbox for human agents; we do not use an LLM.",
+    "should_trigger": false
+  },
+  {
+    "query": "Write a marketing article comparing AI chat products, with no implementation guidance.",
+    "should_trigger": false
+  },
+  {
+    "query": "Add responsive mobile navigation to our website; there is no assistant panel.",
+    "should_trigger": false
+  },
+  {
+    "query": "Create a TanStack Form checkout with validation and an ordinary submit button.",
+    "should_trigger": false
+  },
+  {
+    "query": "Configure a GPU inference server for batch image generation, without chat or UI.",
+    "should_trigger": false
+  },
+  {
+    "query": "Audit Postgres connection pools for a reporting pipeline unrelated to conversational agents.",
+    "should_trigger": false
+  },
+  {
+    "query": "Use the OpenAI API to transcribe a folder of audio files into text; no chat system is needed.",
+    "should_trigger": false
+  },
+  {
+    "query": "Write customer-facing invoice reminder email copy; do not build an email-sending tool.",
+    "should_trigger": false
+  }
+]

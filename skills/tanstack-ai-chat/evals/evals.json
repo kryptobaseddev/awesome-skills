@@ -1,0 +1,172 @@
+{
+  "skill_name": "tanstack-ai-chat",
+  "skill_fingerprint": "a445adb41be6e504",
+  "generated_by": "deterministic seed, substantively reviewed and rewritten for target capabilities",
+  "evals": [
+    {
+      "id": "persistent-lifecycle",
+      "prompt": "Our React dashboard chat currently lives inside an animated Drawer.Popup below the route outlet. Closing it during a response loses the draft; route changes create another provider call. We use TanStack AI plus Query for invoice records. Give the smallest implementable module/component restructuring, sketch corrected ownership in JSX, and provide an evidence matrix with trigger, expected result and measurable counter. Cover tenant switch, docking and an approval waiting while navigating. No full rebuild, package installs or compiled-code claims. Limit 650 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "The proposed JSX/module ownership keeps one thread controller above routes and outside drawer/animation lifetime.",
+        "Keeps live SDK messages distinct from Query domain/history data and presentation preferences.",
+        "Explains close versus stop and preserves draft and pending decisions across navigation/docking.",
+        "Provides explicit tenant-switch subscription/private-state cleanup and scoped reauthorization.",
+        "Provides an evidence matrix that counts provider invocations or SDK instances during close/route/dock tests."
+      ],
+      "files": []
+    },
+    {
+      "id": "context-snapshot-code",
+      "prompt": "Implement a dependency-free ES module snapshot.mjs exporting captureTurn(draft, route, attachments, contextEnabled). draft is {text}; route may contain nested entityRefs/filters and selectedText. Return {text, attachmentIds, context?}; context copies the route only if enabled. Attachment objects are {id,status}; reject with Error if ANY referenced attachment is not status ready. The accepted object and every nested value must be independent of later caller mutations and deeply frozen; do not mutate/freeze caller objects. Queued turns and retries reuse this accepted snapshot rather than current route. Include the complete file in files and briefly explain the retry/context-off boundary. Do not add dependencies or timestamps, send a network request, or claim your code was tested. Limit explanation to 200 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Executable contract tests prove deep copying/freezing, context omission, attachment readiness rejection and caller independence.",
+        "Output explains queued/retried turns reuse their stored snapshot rather than refreshing route context.",
+        "Output explains disabling context changes future payloads and does not erase earlier sent history.",
+        "Does not treat copied route references as authorized data; server-side scoped resolution is required."
+      ],
+      "files": [],
+      "code_check": "snapshot"
+    },
+    {
+      "id": "approval-tamper",
+      "prompt": "Audit this email-agent continuation: POST receives messages and approved:true, reconstructs tool arguments from those browser messages, then sendEmail(args); the UI shows Approve but permits editing args after approval. A worker times out after email acceptance before the Postgres receipt write; replay automatically sends again. Give a bounded corrected protocol, identifiers and store constraints, and four fault tests with observable outcomes. The email provider has NO idempotency endpoint and cannot be queried by our correlation ID. Be precise about what automation must pause. No application edits. Limit 650 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Rejects browser approval/history as authority and binds a trusted decision to scope, action and final arguments/revision/expiry.",
+        "Invalidates old approval after argument edits and rechecks permissions before execution.",
+        "Uses stable execution identity and durable admission/receipt guards across workers.",
+        "Explicitly pauses automatic resend when downstream outcome cannot be reconciled; does not guarantee exactly-once external delivery.",
+        "Provides fault tests covering forged approval, changed args, duplicate continuation and uncertain external commit."
+      ],
+      "files": []
+    },
+    {
+      "id": "multi-instance-replay",
+      "prompt": "We run four stateless TanStack AI instances with SSE. Our response helper has a shared Redis durability adapter, but before invoking it POST inserts the user turn, starts billing and calls chat(). GET replay checks only the cursor string. Reconnect uses POST. Patch the algorithm in precise pseudocode (not imaginary SDK signatures), distinguish fresh/replay/continuation/retry, and list two-instance race tests. We retain completed messages separately. Include Stop semantics. No installs or edits. Limit 650 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Classifies authorized replay before fresh-turn side effects and does not invoke the provider again on delivery reconnect.",
+        "Requires server authorization of stored tenant/thread/run for GET and POST replay rather than trusting cursor possession.",
+        "Uses transactional unique identities/fingerprints to guard simultaneous fresh duplicates and one-time usage/billing.",
+        "Distinguishes original-run replay, explicit retry and linked interrupt continuation.",
+        "Describes server cancellation acknowledgment and tests second-instance replay/duplicate admission with provider/write counters."
+      ],
+      "files": []
+    },
+    {
+      "id": "producer-survival-boundary",
+      "prompt": "Our PM wants the copy: 'Every agent run survives server death because we save all SSE chunks.' Ordinary chat POST drives the model in a serverless request with a 60-second host cap; Redis saves chunks and Postgres saves final messages only. No durable worker, checkpoint driver or takeover support is implemented. State which guarantees exist, write honest user-facing recovery copy, and give the smallest operational repair and kill-test evidence. Do not propose fake automatic takeover or claim tests passed. Limit 500 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Separates completed history, chunk replay and producer survival; explicitly rejects the advertised survival guarantee.",
+        "Honest recovery copy preserves partial output and distinguishes Resume from a new Retry attempt.",
+        "Adds accepted-turn/partial/terminal persistence and producer-loss reconciliation within host limits.",
+        "Only proposes durable runner/takeover as separately implemented and verified work if survival is required.",
+        "Kill-test evidence observes partial state and provider invocation count rather than equating stored chunks with continued generation."
+      ],
+      "files": []
+    },
+    {
+      "id": "scaling-cost-fairness",
+      "prompt": "Sizing question: 3600 connected chat viewers, 30 admitted turns/second, 12-second mean runs, two provider calls per turn, 1800 input plus 400 output tokens PER CALL. Fictional budgeting prices: $2/million input and $8/million output; these are assumptions, not live vendor prices. One tenant sends 80% of requests. Provide active-run, provider RPM/TPM and hourly model-cost arithmetic, explain assumptions, propose shared admission/fair queue/bounded tool and token controls, and an evidence plan. No deployment capacity claims from arithmetic alone. Limit 600 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Computes 360 active generations, 3600 provider RPM, 7920000 total tokens/minute and $1468.80 model spend/hour under the supplied assumptions.",
+        "Distinguishes 3600 connected viewers from generation capacity and labels calculated figures as estimates.",
+        "Uses cross-instance tenant fairness, bounded admission/queue wait and provider quotas rather than an unbounded global queue.",
+        "Includes token/tool/deadline budgets and estimated-spend reservation with reported-usage reconciliation.",
+        "Provides realistic burst/noisy-tenant/instance-loss/slow-consumer checks and latency/resource/cost metrics."
+      ],
+      "files": []
+    },
+    {
+      "id": "workspace-policy-code",
+      "prompt": "Implement policy.mjs, dependency-free ES module: derivePresentation({open,viewportWidth,workspaceWidth,workspaceHeight,preferredDock,rightWidth,bottomHeight}), shouldSend({key,shiftKey,isComposing}), shouldAutoFollow({scrollTop,scrollHeight,clientHeight}). Return presentation {mode,preferredDock,chatWidth?,chatHeight?}. closed if !open; mobile-sheet below viewport 768, retaining preference. Desktop side minimums app/chat 320 each, insets 16 each, separator8; if preferred right fits clamp rightWidth to [320,workspaceWidth-32-8-320]. Otherwise bottom (or preferred bottom) with app min240/chat min280 and separator8/insets32; clamp bottomHeight to [280,workspaceHeight-32-8-240]. If bottom infeasible return maximized. Send only Enter without Shift/composition. Auto-follow when distance from bottom <=96px. Include complete source in files and concise UI integration notes for separator ARIA, scroll anchors, shared client lifetime and mobile keyboard. Do not claim testing. Limit notes to 250 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Executable contract tests prove feasible clamping, correct mobile/closed/maximized modes and preserved desktop preference.",
+        "Executable contract tests prove IME-safe Enter behavior and 96px near-bottom auto-follow.",
+        "UI notes require labeled keyboard-accessible separators with bounded values.",
+        "UI notes preserve reading anchors and controller lifetime and require actual-device keyboard verification."
+      ],
+      "files": [],
+      "code_check": "policy"
+    },
+    {
+      "id": "ui-native-integration",
+      "prompt": "At viewport 1440px our app panel is 600px after chat docks right, yet md:flex shows the full sidebar. Nested unnamed containers in tool cards changed nav behavior. Transcript/header/composer all scroll together, dropdowns clip at rounded edges, each token triggers full route rerender, and screen reader reads every token. Propose minimal CSS/component changes and a verification matrix, including mobile modality, text selection during swipe and 200% zoom. Keep our existing design tokens/primitives. No code edits or claims of visual testing. Limit 650 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Uses named inline-size app/chat containers for content responsiveness rather than viewport md breakpoints.",
+        "Bounds independent scroll regions with shrinkable children and keeps composer/header outside transcript scrolling.",
+        "Portals escape clipping while inheriting theme and maintaining appropriate overlay/focus ordering.",
+        "Scopes streamed updates to the active message and announces coarse status without token spam.",
+        "Includes mobile modal versus desktop complementary behavior and physical keyboard/swipe/selection, zoom and accessibility checks."
+      ],
+      "files": []
+    },
+    {
+      "id": "alternative-sdk-svelte",
+      "prompt": "We already ship a SvelteKit assistant with Vercel AI SDK, our own tokens and no React. Please audit its recovery architecture: routes unmount chat, retries resend current page context, and model results invalidate arbitrary Query keys. We are not authorizing a framework or SDK migration. Provide a bounded fix plan and validation criteria. Do not write TanStack APIs into this integration; identify which lifecycle patterns transfer. Limit 500 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Preserves SvelteKit/Vercel SDK and does not prescribe a React/TanStack migration or mixed transport.",
+        "Transfers persistent ownership and immutable original retry snapshots with scoped server context.",
+        "Replaces arbitrary model cache keys with validated resource descriptors mapped to registered keys.",
+        "Distinguishes transport recovery from generation retries using the existing SDK version/types.",
+        "Provides specific runtime counters and malicious-context/cache-event verification without claiming execution."
+      ],
+      "files": []
+    },
+    {
+      "id": "privacy-retention-context",
+      "prompt": "Our shared billing assistant stores transcripts in localStorage under chat-history, fetches arbitrary attachment URLs supplied by the model, includes the entire current DOM in every prompt even when the context chip is off, and grants any tenant member access to all threads. Logout hides the panel but keeps stream subscriptions. We need an actionable review, data contract and verification cases; retention/sharing policy is undecided. Make reversible progress without inventing owner policy. Limit 650 words.",
+      "should_trigger": true,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Identifies thread sharing and tenant membership as separate explicit authorization decisions.",
+        "Removes implicit DOM capture and ensures context-off omits future context while preserving already-sent history semantics.",
+        "Uses authorized private attachment IDs/readiness and rejects arbitrary backend URL fetching.",
+        "Names user/tenant local data cleanup and subscription detachment on logout/tenant switch.",
+        "Marks sharing/retention as unresolved owner choices while providing bounded reversible fixes and privacy tests."
+      ],
+      "files": []
+    },
+    {
+      "id": "negative-human-messaging",
+      "prompt": "We have a React customer-support inbox where human staff exchange messages using WebSockets and Postgres. There is no model, AI assistant or agent tool execution. Please fix reconnect message duplication with stable message IDs and persistence, and propose simple UI delivery states. Keep this focused on ordinary human messaging. No code edits. Limit 400 words.",
+      "should_trigger": false,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Does not introduce model providers, AI tool approvals, agent runtimes or TanStack AI into non-AI human messaging.",
+        "Provides ordinary message-id/deduplication and persistent delivery-state fixes.",
+        "Does not mandate AI-specific run/continuation infrastructure for this task."
+      ],
+      "files": []
+    },
+    {
+      "id": "negative-tanstack-table",
+      "prompt": "TanStack Table and Query drive our dashboard. An invoice row action updates its status but the table still displays the old value until refresh. There is no chat feature. Explain a targeted Query invalidation/update and pending/error UX, with permission checks on the existing endpoint. Do not propose an assistant or model. Limit 350 words.",
+      "should_trigger": false,
+      "expected_output": "Concrete correct response within supplied constraints, distinguishing evidence from assumptions.",
+      "assertions": [
+        "Addresses ordinary Query/table cache updates and pending/error behavior directly.",
+        "Does not introduce TanStack AI, model calls, chat controllers, chat persistence or interrupt UI.",
+        "Keeps existing endpoint authorization without inventing agent approval requirements."
+      ],
+      "files": []
+    }
+  ],
+  "evaluation_scope": "12 cases, 3 fresh processes per configuration; output quality, not production readiness or automatic trigger rate"
+}

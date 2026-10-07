@@ -1,0 +1,27 @@
+{
+  "reviewed_on": "2026-10-05",
+  "source_set": "Native Chat Workspace v1.0, owner-supplied development deliverables",
+  "files": [
+    {
+      "name": "implementation-checklist.md",
+      "sha256": "d19d5d4a10f742394f3583d1c5bbbce3b8cdf710bb50c2f9540fc7098fa29f07"
+    },
+    {
+      "name": "native-chat-development.html",
+      "sha256": "8b69e7d67e292604372ed2b292ebb40fd9b41a7e5695a8a56871a4a4812006fb"
+    },
+    {
+      "name": "native-chat-development.md",
+      "sha256": "98a42b3fde4af214f504667732e436b96018f524f2d51101662e173a9380cdb5"
+    },
+    {
+      "name": "README.md",
+      "sha256": "f49f1ffceddfc9eb869b36e6cac727861d0f2cb2644d961cd4dc951875767cda"
+    },
+    {
+      "name": "workspace-reference.css",
+      "sha256": "df4979d1a06cb254022e54daabe917504d8d165ba0a3e82b3e3664d41f681b47"
+    }
+  ],
+  "privacy": "No screenshots or account content bundled. HTML reviewed as a readable companion, not an application implementation."
+}

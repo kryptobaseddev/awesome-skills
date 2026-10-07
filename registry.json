@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-09-22 20:06:15",
-  "total_skills": 24,
-  "total_categories": 14,
+  "generated_at": "2026-10-05 14:50:10",
+  "total_skills": 25,
+  "total_categories": 15,
   "categories": [
     {
       "slug": "skill-development",
@@ -211,6 +211,24 @@
             "category": "databases",
             "tags": "neon, postgres, cli, deprecated, moved",
             "superseded_by": "neon"
+          }
+        }
+      ]
+    },
+    {
+      "slug": "ai",
+      "name": "AI Agents & LLMs",
+      "icon": "\ud83e\udd16",
+      "skills": [
+        {
+          "name": "tanstack-ai-chat",
+          "path": "skills/tanstack-ai-chat",
+          "description": "Build, debug, scale, and review production AI chat agents with TanStack AI. Use when integrating @tanstack/ai, useChat, streaming chat, tool calls or approval interrupts; building a persistent route-aware assistant workspace; fixing reconnect duplicates, lost drafts, chat resizing or mobile UX; or planning multi-tenant chat reliability, throughput, cost controls, persistence, and observability. Covers native React UX/UI, authorized domain actions, durable delivery, and measured scaling. Apply even when the request only says \"add an assistant to our dashboard\" or \"make our AI chat production-ready\". Preserve an explicitly chosen alternative SDK; use its APIs instead of mixing protocols. Do not use for ordinary non-AI messaging or unrelated TanStack tables, forms, or queries.",
+          "metadata": {
+            "author": "kryptobaseddev",
+            "version": "1.0.0",
+            "last_updated": "2026-10-05 14:50:09",
+            "category": "ai"
           }
         }
       ]
