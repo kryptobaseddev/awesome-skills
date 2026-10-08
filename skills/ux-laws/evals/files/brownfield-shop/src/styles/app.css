@@ -1,0 +1,5 @@
+:root { --brand: #6366f1; }
+body { font-family: Inter, system-ui, sans-serif; color: #111827; }
+.price { color: #4f46e5; font-size: 15px; }
+.card { border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,.1); padding: 18px; }
+.badge { background: var(--brand); font-size: 11px; border-radius: 9999px; }

@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_26 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-10-07 10:03:49._
+_27 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-10-07 21:51:21._
 
 ### 🧰 Skill Development
 
@@ -167,6 +167,7 @@ _26 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Las
 | [`deuxui`](skills/deuxui/) | Engineer and verify interfaces against a 235-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout -… |
 | [`svelte5-sveltekit`](skills/svelte5-sveltekit/) | Comprehensive guide for building modern web applications with Svelte 5 and SvelteKit. Use when creating Svelte components, implementing Svelte 5 runes ($state, $derived, $effect, $props), building … |
 | [`tanstack`](skills/tanstack/) | Use the whole TanStack ecosystem correctly at its CURRENT versions, plus the TanStack CLI (`tanstack`, `npx @tanstack/cli`). Covers Start (server functions, middleware, SSR), Router, Query, Table v… |
+| [`ux-laws`](skills/ux-laws/) | Audit, restructure and improve web and app UX/UI with the 30 Laws of UX (lawsofux.com) as the critique language and measured guardrails as the bar - brownfield first. Maps an existing codebase into… |
 
 ### 🖥️ Infrastructure & Sysadmin
 
