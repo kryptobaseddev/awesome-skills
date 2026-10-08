@@ -1,0 +1,1 @@
+{ "name": "marketplace-web", "private": true, "dependencies": { "vue": "^3.5.0", "vue-router": "^4.4.0" }, "devDependencies": { "vite": "^5.4.0" } }
