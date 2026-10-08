@@ -35,21 +35,30 @@ v1.2 added the visual quality gate, and v1.3 added references-before-taste after
 
 ## Trigger eval (2026-10-08)
 
-Measured on `trigger_queries.json` (9 should-trigger, 9 near-miss should-not) with a runner that scans the
-whole tool sequence. skill-creator's `run_eval.py` only inspects the first tool call, and it registers a temp
-command beside the installed skill, so it under-reports. Each query was run with `claude -p` (claude-opus-5-5)
-inside a copy of the fixture project with file edits disabled, on a machine that also has the `deuxui` plugin
-installed.
+Measured on `trigger_queries.json` with a runner that scans the whole tool sequence. skill-creator's
+`run_eval.py` only inspects the first tool call, and it registers a temp command beside the installed skill,
+so it under-reports. Each query ran through `claude -p` (claude-opus-5-5) inside a copy of the fixture project,
+with file edits disabled, on a machine that also has the competing `deuxui` UX plugin installed.
 
-| Description | Accuracy | Should-trigger recall | False triggers | Winner on missed positives |
+The corpus has 27 queries: 18 should-trigger and 9 near-miss should-not. Of the 18, 9 are the original phrasings
+and 9 point at files that exist in the fixture. The originals name repos that aren't in the test folder
+(`~/work/fleetops-web`), and agents often stop to look for them before choosing any skill.
+
+| Description | Corpus | Accuracy | Should-trigger recall | False triggers |
 |---|---|---|---|---|
-| v1 (shipped) | 11/18 | 22% | 0% | deuxui 9 of the misses, rest stop before choosing a skill |
-| v2 (trigger phrases first) | 11/18 | 22% | 0% | deuxui 7 |
-| v3 (explicit "choose this over deuxui" routing) | 2/9 positives | 22% | not run | deuxui 8 |
+| v1.4.0 (audit-first wording) | original 18 | 11/18 | 22% | 0% |
+| v1.4.0 | repo-grounded 18 | 14/18 | 50% | 0% |
+| two rewordings of v1.4.0 | original 18 | 11/18 each | 22% | 0% |
+| **v1.4.1 (shipped: user-intent first)** | **all 27** | **25/27** | **81%** | **0%** |
 
-Reading the result:
-- **No false triggers.** All 9 near-misses stayed off: backend work, TanStack API questions, palettes, a blog post about Jakob's Law, scraping, flaky e2e, Storybook, an HTML email, a Next upgrade.
-- **Positives are lost to competition, not wording.** On this machine the `deuxui` plugin (whose description claims "any screen, flow, page, component…") wins most UX requests, so rewording ux-laws didn't move recall. On a machine without deuxui, ux-laws is the only UX skill these queries match.
-- **The rest of the misses are a test artifact.** Several queries name repos that aren't in the test folder (`~/work/fleetops-web`), so the agent stops after looking around, before choosing any skill.
-- The shipped description was kept, since no variant measured better.
-- To route these requests to ux-laws on a machine that has both skills, narrow deuxui's description to building single screens against its contract. That's an owner decision about deuxui, not a ux-laws change.
+What moved recall: leading with the jobs users actually ask for, framed as whole-codebase work. That means
+making an app work on phones, one error pattern across every form, merging duplicate components, and
+guardrails and a design contract. Before, the description led with the method (inventories, probes,
+scorecards). The `deuxui` plugin had been winning those intents.
+
+The two remaining misses:
+- "Vue card consolidation in a repo that isn't there": the agent goes looking for the repo, a test artifact.
+- "Design contract for a brand-new SvelteKit dashboard": `deuxui` picks it up, which is a reasonable fit for a greenfield screen contract.
+
+All 9 near-misses stayed off in every run: backend work, TanStack API questions, palettes, a blog post on
+Jakob's Law, scraping, flaky e2e, Storybook, an HTML email, a Next upgrade.
