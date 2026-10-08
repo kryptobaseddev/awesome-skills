@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""verify_webhook.py — Verify a Quo (formerly OpenPhone) BETA webhook signature.
+"""verify_webhook.py — Verify a Quo (formerly OpenPhone) webhook signature
+(2026-03-30 webhook API, Standard Webhooks scheme).
 
-Quo's beta webhooks are Standard-Webhooks / Svix-compatible. Each delivery sends
+Quo's 2026-03-30 webhooks are Standard-Webhooks / Svix-compatible. Each delivery sends
 three headers:
     webhook-id          a stable delivery id (use it for idempotency)
     webhook-timestamp   unix seconds when Quo signed the request
@@ -23,7 +24,8 @@ Usage:
 
     python3 verify_webhook.py --selftest   # round-trip the algorithm (no network)
 
-Source: https://www.quo.com/docs/mdx/beta/webhooks-signature-validation.md
+Source: https://www.quo.com/docs/2026-03-30/webhooks-signature-validation.md
+(Legacy v1 webhooks use a different `openphone-signature` header; not handled here.)
 """
 from __future__ import annotations
 
@@ -39,13 +41,14 @@ def quo_secret_to_key_bytes(secret: str) -> bytes:
     """Turn a 'whsec_…' (or bare base64) secret into raw HMAC key bytes."""
     s = secret or ""
     b64 = s[len("whsec_"):] if s.startswith("whsec_") else s
-    return base64.b64decode(b64)
+    return base64.b64decode(b64, validate=True)
 
 
 def sign_quo_webhook(webhook_id: str, timestamp, body, secret: str) -> str:
     """Compute the canonical base64 HMAC-SHA256 signature for a delivery."""
-    raw = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
-    signed_content = f"{webhook_id}.{timestamp}.{raw}".encode("utf-8")
+    # Sign the raw bytes: decoding first would raise on a non-UTF-8 body.
+    raw = bytes(body) if isinstance(body, (bytes, bytearray)) else str(body).encode("utf-8")
+    signed_content = f"{webhook_id}.{timestamp}.".encode("utf-8") + raw
     key = quo_secret_to_key_bytes(secret)
     digest = hmac.new(key, signed_content, hashlib.sha256).digest()
     return base64.b64encode(digest).decode("ascii")
@@ -84,7 +87,7 @@ def _parse_signature_header(value: str):
 
 def verify_quo_webhook(headers, raw_body, secret: str,
                        tolerance_seconds: int = DEFAULT_TOLERANCE_SECONDS) -> bool:
-    """Verify a Quo beta webhook. True only if a signature matches AND the
+    """Verify a Quo 2026-03-30 webhook. True only if a signature matches AND the
     timestamp is within tolerance.
 
     `headers` may be a dict, a framework headers object, or a tuple/dict already
@@ -109,9 +112,14 @@ def verify_quo_webhook(headers, raw_body, secret: str,
     if abs(int(time.time()) - ts) > tolerance_seconds:
         return False
 
-    expected = sign_quo_webhook(webhook_id, timestamp, raw_body, secret)
+    try:
+        expected = sign_quo_webhook(webhook_id, timestamp, raw_body, secret).encode("ascii")
+    except (ValueError, TypeError):  # malformed secret (binascii.Error is a ValueError)
+        return False
     for sig in _parse_signature_header(signature):
-        if hmac.compare_digest(sig, expected):
+        # Compare bytes: str compare_digest raises TypeError on non-ASCII input,
+        # and this header is attacker-controlled.
+        if hmac.compare_digest(sig.encode("utf-8", "surrogatepass"), expected):
             return True
     return False
 

@@ -1,501 +1,260 @@
-## Quo (formerly OpenPhone) REST API — Users & Webhooks (v1)
+# Quo (formerly OpenPhone) — v1 webhooks and Users (both surfaces)
 
-> Source of truth: the live `*.md` doc twins under `https://www.quo.com/docs/mdx/...` and the live OpenAPI spec `openphone-public-api-v1-prod.json`. All field names, enums, and examples below are quoted verbatim from those sources (fetched 2026-06-15). Where the rendered doc pages and the OpenAPI JSON disagree, the disagreement is flagged in **Gotchas**.
+This file covers two things: the **legacy v1 webhook endpoints** (`/v1/webhooks/...`, with one create endpoint per event family and the `openphone-signature` signing scheme), and the **Users** resource on both the v1 surface and the `2026-03-30` surface. For new webhook work, use the `2026-03-30` webhook API in `webhooks.md`. Read this file when you have to maintain or migrate a v1 subscription.
 
-### Base URL, auth, and versioning (read first)
+## Contents
 
-- **Server (per live OpenAPI spec):** `https://api.quo.com`. Every doc page's embedded OpenAPI declares `servers: [{ url: https://api.quo.com }]` — EXCEPT the *Delete a webhook by ID* page, whose embedded spec renders `url: https://api.openphone.com`. The legacy/canonical host most integrations still use is `https://api.quo.com/v1`; both resolve to the same API. Treat the host as configurable and prefer whatever the workspace's existing integration already uses. (Source: `openphone-public-api-v1-prod.json` `servers`; `delete-a-webhook-by-id.md`.)
-- **Auth header:** RAW API key in `Authorization` — **NOT** `Bearer`. The spec's only security scheme is `apiKey: { type: apiKey, in: header, name: Authorization }`, and `security: [{ apiKey: [] }]` is global. So the literal header is `Authorization: <YOUR_API_KEY>`. (Source: `openphone-public-api-v1-prod.json` `components.securitySchemes.apiKey`.) The string `Bearer` appears 0 times in the v1 spec.
-- **Path version:** all endpoints in this domain are under `/v1/...`. (The separate dated spec `openphone-public-api-2026-03-30-prod.json` uses UN-prefixed paths like `/users` and contains NO webhook endpoints — do not mix the two.)
-- **Webhook event payloads carry `"apiVersion": "v4"`** even though the management endpoints live under `/v1`. The version on the delivered event object is unrelated to the `/v1` of the create API. (Source: `guides/webhooks.md` sample payloads.)
-- **No webhook signing secret in v1.** The v1 spec and the webhooks guide contain ZERO references to `signature`, `signing`, `secret`, HMAC, or svix. The webhook object returns a `key` field ("Webhook key", example `"example-key"`) but the docs never describe how to use it to verify authenticity, nor do they document retries or delivery guarantees. v1 has no documented signature-verification story. (Source: `guides/webhooks.md`; absence in `openphone-public-api-v1-prod.json`.)
+1. [Which surface to use](#which-surface-to-use)
+2. [Request basics](#request-basics)
+3. [Users — 2026-03-30](#users--2026-03-30)
+4. [Users — v1](#users--v1)
+5. [v1 webhooks: endpoints](#v1-webhooks-endpoints)
+6. [v1 webhooks: delivered payloads](#v1-webhooks-delivered-payloads)
+7. [v1 webhooks: signature (`openphone-signature`)](#v1-webhooks-signature-openphone-signature)
+8. [Migration diffs](#migration-diffs)
+9. [Sources](#sources-checked-2026-10-08)
 
----
+## Which surface to use
 
-### List users
+| Need | v1 | `2026-03-30` | Use |
+| --- | --- | --- | --- |
+| List users | `GET /v1/users` (`maxResults`, `pageToken`) | `GET /users` (`limit`, `after`) | **2026-03-30** |
+| Get a user | `GET /v1/users/{userId}` | `GET /users/{userId}` | **2026-03-30** |
+| A user's phone numbers | — | `GET /users/{userId}/phone-numbers` | 2026-03-30 only |
+| Members assigned to a number (with `groupId`) | — | `GET /phone-numbers/{phoneNumberId}/users` | 2026-03-30 only |
+| Create a webhook for messages, calls, summaries or transcripts | four `POST /v1/webhooks/{family}` | `POST /webhooks` | **2026-03-30** (see `webhooks.md`) |
+| List, get or delete a v1 webhook | `/v1/webhooks`, `/v1/webhooks/{id}` | n/a for `WH…` ids | v1, only to manage legacy subscriptions |
+| Update a webhook, rotate the secret, delivery logs, test events, contact/task events | — | yes | 2026-03-30 only |
 
-```
-GET https://api.quo.com/v1/users
-```
+User data is the same on both surfaces. The real differences are the pagination style, the envelope (`totalItems` / `nextPageToken` on v1 versus `nextCursor` on `2026-03-30`), and the required version header.
 
-`operationId: listUsers_v1`. Retrieve a paginated list of users in your Quo workspace.
+## Request basics
 
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `maxResults` | query | integer | **yes** | Max results per page. `default: 10`, `minimum: 1`, `maximum: 50`. (Marked `required: true` in the spec despite having a default.) |
-| `pageToken` | query | string | no | Opaque cursor for the next page; pass back the `nextPageToken` from the previous response. |
-| `Authorization` | header | string | **yes** | Raw API key (global security). |
+| | v1 | 2026-03-30 |
+| --- | --- | --- |
+| Host | `https://api.quo.com` | `https://api.quo.com` |
+| Path | `/v1/...` | unprefixed (`/users`) |
+| Version header | none | **`Quo-Api-Version: 2026-03-30` required** (`400` without it) |
+| Auth | `Authorization: YOUR_API_KEY` (raw key, **no `Bearer`**) | same |
+| Pagination | `maxResults` 1–50 (default 10, **optional**) + `pageToken`; response `totalItems`, `nextPageToken` | `limit` 1–50 (default 10) + `after`; response `nextCursor` |
+| Errors | `{ message, code, status, docs, title, trace?, errors? }`. `code` is a string constant per error (e.g. `"0305400"` = Invalid Version) | `{ title, message, docs, trace?, errors?: [{path, message, value, schema}] }` |
 
-Request body: none (GET).
+Both surfaces allow 10 requests per second per key. The old host `api.openphone.com` is a legacy alias; use `api.quo.com`.
 
-Response `200` (`data[]` items — each user object; `firstName`, `lastName`, `pictureUrl` are nullable via `anyOf [string, null]`):
+## Users — 2026-03-30
 
-```json
-{
-  "data": [
-    {
-      "id": "US123abc",
-      "email": "johndoe@example.com",
-      "firstName": "John",
-      "lastName": "Doe",
-      "pictureUrl": "https://example.com/picture.jpg",
-      "role": "owner",
-      "createdAt": "2022-01-01T00:00:00Z",
-      "updatedAt": "2022-01-01T00:00:00Z"
-    }
-  ],
-  "totalItems": 1,
-  "nextPageToken": null
-}
-```
+User object (all fields required; nullable where marked):
 
-curl:
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | string `^US` | e.g. `US123abc` |
+| `email` | string (email) | |
+| `firstName`, `lastName`, `pictureUrl` | string \| null | |
+| `role` | **`owner` \| `admin` \| `member`** | Workspace role. |
+| `createdAt`, `updatedAt` | date-time | |
 
-```bash
-curl -s "https://api.quo.com/v1/users?maxResults=50" \
-  -H "Authorization: YOUR_API_KEY"
-```
+The user object has **no `groupId`**. `groupId` (`GR…`) appears only on the phone-number-members endpoint below.
 
-**Gotchas**
-- `maxResults` is **required** even though it has `default: 10`. Always send it; cap is 50.
-- `totalItems` is documented as unreliable: ⚠️ "`totalItems` is not accurately returning the total number of items that can be paginated. We are working on fixing this issue." Do NOT use it to compute page counts — paginate until `nextPageToken` is `null`.
-- `nextPageToken` is `string | null`; loop until it is `null`.
-- `role` enum is `owner | admin | member`. `firstName`/`lastName`/`pictureUrl` can be `null`.
+### `GET /users` — list users
 
----
+| Query | Type | Notes |
+| --- | --- | --- |
+| `limit` | int 1–50 | Default 10. |
+| `after` | string | `nextCursor` from the previous page. |
 
-### Get a user by ID
-
-```
-GET https://api.quo.com/v1/users/{userId}
-```
-
-`operationId: getUserById_v1`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `userId` | path | string | **yes** | Pattern `^US(.*)$`, e.g. `US123abc`. |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Request body: none (GET).
-
-Response `200` (single user object — same shape as list items):
+There are no filters. Required header: `Quo-Api-Version: 2026-03-30`.
 
 ```json
-{
-  "data": {
-    "id": "US123abc",
-    "email": "johndoe@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "pictureUrl": "https://example.com/picture.jpg",
-    "role": "owner",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z"
-  }
-}
+{ "data": [ { "id": "US123abc", "email": "johndoe@example.com", "firstName": "John", "lastName": "Doe",
+  "pictureUrl": null, "role": "owner", "createdAt": "2022-01-01T00:00:00Z", "updatedAt": "2022-01-01T00:00:00Z" } ],
+  "nextCursor": "eyJsYXN0SWQiOiJVU211a09NaXBhIn0" }
 ```
 
-curl:
+Keep paging until `nextCursor` is `null`.
 
 ```bash
-curl -s "https://api.quo.com/v1/users/US123abc" \
-  -H "Authorization: YOUR_API_KEY"
+curl "https://api.quo.com/users?limit=50" -H "Authorization: $QUO_API_KEY" -H "Quo-Api-Version: 2026-03-30"
 ```
 
-**Gotchas**
-- `userId` must match `^US(.*)$`. There is no `groupId` field on the user object — the only fields are `id, email, firstName, lastName, pictureUrl, role, createdAt, updatedAt`. (Note: there is no `groupId` field in the live v1 user schema.)
-- Error responses (`400/401/403/404/500`) share an envelope: `{ message, code, status, docs, title, trace?, errors[] }` where `code` is a per-status constant (e.g. `1100404` for 404, `1100401` for 401).
+### `GET /users/{userId}` — get a user
 
----
+`userId` must match `^US(.*)$`. The response is `{ "data": User }`. A `404` also covers an id that belongs to a different workspace.
 
-### List all webhooks
+### `GET /users/{userId}/phone-numbers` — numbers assigned to a user
 
-```
-GET https://api.quo.com/v1/webhooks
-```
+| Query | Type | Notes |
+| --- | --- | --- |
+| `limit`, `after` | | Standard cursor paging. |
+| `include` | `restrictions`[] (comma-separated) | Adds the `restrictions` section. When omitted, the section is **absent**, not `null`. |
 
-`operationId: listWebhooks_v1`. List all webhooks for a user.
+Each item has `id` (`PN…`), `groupId` (`GR…`), `name`, `phoneNumber` (E.164), `formattedNumber|null`, `forward|null`, `portRequestId|null`, `portingStatus|null`, `symbol|null`, `createdAt`, `updatedAt`, and optionally `restrictions: { calling: {US, CA, Intl}, messaging: {US, CA, Intl} }`, where each value is `restricted` or `unrestricted`. Member lists are **not** embedded; use the endpoint below. The full phone-number schema is in the messages and numbers reference.
 
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `userId` | query | string | no | Pattern `^US(.*)$`. "Defaults to the workspace owner." |
-| `Authorization` | header | string | **yes** | Raw API key. |
+### `GET /phone-numbers/{phoneNumberId}/users` — members of a number
 
-Response `200` — `data[]` is a polymorphic `anyOf` union; each item is a webhook object whose `events[]` enum depends on the resource it was created for:
+The path takes `phoneNumberId` (`^PN`), with `limit`/`after` for paging. Results are ordered by user id, because assignments have no timestamp. Items are a **slimmer user**: `id, email, firstName|null, lastName|null, role, groupId` (`GR…`). This variant has no `pictureUrl` or timestamps.
+
+### Users in tasks (2026-03-30)
+
+`POST /tasks/{taskId}/users` with `{ "userId": "US…" }` assigns a task, and `DELETE /tasks/{taskId}/users` unassigns it. Both return `{ data: { taskId, revision } }`. Details are in the conversations and tasks reference. These calls fire the `task.assigned` / `task.unassigned` webhooks.
+
+## Users — v1
+
+The fields and the `role` enum (`owner | admin | member`) are identical to `2026-03-30`. Only paging and the envelope differ.
+
+### `GET /v1/users`
+
+| Query | Type | Notes |
+| --- | --- | --- |
+| `maxResults` | int 1–50 | Default 10. **Optional** in the current spec; v1.0.0 of this skill wrongly said it was required. |
+| `pageToken` | string | `nextPageToken` from the previous page. |
 
 ```json
-{
-  "data": [
-    {
-      "id": "WHabcd1234",
-      "userId": "US123abc",
-      "orgId": "OR1223abc",
-      "label": "my webhook label",
-      "status": "enabled",
-      "url": "https://example.com/",
-      "key": "example-key",
-      "createdAt": "2022-01-01T00:00:00Z",
-      "updatedAt": "2022-01-01T00:00:00Z",
-      "deletedAt": null,
-      "events": ["message.received", "message.delivered"],
-      "resourceIds": ["PN1234"]
-    }
-  ]
-}
+{ "data": [ { "id": "US123abc", "email": "johndoe@example.com", "firstName": "John", "lastName": "Doe",
+  "pictureUrl": "https://example.com/picture.jpg", "role": "owner",
+  "createdAt": "2022-01-01T00:00:00Z", "updatedAt": "2022-01-01T00:00:00Z" } ],
+  "totalItems": 1, "nextPageToken": null }
 ```
 
-The webhook object is the SAME for every endpoint that returns one (list, get, and all four create endpoints). Required fields: `id, userId, orgId, label, status, url, key, createdAt, updatedAt, deletedAt, events, resourceIds`.
+The spec itself warns that `totalItems` is **not accurate**, so never compute page counts from it. Loop until `nextPageToken` is `null`.
 
-Field reference for the webhook object:
+### `GET /v1/users/{userId}`
 
-| field | type | notes |
-|-------|------|-------|
-| `id` | string | Pattern `^WH(.*)$`, e.g. `WHabcd1234`. |
-| `userId` | string | `^US(.*)$` — creator of the webhook. |
-| `orgId` | string | `^OR(.*)$` — owning organization. |
-| `label` | string \| null | Optional human label. |
-| `status` | enum | `enabled \| disabled` (default `enabled`). |
-| `url` | string(uri) | Endpoint that receives events. |
-| `key` | string | "Webhook key" (example `example-key`). Not documented as a signing secret. |
-| `createdAt` | string(date-time) | ISO 8601. |
-| `updatedAt` | string(date-time) | ISO 8601 (description erroneously says "created at"). |
-| `deletedAt` | string(date-time) \| null | ISO 8601 when soft-deleted. |
-| `events` | string[] | Enum depends on resource (see below). |
-| `resourceIds` | array | Either `^PN(.*)$` phone-number IDs OR a single `["*"]` wildcard. |
+`userId` must match `^US(.*)$`. The response is `{ "data": User }`.
 
-**`events` enum by webhook resource** (from the list/get `anyOf` variants — verbatim):
-- Messages: `message.received`, `message.delivered`
-- Calls: `call.completed`, `call.ringing`, `call.recording.completed`
-- Call summaries: `call.summary.completed`
-- Call transcripts: `call.transcript.completed`
-- (Also present in the response union, though not createable via the four documented endpoints: Contacts `contact.updated` / `contact.deleted`, and `task.assigned` — these last two require `resourceIds` to be exactly `["*"]`.)
+## v1 webhooks: endpoints
 
-curl:
+These require `Authorization` only, with no version header. v1 webhook ids are `WH…`.
+
+**v1 webhook object** (returned by list, get and every create; all fields required):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `^WH` | |
+| `userId` | `^US` | The creator, which defaults to the workspace owner. |
+| `orgId` | `^OR` | |
+| `label` | string \| null | |
+| `status` | `enabled` \| `disabled` | Default `enabled`. |
+| `url` | uri | |
+| `key` | string | The **signing key** (base64). In the app it is shown as "Reveal signing secret". The spec only describes it as "Webhook key". |
+| `createdAt`, `updatedAt` | date-time | |
+| `deletedAt` | date-time \| null | |
+| `events` | string[] | The allowed values depend on the family (table below). |
+| `resourceIds` | `PN…`[] or `["*"]` | Always `["*"]` for contact webhooks. |
+
+**Events per family** (taken from the create bodies and the list/get `anyOf` variants):
+
+| Family | Create endpoint | `events` enum |
+| --- | --- | --- |
+| Messages | `POST /v1/webhooks/messages` | `message.received`, `message.delivered` |
+| Calls | `POST /v1/webhooks/calls` | `call.completed`, `call.ringing`, `call.recording.completed` |
+| Call summaries | `POST /v1/webhooks/call-summaries` | `call.summary.completed` (`minItems: 1`) |
+| Call transcripts | `POST /v1/webhooks/call-transcripts` | `call.transcript.completed` (`minItems: 1`) |
+| Contacts | **no v1 create endpoint** (appears only in list/get responses, e.g. app-created) | `contact.updated`, `contact.deleted` |
+
+v1 has **no** `message.failed`/`undelivered` events, no `call.answered`/`missed`/`forwarded`/`menu.selected`/`voicemail.completed`, and no task events. Those exist only on `2026-03-30`.
+
+### `GET /v1/webhooks` — list
+
+| Query | Type | Notes |
+| --- | --- | --- |
+| `userId` | `^US` | **Defaults to the workspace owner.** To see every webhook, call once per user. |
+
+The response is `{ "data": V1Webhook[] }`, with no pagination. Branch on `events[]`, because the item schema is a union of the families.
+
+### `GET /v1/webhooks/{id}` — get
+
+The response is `{ "data": V1Webhook }`.
+
+### `DELETE /v1/webhooks/{id}` → `204`
+
+There is no body. This is also how you "update" a v1 webhook, because v1 has no PATCH: delete it and recreate it, which issues a **new `key`**.
+
+### `POST /v1/webhooks/{messages|calls|call-summaries|call-transcripts}` — create → `201`
+
+| Body field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `url` | uri | yes | |
+| `events` | enum[] for that family | yes | |
+| `resourceIds` | `PN…`[] or `["*"]` | no | |
+| `label` | string | no | |
+| `status` | `enabled` \| `disabled` | no | Default `enabled`. |
+| `userId` | `^US` | no | Defaults to the workspace owner. |
 
 ```bash
-curl -s "https://api.quo.com/v1/webhooks?userId=US123abc" \
-  -H "Authorization: YOUR_API_KEY"
-```
-
-**Gotchas**
-- The response `data[]` is an `anyOf` union; a generic JSON consumer should branch on the resource by inspecting `events` rather than assuming a fixed enum.
-- Omit `userId` and you only get the workspace owner's webhooks, not every webhook in the org.
-
----
-
-### Get a webhook by ID
-
-```
-GET https://api.quo.com/v1/webhooks/{id}
-```
-
-`operationId: getWebhookById_v1`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `id` | path | string | **yes** | Pattern `^WH(.*)$`, e.g. `WH12345`. |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Response `200` — `data` is the single webhook object (same `anyOf` union as list):
-
-```json
-{
-  "data": {
-    "id": "WHabcd1234",
-    "userId": "US123abc",
-    "orgId": "OR1223abc",
-    "label": "my webhook label",
-    "status": "enabled",
-    "url": "https://example.com/",
-    "key": "example-key",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z",
-    "deletedAt": null,
-    "events": ["call.completed", "call.ringing", "call.recording.completed"],
-    "resourceIds": ["PN1234"]
-  }
-}
-```
-
-curl:
-
-```bash
-curl -s "https://api.quo.com/v1/webhooks/WH12345" \
-  -H "Authorization: YOUR_API_KEY"
-```
-
----
-
-### Delete a webhook by ID
-
-```
-DELETE https://api.quo.com/v1/webhooks/{id}
-```
-
-`operationId: deleteWebhookById_v1`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `id` | path | string | **yes** | Pattern `^WH(.*)$`, e.g. `WH12345`. |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Response `204`: Success — **no body**. (Other codes: `400` "Invalid Version" with `code: 0305400`, `401`, `403`, `404`, `500`.)
-
-curl:
-
-```bash
-curl -s -X DELETE "https://api.quo.com/v1/webhooks/WH12345" \
-  -H "Authorization: YOUR_API_KEY"
-```
-
-**Gotchas**
-- Success is `204 No Content` — do not try to parse a JSON body.
-- This page is the one whose embedded spec shows `url: https://api.openphone.com` (vs `api.quo.com` on every other page).
-
----
-
-### Create a new webhook for messages
-
-```
-POST https://api.quo.com/v1/webhooks/messages
-```
-
-`operationId: createMessageWebhook_v1`. Required body fields: `events`, `url`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `url` | body | string(uri) | **yes** | Endpoint that receives events. |
-| `events` | body | string[] | **yes** | Items enum: `message.received`, `message.delivered`. |
-| `resourceIds` | body | array | no | `^PN(.*)$` phone-number IDs, or `["*"]` for all. |
-| `label` | body | string | no | Webhook label. |
-| `status` | body | enum | no | `enabled \| disabled` (default `enabled`). |
-| `userId` | body | string | no | `^US(.*)$`. "If not provided, default to workspace owner." |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Request body:
-
-```json
-{
-  "url": "https://example.com",
-  "events": ["message.received", "message.delivered"],
-  "resourceIds": ["PN1234"],
-  "label": "my webhook label",
-  "status": "enabled",
-  "userId": "US123abc"
-}
-```
-
-Response `201` (webhook object):
-
-```json
-{
-  "data": {
-    "id": "WHabcd1234",
-    "userId": "US123abc",
-    "orgId": "OR1223abc",
-    "label": "my webhook label",
-    "status": "enabled",
-    "url": "https://example.com",
-    "key": "example-key",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z",
-    "deletedAt": null,
-    "events": ["message.received", "message.delivered"],
-    "resourceIds": ["PN1234"]
-  }
-}
-```
-
-curl:
-
-```bash
-curl -s -X POST "https://api.quo.com/v1/webhooks/messages" \
-  -H "Authorization: YOUR_API_KEY" \
+curl -X POST https://api.quo.com/v1/webhooks/calls -H "Authorization: $QUO_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com","events":["message.received","message.delivered"],"resourceIds":["PN1234"],"label":"my webhook label","status":"enabled"}'
+  -d '{"url":"https://example.com/hook","events":["call.completed","call.recording.completed"],"resourceIds":["*"]}'
 ```
-
----
-
-### Create a new webhook for calls
-
-```
-POST https://api.quo.com/v1/webhooks/calls
-```
-
-`operationId: createCallWebhook_v1`. Required body fields: `url`, `events`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `url` | body | string(uri) | **yes** | Endpoint that receives events. |
-| `events` | body | string[] | **yes** | Items enum: `call.completed`, `call.ringing`, `call.recording.completed`. |
-| `resourceIds` | body | array | no | `^PN(.*)$` IDs or `["*"]`. |
-| `userId` | body | string | no | `^US(.*)$`; defaults to workspace owner. |
-| `label` | body | string | no | Webhook label. |
-| `status` | body | enum | no | `enabled \| disabled` (default `enabled`). |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Request body:
 
 ```json
-{
-  "url": "https://example.com/",
-  "events": ["call.completed", "call.ringing", "call.recording.completed"],
-  "resourceIds": ["PN1234"],
-  "userId": "US123abc",
-  "label": "my webhook label",
-  "status": "enabled"
-}
+{ "data": { "id": "WHabcd1234", "userId": "US123abc", "orgId": "OR1223abc", "label": null, "status": "enabled",
+  "url": "https://example.com/hook", "key": "…base64…", "createdAt": "2022-01-01T00:00:00Z",
+  "updatedAt": "2022-01-01T00:00:00Z", "deletedAt": null,
+  "events": ["call.completed", "call.recording.completed"], "resourceIds": ["*"] } }
 ```
 
-Response `201` (webhook object — `events` echoes the call enum):
+Gotchas:
+
+- Summary and transcript webhooks fire only when the workspace plan and settings actually produce summaries or transcripts (these are AI features on Business/Scale-tier plans; see the calls reference).
+- Webhooks created in the Quo app and webhooks created through the API are managed separately. The docs say app-created webhooks "are not compatible with those created via the API".
+- Retry policy, ordering and delivery logs are **not documented** for v1. Assume at-least-once delivery, dedupe on the event `id`, and return `2xx` quickly.
+
+## v1 webhooks: delivered payloads
+
+> These shapes come from the v1 webhooks guide as captured in this skill's v1.0.0 (fetched 2026-06-15). That guide was not part of the 2026-10-08 fetch, so they were not re-verified.
 
 ```json
-{
-  "data": {
-    "id": "WHabcd1234",
-    "userId": "US123abc",
-    "orgId": "OR1223abc",
-    "label": "my webhook label",
-    "status": "enabled",
-    "url": "https://example.com/",
-    "key": "example-key",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z",
-    "deletedAt": null,
-    "events": ["call.completed", "call.ringing", "call.recording.completed"],
-    "resourceIds": ["PN1234"]
-  }
-}
+{ "id": "EVsampleEvent01", "object": "event", "apiVersion": "v4",
+  "createdAt": "2022-01-23T16:55:52.557Z", "type": "message.received",
+  "data": { "object": { "id": "AC…", "object": "message", "from": "+1555…", "to": ["+1555…"],
+    "direction": "incoming", "text": "hi", "status": "received", "createdAt": "…",
+    "userId": "US…", "phoneNumberId": "PN…", "contactIds": [] } } }
 ```
 
-curl:
+- **Message** (`message.received`/`delivered`): `data.object` = `id, object, from, to[], direction, text, status, createdAt, userId, phoneNumberId, contactIds[]`.
+- **Call** (`call.ringing`/`completed`/`recording.completed`): `id, object, answeredAt, answeredBy, initiatedBy, direction, status, completedAt, createdAt, duration, forwardedFrom, forwardedTo, phoneNumberId, participants[], updatedAt, userId, contactIds[]`.
+- **Summary**: the envelope `type` is **`"callSummary"`**, not the subscription name. `data.object` = `callId, object, status, summary[], nextSteps[], contactIds[]`.
+- **Transcript**: the envelope `type` is **`"callTranscript"`**. `data.object` = `callId, object, createdAt, dialogue[{content, start, end, identifier, userId}], duration, status, contactIds[]`.
+- `apiVersion` on the payload is `"v4"` even though management lives under `/v1`. Switch on both forms of `type`.
 
-```bash
-curl -s -X POST "https://api.quo.com/v1/webhooks/calls" \
-  -H "Authorization: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/","events":["call.completed","call.ringing","call.recording.completed"],"resourceIds":["PN1234"]}'
-```
+## v1 webhooks: signature (`openphone-signature`)
 
----
-
-### Create a new webhook for call summaries
+The v1 OpenAPI spec says nothing about signing. The scheme below comes from the Quo Resource Center (support.quo.com, "Webhooks"). The 2026-03-30 changelog confirms that the header is named `OpenPhone-Signature` and that it is **not interchangeable** with the `webhook-*` scheme.
 
 ```
-POST https://api.quo.com/v1/webhooks/call-summaries
+openphone-signature: hmac;1;1639710054089;mw1K4fvh5m9XzsGon4C5N3KvL0bkmPZSAyb/9Vms2Qo=
+                     ^scheme ^version ^timestamp ^base64 HMAC-SHA256 digest
 ```
 
-`operationId: createCallSummaryWebhook_v1`. Required body fields: `events`, `url`.
+1. Split the header on `;` into `[scheme="hmac", version="1", timestamp, digest]`.
+2. Signed data = `timestamp + "." + payload`. The doc says the JSON payload must have **all whitespace and newlines removed**. Its Node sample uses `JSON.stringify(req.body)`, and its Python sample uses the raw `request.data` bytes. Prefer the raw bytes, and fall back to compact re-serialisation only if raw-byte verification fails.
+3. Key = **base64-decode** the webhook's signing key (the `key` field or the app's "Reveal signing secret"). There is **no `whsec_` prefix**.
+4. `base64(HMAC-SHA256(keyBytes, signedData))` must equal `digest`. Compare in constant time; the doc's sample uses `==`, which is not safe.
+5. The sample timestamp has 13 digits, so it appears to be in **milliseconds**, unlike the `webhook-timestamp` seconds in the new scheme. The doc gives no tolerance. If you add a replay window, normalise the units first.
 
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `events` | body | string[] | **yes** | `minItems: 1`. Only enum value: `call.summary.completed`. |
-| `url` | body | string(uri) | **yes** | Endpoint that receives events. |
-| `resourceIds` | body | array | no | `^PN(.*)$` IDs or `["*"]`. |
-| `label` | body | string | no | Webhook label. |
-| `status` | body | enum | no | `enabled \| disabled` (default `enabled`). |
-| `userId` | body | string | no | `^US(.*)$`; defaults to workspace owner. |
-| `Authorization` | header | string | **yes** | Raw API key. |
+The bundled `verify-webhook.js` / `verify_webhook.py` implement **only** the `2026-03-30` `webhook-*` scheme. They cannot verify v1 deliveries.
 
-Request body:
+## Migration diffs
 
-```json
-{
-  "events": ["call.summary.completed"],
-  "url": "https://example.com",
-  "resourceIds": ["PN1234"],
-  "label": "my webhook label",
-  "status": "enabled",
-  "userId": "US123abc"
-}
-```
+| v1 | 2026-03-30 |
+| --- | --- |
+| `GET /v1/users?maxResults=&pageToken=` | `GET /users?limit=&after=` + `Quo-Api-Version` |
+| `totalItems`, `nextPageToken` | `nextCursor` (no total) |
+| four `POST /v1/webhooks/{family}` | one `POST /webhooks` with mixed `events[]` |
+| webhook `id` `WH…`, has `userId`, `deletedAt` | numeric string id, no `userId`; `apiVersion` pinned |
+| `key` = base64 signing key, `openphone-signature` | `key` = `whsec_…`, `webhook-id`/`-timestamp`/`-signature` |
+| no update, rotate, delivery log or test | `PATCH`, `/rotate`, `/events`, `/events/test`, retry |
+| `data.object.*` payload, `apiVersion: "v4"` | `data.resource` / `data.context` / `data.links`, `apiVersion: "2026-03-30"` |
+| `data.object.contactIds` | `data.context.contacts.ids` + `lookupStatus` |
+| `data.object.from` / `to` | `context.senderIdentifier` / `recipientIdentifiers` |
 
-Response `201`: webhook object with `events: ["call.summary.completed"]` (same shape as the others).
+The `role` enum (`owner | admin | member`) and the user fields are unchanged.
 
-curl:
+## Sources (checked 2026-10-08)
 
-```bash
-curl -s -X POST "https://api.quo.com/v1/webhooks/call-summaries" \
-  -H "Authorization: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"events":["call.summary.completed"],"url":"https://example.com","resourceIds":["PN1234"]}'
-```
-
-**Gotchas**
-- `events` has `minItems: 1` and a single legal value here.
-- Requires AI/call-summary capability on the workspace plan; summaries only fire when Quo generates them.
-
----
-
-### Create a new webhook for call transcripts
-
-```
-POST https://api.quo.com/v1/webhooks/call-transcripts
-```
-
-`operationId: createCallTranscriptWebhook_v1`. Required body fields: `events`, `url`.
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `events` | body | string[] | **yes** | `minItems: 1`. Only enum value: `call.transcript.completed`. |
-| `url` | body | string(uri) | **yes** | Endpoint that receives events. |
-| `label` | body | string | no | Webhook label. |
-| `resourceIds` | body | array | no | `^PN(.*)$` IDs or `["*"]`. Note: the transcripts page renders the example as a bare `PN1234` (the other three render `["PN1234"]`); the type is still an array. |
-| `status` | body | enum | no | `enabled \| disabled`. |
-| `userId` | body | string | no | `^US(.*)$`; defaults to workspace owner. |
-| `Authorization` | header | string | **yes** | Raw API key. |
-
-Request body:
-
-```json
-{
-  "events": ["call.transcript.completed"],
-  "url": "https://example.com",
-  "resourceIds": ["PN1234"],
-  "label": "my webhook label",
-  "status": "enabled",
-  "userId": "US123abc"
-}
-```
-
-Response `201`: webhook object with `events: ["call.transcript.completed"]`.
-
-curl:
-
-```bash
-curl -s -X POST "https://api.quo.com/v1/webhooks/call-transcripts" \
-  -H "Authorization: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"events":["call.transcript.completed"],"url":"https://example.com","resourceIds":["PN1234"]}'
-```
-
----
-
-### Webhook payload reference (delivered event envelope)
-
-Every delivered event is wrapped in a common envelope. From `guides/webhooks.md`:
-
-```json
-{
-  "id": "EVsampleEvent01",
-  "object": "event",
-  "apiVersion": "v4",
-  "createdAt": "2022-01-23T16:55:52.557Z",
-  "type": "message.received",
-  "data": { "object": { /* resource-specific */ } }
-}
-```
-
-- **Message** (`message.received` / `message.delivered`): `data.object` is a `message` with `id, object, from, to[], direction, text, status, createdAt, userId, phoneNumberId, contactIds[]`.
-- **Call** (`call.ringing` / `call.completed` / `call.recording.completed`): `data.object` is a `call` with `id, object, answeredAt, answeredBy, initiatedBy, direction, status, completedAt, createdAt, duration, forwardedFrom, forwardedTo, phoneNumberId, participants[], updatedAt, userId, contactIds[]`.
-- **Call summary** (`call.summary.completed`): `type` is `"callSummary"` (NOT the event name); `data.object` = `callId, object, status, summary[], nextSteps[], contactIds[]`.
-- **Call transcript** (`call.transcript.completed`): `type` is `"callTranscript"`; `data.object` = `callId, object, createdAt, dialogue[ {content, start, end, identifier, userId} ], duration, status, contactIds[]`.
-
-**Delivery / retries / authenticity:** the v1 webhooks guide documents ONLY the payload shapes. It says NOTHING about retry policy, delivery guarantees, or how to verify a payload's authenticity. There is no signing secret, HMAC header, or signature field anywhere in the v1 spec or guide. The webhook object's `key` field exists but is undocumented as a verification mechanism. If you need signature verification, that is a beta-API concern, not v1.
-
-**Gotchas (whole domain)**
-- The delivered event's `type` for summaries/transcripts is `callSummary` / `callTranscript`, which does NOT match the subscription event names `call.summary.completed` / `call.transcript.completed`. Switch on both forms.
-- Payload `apiVersion` is `v4` even though management is `/v1`.
-- App-created webhooks and API-created webhooks are mutually invisible: "Webhooks created in the Quo app are not compatible with those created via the API."
+- `openphone-public-api-v1-prod.json`: `/v1/users`, `/v1/users/{userId}`, `/v1/webhooks`, `/v1/webhooks/{id}`, `/v1/webhooks/{messages,calls,call-summaries,call-transcripts}`
+- `openphone-public-api-2026-03-30-prod.json`: `/users`, `/users/{userId}`, `/users/{userId}/phone-numbers`, `/phone-numbers/{phoneNumberId}/users`, `/tasks/{taskId}/users`
+- quo.com/docs/mdx/api-reference: users/list-users, users/get-a-user-by-id, webhooks/* (four create pages, list, get, delete), authentication, rate-limits, error-codes
+- quo.com/docs/2026-03-30: users/*, user-phone-numbers/list-a-users-phone-numbers, versioning, errors
+- quo.com/docs/changelog: 2026-05-11 entry (legacy `OpenPhone-Signature` versus the new scheme)
+- support.quo.com/core-concepts/integrations/webhooks: `openphone-signature` format (web, outside the local fetch)

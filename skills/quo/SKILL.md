@@ -1,225 +1,243 @@
 ---
 name: quo
-description: "Build, scaffold, and integrate Quo — formerly OpenPhone — telephony into a full-stack app: send & receive SMS/text messages, list and analyze calls (recordings, AI summaries, transcripts, voicemails), manage contacts, conversations, tasks, users, and phone numbers via the Quo REST API (https://api.quo.com/v1), plus signature-verified webhooks. Ships a one-command scaffolder that emits a runnable integration (Express + API client + send-SMS route + a signature-verifying webhook receiver), a preflight checker, a tested webhook verifier (Node + Python), and an importable client. Use whenever the user wants to add, build, or scaffold SMS/text messaging, programmatic calls, an OpenPhone or Quo integration, two-way SMS, call transcripts/summaries, contact sync, or Quo webhooks — even if they only say 'OpenPhone', 'Quo', or 'send a text from my app'. Bakes in the raw-API-key auth gotcha (no Bearer token), A2P 10DLC registration, the 202/one-recipient/E.164 send rules, and the whsec_ webhook signing scheme."
+description: "Build Quo (formerly OpenPhone) integrations and LLM agent tools on the Quo REST API, webhooks and MCP server: SMS send and receive, group texts, calls with AI summaries, transcripts and voicemails, contacts, conversations, tasks, users and phone numbers, on both API versions (v1, the only way to send, and header-versioned 2026-03-30). Ships a type-checked TanStack AI tool kit (Zod tools, approval-gated sends, inbox allowlists, 10 req/s limiter), a scaffolder, a webhook verifier and a client. Use when building an assistant or agent that texts customers, reads a phone inbox, triages missed calls, analyses calls, syncs contacts or schedules reminders; when adding SMS, inbound-text webhooks or call data to an app; or when fixing an app's texting, messages endpoint or call-data code, even if the user never says Quo or OpenPhone ('when someone texts our clinic line', 'our /api/messages refetches'). Not for Twilio, Vonage or WhatsApp APIs, email, or TanStack chat without phone data."
 license: MIT
 compatibility: >-
   Bundled scripts need Node 18+ (built-in fetch + node:crypto) and/or Python
-  3.8+ stdlib, plus bash + curl for preflight. Integrations target any stack
-  that makes HTTPS calls (Node/Express, Next.js, Python, Ruby, PHP, Go); the
-  scaffolder emits Node/Express + vanilla or React. A Quo (OpenPhone) account
-  with workspace owner/admin is needed to generate an API key; US SMS also
+  3.8+ stdlib, plus bash + curl for preflight. The TanStack AI kit in
+  assets/tanstack-ai/ is TypeScript checked against @tanstack/ai 0.66,
+  @tanstack/ai-react 0.30 and zod 4. Integrations target any stack that makes
+  HTTPS calls. A Quo workspace owner/admin generates the API key; US SMS also
   requires A2P 10DLC registration.
 inputs:
   - name: QUO_API_KEY
-    description: "Quo (OpenPhone) API key — the RAW key, sent verbatim in the Authorization header (NO 'Bearer ' prefix). Generate at Quo workspace → Settings → API (owner/admin only); each key has full account access. The legacy var OPENPHONE_API_KEY is also accepted by the bundled scripts."
+    description: "Quo (OpenPhone) API key, sent RAW in the Authorization header (no 'Bearer ' prefix). Generate at Quo workspace, Settings, API (owner/admin only). Keys have full workspace access and no scopes, so give each integration or agent its own named key. The legacy var OPENPHONE_API_KEY is also accepted by the bundled scripts."
     required: true
   - name: QUO_WEBHOOK_KEY
-    description: "Beta webhook signing secret, prefixed 'whsec_'. Returned ONLY in the POST https://api.quo.com/webhooks response (data.key) and on rotate — store it immediately. Used solely to verify inbound webhook signatures."
+    description: "Webhook signing secret, prefixed 'whsec_'. Returned ONLY by POST https://api.quo.com/webhooks (data.key) and by rotate; store it immediately. Used solely to verify inbound webhook signatures."
     required: false
   - name: QUO_BASE_URL
-    description: "Optional host override. Default https://api.quo.com/v1 (the canonical host per the OpenAPI servers block). https://api.openphone.com/v1 is a live, identical legacy alias."
+    description: "Optional host override. Default https://api.quo.com (v1 under /v1, 2026-03-30 unprefixed). The legacy host api.openphone.com serves v1 only."
     required: false
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.0.0"
-  last_updated: "2026-06-15 17:30:00"
+  version: "2.0.0"
+  last_updated: "2026-10-08 16:25:00"
   category: communication
 allowed-tools: Bash Read Write Edit Glob Grep WebFetch
 ---
 
-# Quo (formerly OpenPhone) — REST API & Webhooks Integration
+# Quo (formerly OpenPhone): REST API, webhooks and agent tools
 
-Add programmatic phone communications to a site or app: **send and receive
-SMS/text messages**, pull **call** history with AI **summaries / transcripts /
-recordings / voicemails**, manage **contacts** (and custom fields),
-**conversations**, **tasks**, **users**, and **phone numbers**, and react to
-events in real time via **webhooks**. Quo is the rebrand of OpenPhone; the two
-share one API.
+Quo is the rebranded OpenPhone business phone system. Its API lets software
+send and read **SMS**, pull **calls** with AI **summaries, transcripts and
+voicemails**, manage **contacts** (plus notes and properties),
+**conversations**, **tasks**, **users** and **phone numbers**, and react to
+**webhooks**. This skill covers three ways of building on it:
 
-> **Naming:** the product is now **Quo** (`quo.com`), but the REST API, the
-> OpenAPI spec, and most existing integrations are unchanged from OpenPhone. The
-> canonical host is `https://api.quo.com/v1`; `https://api.openphone.com/v1` is a
-> live, byte-identical legacy alias (both verified). Pick one and keep it in a
-> single configurable constant.
+1. **App integrations:** server code that texts customers, syncs contacts or ingests call data.
+2. **LLM agent tools:** an assistant that works the inbox through structured tool calls. A ready-made TanStack AI kit ships in `assets/tanstack-ai/`.
+3. **Quo's hosted MCP server:** for Claude or ChatGPT acting as a Quo user, with no code.
+
+## Two live API surfaces: pick per operation
+
+Both are on host `https://api.quo.com` and use the same raw-key auth. The
+OpenAPI specs are the ground truth: [v1](https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json) and
+[2026-03-30](https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-2026-03-30-prod.json).
+
+| | v1 | 2026-03-30 (current) |
+|---|---|---|
+| Paths | `/v1/messages`, `/v1/calls`, ... | `/messages`, `/calls`, ... (no prefix) |
+| Version header | none | `Quo-Api-Version: 2026-03-30`, **required** (400 without it) |
+| Lists | `maxResults` + `pageToken` → `nextPageToken` (`totalItems` unreliable); often require `phoneNumberId` + `participants` | `limit` 1–50 + `after` → `nextCursor`; workspace-wide, all filters optional |
+| Filters | plain params; arrays as repeated keys | `field=value`, `field[in]=a,b`, range ops; AND across params. **Operators differ per endpoint**: `/calls` and `/conversations` take `createdAt[gte]/[lte]`, `/messages` only `createdAt[gt]/[lt]`. A wrong operator is a 400; check the endpoint's reference |
+| Errors | `{ message, code, ... }` or gateway `{ error: { message, key, trace } }` | `{ title, message, docs, trace?, errors[{ path, message, value, schema }] }` |
+| Only here | **send SMS** (`POST /v1/messages`), standalone call summary/transcript/voicemail routes, contact custom-field definitions, task create linked to a phone number or activity | message **retry**, `include=summary,voicemail` on calls, contact **notes/properties/shares**, organization, available-number search, webhook delivery log, retry and test, `task.*` webhooks |
+
+**Default to 2026-03-30 for everything it covers; use v1 to send and for the
+v1-only rows.** Version 2026-03-30 is frozen: new endpoints and fields arrive
+without a version bump, so ignore unknown response fields. Details are in
+`references/api-basics.md`.
 
 ## Facts that prevent broken work
 
-Read this table first — each row is a real failure integrators hit.
-
 | Fact | Consequence |
 |---|---|
-| **Auth is the RAW API key** in the `Authorization` header. The docs say verbatim *"The Quo API does not use a Bearer token."* | `Authorization: Bearer <key>` → `401 Unauthorized`. Send the key value alone: `Authorization: <key>`. |
-| **Base URL** is `https://api.quo.com/v1` (OpenAPI `servers`); `https://api.openphone.com/v1` is an identical alias | Hardcoding one host is fine, but don't mix `/v1` REST with the **un-prefixed** beta webhook host (`https://api.quo.com/webhooks`, no `/v1`). |
-| **Sending SMS to US numbers requires A2P 10DLC carrier registration** | Without it, `POST /v1/messages` returns **`400` code `0206400` "A2P Registration Not Approved"** — a 400 here is NOT a malformed body. |
-| **Send is async and returns `202`**, not `200` | Treat `202` as *queued*. `to` must be **exactly one** E.164 recipient (`maxItems: 1` — no fan-out per call); `content` is 1–1600 non-whitespace chars; **MMS is not supported**. |
-| `from` is an **E.164 number OR a `PN…` phoneNumberId** | The legacy top-level `phoneNumberId` body field is deprecated — use `from`. `GET /v1/phone-numbers` gives you valid senders. |
-| **Rate limit: 10 requests/second per API key** → `429` | The docs document **no** `Retry-After` / `RateLimit-*` headers — implement your own exponential backoff (the bundled client already does). |
-| **Pagination:** `maxResults` (required, max 100) + `pageToken` → response `nextPageToken` | `totalItems` is **documented as inaccurate** — loop until `nextPageToken` is `null`; never page on `totalItems`. |
-| **List messages/calls are scoped, not global** | `GET /v1/messages` and `/v1/calls` require `phoneNumberId` **and** `participants` **and** `maxResults` together. There is no "list everything" call. |
-| **Beta webhooks are signed; legacy v1 webhooks are not** | For verifiable authenticity use the **beta** webhook API: HMAC-SHA256 (base64) over `{webhook-id}.{webhook-timestamp}.{raw-body}` with a `whsec_…` secret. Verify the **raw** body before parsing. |
-| **Webhook idempotency key is the `webhook-id` HEADER** | Not the envelope `id`. Deliveries retry (8 attempts over ~27h) and arrive out of order — dedupe on `webhook-id`, retain ≥28h, make handlers order-independent. |
-| **AI features are plan-gated** | Call **summaries** and **transcripts** (and their webhooks) require a **business or scale** plan; lower plans get `403`/absent. They're also async — poll `processingStatus` until `completed`. |
-| **Error envelope is inconsistent** | The live gateway returns `{ "error": { "message", "key", "trace" } }`; the OpenAPI documents `{ "message", "code", "status", "errors": [] }`. Parse defensively: `body.error?.message ?? body.message`. |
-| **ID prefixes are load-bearing** | `AC…` activity/message/call · `PN…` phone number · `US…` user · `CN…` conversation · `CT…` contact · `VM…` voicemail. Endpoints validate them by regex. |
+| Auth is the **raw key**: `Authorization: KEY`. Quo uses no Bearer token | `Bearer ...` → 401 |
+| Sending is **v1 only** and returns **202 queued** | Delivery arrives later (`message.delivered` / `message.failed` / `message.undelivered` webhooks). Status `undelivered` is terminal; only `failed` messages can be retried (`POST /messages/{id}/retry`) |
+| `to` takes **1–10** E.164 numbers, but **2+ creates ONE group thread** where everyone sees every number | For private bulk messages, send one at a time under the rate limit |
+| **No idempotency key** on send | Never auto-retry a send after a timeout or 5xx. Look it up (`GET /messages?to=…&createdAt[gt]=…`) before resending |
+| **10 requests/second per key**, across every process using it | One client (one limiter) per process, injected everywhere in that process: webhook handlers, workers and tools. A second client in the same process doubles the budget silently. Split `maxRps` across processes, inject a shared (Redis) limiter, or use one key per integration. Prefer `limit=50`, `include=` over N+1 and webhooks over polling |
+| US SMS needs **A2P 10DLC** registration | `400 0206400` = not registered (not a bad body); `403 0204403` = daily cap reached |
+| Summaries and transcripts need a **Business or Scale** plan and are **async** | Check `summary.status` / transcript `status` (`absent`, `in-progress`, `completed`, `failed`); prefer `call.summary.completed` / `call.transcript.completed` webhooks |
+| **v1 `PATCH /v1/contacts/{id}` replaces** phones, emails and custom fields; anything omitted is deleted | Use 2026-03-30 `PATCH /contacts/{id}` (scalars only) plus per-item **properties**, or GET → merge → PATCH the full object |
+| Contacts **cannot be searched by phone or name**, only by `externalId`/`source` | Store `externalId` on create and keep your own phone→contact index |
+| Integration-synced contacts (CRM sources) are **read-only** via the API | Change them in the source system |
+| **Webhooks**: 2026-03-30 uses Standard Webhooks (`webhook-id`, `webhook-timestamp`, `webhook-signature: v1,…`, `whsec_` secret); v1 uses a different `openphone-signature` header | Verify the **raw** body. Dedupe on the `webhook-id` header (not the envelope id) and keep ids ≥28h; deliveries retry and can arrive out of order |
+| Ids are prefixed: `PN` number, `US` user, `SYU` AI/system actor, `CN` conversation, `AC` call or message, `TK` task, `VM` voicemail, `OR` org. Contact ids have **no** prefix | Validate prefixes in tool schemas and treat ids as opaque |
+| No scheduled-send endpoint exists | Scheduling = your job queue calling `POST /v1/messages` at send time |
+| "Missed" is not one status | An unanswered incoming call can be `missed`, `no-answer`, `abandoned`, `busy`, `canceled` or `completed`. Test incoming + no `answeredAt` + not `aiHandled` + not forwarded |
+
+## Building agent tools (TanStack AI)
+
+For an LLM agent that reads the inbox, triages calls, updates contacts or texts
+customers, **start from the bundled kit** rather than writing tools from scratch.
+It is compiled against `@tanstack/ai@0.66` and has an offline contract test.
+
+```ts
+// server only: the tools hold the API key
+import { chat, maxIterations, toServerSentEventsResponse } from '@tanstack/ai'
+import { createQuoClient } from './quo-client'     // copied from assets/tanstack-ai/
+import { createQuoTools } from './quo-tools'
+
+const quo = createQuoClient({ maxRps: 8 })          // module scope: one limiter per process
+
+const stream = chat({
+  adapter, messages, threadId, runId, resume,       // resume carries approval answers
+  tools: createQuoTools(quo, { allowedInboxIds: ['PNsupport01'], maxRecipientsPerSend: 1 }),
+  toolExecution: 'sequential',                      // keep under 10 req/s, predictable read→write
+  agentLoopStrategy: maxIterations(8),
+})
+return toServerSentEventsResponse(stream)
+```
+
+What the kit enforces, and why:
+- **Sends need human approval** (`needsApproval: true` on `quo_send_message` / `quo_schedule_message`). `execute` still re-checks the inbox allowlist and recipient cap, because approval is consent, not authorization.
+- **Strict schemas**: E.164 and id-prefix regexes, discriminated unions for task actions and link targets. A bad call fails before reaching Quo, with a message the model can act on.
+- **Errors return as data** (`{ ok: false, issues[{path}], hint, trace }`), so the model fixes the call. A send with an unknown outcome returns "do not resend, check first".
+- **Compact outputs** with customer text labelled `untrusted*`, because SMS bodies and transcripts can carry prompt injection.
+- **One approval, one send:** a send ledger keyed by tool-call id blocks replayed approvals. It is in memory by default; use a DB unique key in production.
+- **No delete tools**, and no tool sends partial v1 contact arrays.
+
+Read `references/agent-tools-tanstack.md` for the full catalog (18 tools, the
+endpoint and surface each uses), approval UI, the four integration patterns
+(message automation, contact management, call analytics, scheduling), how to
+extend it, and evaluation. Copy files from `assets/tanstack-ai/`, or emit them
+with `node scripts/scaffold-quo.mjs --agent-tools`. Verify a copy with
+`npx tsx quo-tools.test.ts`.
+
+For the chat gateway around it (persistence, reconnect, thread ownership,
+durable delivery, chat UX), use the `tanstack-ai-chat` skill if it is installed.
+If the user names another agent SDK, keep the same tool contracts (schemas,
+approval, policy re-check, errors as data) and port the definitions to that SDK.
+
+**MCP alternative:** if the goal is Claude or ChatGPT working one person's Quo
+inbox, Quo hosts an MCP server at `https://mcp.quo.com/mcp` (OAuth, acts as that
+user, 19 tools). TanStack apps can attach it via `chat({ mcp })` but must run
+the OAuth flow themselves. See `references/mcp.md` for the decision table.
 
 ## Preflight
 
-Confirm tooling + key before writing code, so the first failure points at config:
-
 ```bash
-bash scripts/quo-preflight.sh            # node/curl + QUO_API_KEY + Bearer-mistake checks
-bash scripts/quo-preflight.sh --probe    # also calls GET /v1/phone-numbers live (real 401 vs 200)
+bash scripts/quo-preflight.sh            # node/curl, QUO_API_KEY, the Bearer mistake
+bash scripts/quo-preflight.sh --probe    # live GET /organization with the version header (200 vs 401/400)
 ```
 
-It accepts `QUO_API_KEY` (or the legacy `OPENPHONE_API_KEY`), flags a stray
-`Bearer ` prefix, and validates key **presence** — a live `200`/`401` from
-`--probe` is what proves the key actually works.
+## Scaffold an app integration
 
-## Build an integration in one command (scaffold)
-
-The fastest path to a working integration is to **generate** it, then customize.
-`scripts/scaffold-quo.mjs` writes a complete, runnable full-stack app — an
-Express backend (API client + send-SMS route + a **signature-verified** beta
-webhook receiver) and a frontend — with the client + webhook verifier **inlined**
-(the generated project has zero dependency on this skill).
+`scripts/scaffold-quo.mjs` writes a runnable Express app: an API client, a
+send-SMS route, a **signature-verified** webhook receiver, and a vanilla or React
+frontend. The client and verifier are inlined, so the output has no dependency
+on this skill.
 
 ```bash
-node scripts/scaffold-quo.mjs --out ./quo-app                 # vanilla JS frontend
+node scripts/scaffold-quo.mjs --out ./quo-app                  # vanilla frontend
 node scripts/scaffold-quo.mjs --out ./quo-app --frontend react
-node scripts/scaffold-quo.mjs --help                          # flags; --dry-run previews
+node scripts/scaffold-quo.mjs --out ./quo-app --agent-tools    # + server/quo-agent/ TanStack kit
 ```
 
-Then: `cd quo-app && npm install && cp .env.example .env` (fill in `QUO_API_KEY`),
-`npm start`. Customize the emitted code with the references below — the scaffold
-is a correct skeleton, not a black box.
-
-## Quick start by hand — send an SMS
-
-The shortest path to "text from my app": one server-side call with the raw-key
-header. Use the bundled client so the auth/202/E.164 rules are handled for you.
-
-```ts
-import { createQuoClient } from "./scripts/quo-client.mjs";
-
-const quo = createQuoClient({ apiKey: process.env.QUO_API_KEY }); // raw key, no Bearer
-
-const msg = await quo.sendMessage({
-  from: "+15555550100",          // one of YOUR Quo numbers (E.164) or its PN… id
-  to: "+15555550111",            // exactly ONE E.164 recipient
-  content: "Hello from Quo 👋",  // 1–1600 chars
-});
-// 202 Accepted → queued. Final delivery arrives as a `message.delivered` webhook,
-// or poll GET /v1/messages/{id} (status: queued|sent|delivered|undelivered).
-```
-
-Raw HTTP equivalent (note the header — **no `Bearer`**):
+## Quick start: send an SMS (v1)
 
 ```bash
 curl -X POST https://api.quo.com/v1/messages \
-  -H "Authorization: $QUO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"from":"+15555550100","to":["+15555550111"],"content":"Hello from Quo"}'
+  -H "Authorization: $QUO_API_KEY" -H "Content-Type: application/json" \
+  -d '{"from":"PNabc123","to":["+15555550111"],"content":"Your order shipped."}'
+# 202 → { data: { id: "AC…", conversationId: "CN…", status: "queued", ... } }
 ```
 
-For the CLI: `node scripts/quo-client.mjs send --from +1… --to +1… --text "Hi"`.
+`from` is a `PN…` id or that number in E.164. `content` is 1–1600 characters
+and not whitespace-only. `setInboxStatus: "done"` files the conversation as
+done. Sending MMS is not supported. In Node, `scripts/quo-client.mjs` has
+`sendMessage()`, which requires `group: true` before it sends to more than one
+recipient.
 
-## Quick start by hand — receive a verified webhook
-
-Use the **beta** webhook API (it's signed). Create a subscription, save the
-`whsec_…` secret, and verify every delivery against the **raw** body:
-
-```ts
-import express from "express";
-import { verifyQuoWebhook } from "./scripts/verify-webhook.js";
-
-// express.raw — the signature is over the raw bytes; a JSON parser first breaks it.
-app.post("/webhooks/quo", express.raw({ type: "*/*" }), (req, res) => {
-  if (!verifyQuoWebhook(req.headers, req.body, process.env.QUO_WEBHOOK_KEY)) {
-    return res.status(400).send("bad signature");
-  }
-  const id = req.headers["webhook-id"];       // idempotency key (NOT envelope.id)
-  // ...dedupe on `id` (retain ≥28h), then handle:
-  const event = JSON.parse(req.body.toString());
-  if (event.type === "message.received") {
-    console.log("inbound:", event.data.resource.text);
-  }
-  res.status(200).json({ ok: true });          // ack fast; do slow work async
-});
-```
-
-Create the subscription (un-prefixed host, version header required):
+## Quick start: read with 2026-03-30
 
 ```bash
-curl -X POST https://api.quo.com/webhooks \
-  -H "Authorization: $QUO_API_KEY" \
-  -H "Content-Type: application/json" \
-  -H "x-quo-api-version: 2026-03-30" \
-  -d '{"url":"https://YOUR_HOST/webhooks/quo","events":["message.received","message.delivered","call.completed"]}'
-# Save data.key (whsec_…) into QUO_WEBHOOK_KEY — it is shown only once.
+curl "https://api.quo.com/calls?status%5Bin%5D=missed,no-answer&createdAt%5Bgte%5D=2026-10-07T00:00:00Z&include=summary,voicemail&limit=50" \
+  -H "Authorization: $QUO_API_KEY" -H "Quo-Api-Version: 2026-03-30"
+# { data: [...], nextCursor: "…" | null }. Pass ?after=<nextCursor> for the next page.
 ```
 
-Prove your verifier works without any traffic: `node scripts/verify-webhook.js --selftest`.
+URL-encode `+` in E.164 filter values as `%2B`.
 
-## API surface
+## Quick start: receive a verified webhook
 
-All REST paths are under `https://api.quo.com/v1`. Beta webhooks live at
-`https://api.quo.com/webhooks` (no `/v1`).
+```ts
+import express from 'express'
+import { verifyQuoWebhook } from './verify-webhook.js'   // scripts/verify-webhook.js
 
-| Resource | Endpoints | Reference |
-|---|---|---|
-| **Messages** | `POST /messages` · `GET /messages` · `GET /messages/{id}` | `references/messages-and-numbers.md` |
-| **Phone numbers** | `GET /phone-numbers` · `GET /phone-numbers/{id}` | `references/messages-and-numbers.md` |
-| **Calls** | `GET /calls` · `/calls/{id}` · `/call-recordings/{id}` · `/call-summaries/{id}` · `/call-transcripts/{id}` · `/call-voicemails/{id}` | `references/calls.md` |
-| **Contacts** | `POST/GET/PATCH/DELETE /contacts` · `GET /contact-custom-fields` | `references/contacts.md` |
-| **Conversations** | `GET /conversations` · `POST /conversations/{id}/mark-as-read` | `references/conversations-and-tasks.md` |
-| **Tasks** | `GET/POST /tasks` · `/tasks/{id}` (+ complete, reopen, assign, due-date, link actions) | `references/conversations-and-tasks.md` |
-| **Users** | `GET /users` · `GET /users/{id}` | `references/webhooks-v1-and-users.md` |
-| **Webhooks (beta, signed)** | `POST/GET/PATCH/DELETE /webhooks` (+ rotate, test, deliveries) | `references/webhooks.md` |
-| **Webhooks (legacy v1)** | `POST /v1/webhooks/{messages,calls,call-summaries,call-transcripts}` | `references/webhooks-v1-and-users.md` |
+app.post('/webhooks/quo', express.raw({ type: '*/*' }), (req, res) => {
+  if (!verifyQuoWebhook(req.headers, req.body, process.env.QUO_WEBHOOK_KEY)) return res.status(400).end()
+  const deliveryId = req.headers['webhook-id']            // idempotency key
+  const event = JSON.parse(req.body.toString())           // { id, type, data: { resource, ... } }
+  queue.add(event.type, event, { jobId: String(deliveryId) })   // ack fast, work async
+  res.status(200).end()
+})
+```
 
-## Where to go next
+Create the subscription with `POST https://api.quo.com/webhooks` (header
+`Quo-Api-Version: 2026-03-30`, body `{ url, events: [...] }`) and save
+`data.key` (`whsec_…`) immediately. Test without traffic using
+`POST /webhooks/{id}/events/test`, and offline with
+`node scripts/verify-webhook.js --selftest`. Event catalog, delivery log and
+retries are in `references/webhooks.md`.
 
-Each reference is self-contained and source-cited (`https://www.quo.com/docs/mdx/...`):
+## Reference map
 
-| Task | Reference |
+Read only what the task needs. Each file covers both surfaces, cites its
+sources, and has a contents list.
+
+| Task | Read |
 |---|---|
-| Auth, base URL, versioning, **error codes**, rate limits, pagination | `references/api-basics.md` |
-| Send/list/get messages, phone numbers, the **202 + E.164 + scoping** rules | `references/messages-and-numbers.md` |
-| Calls + recordings, summaries, transcripts, voicemails, plan gating, async AI | `references/calls.md` |
-| Contacts CRUD, custom fields, the `defaultFields`/`customFields` shape, sync-by-externalId | `references/contacts.md` |
-| Conversations + the full **Tasks** lifecycle (no status enum — `completed`/`isDeleted`) | `references/conversations-and-tasks.md` |
-| **Beta webhooks**: signature validation, event payload catalog, retries, migration | `references/webhooks.md` |
-| Legacy v1 webhooks (unsigned) + Users | `references/webhooks-v1-and-users.md` |
-| Building with **AI/LLMs**, A2P 10DLC registration, pricing & cost-minimization | `references/ai-cost-and-registration.md` |
+| Agent tools, TanStack AI wiring, approvals, automation, contact, analytics and scheduling patterns | `references/agent-tools-tanstack.md` |
+| Hosted MCP server, OAuth for custom clients, MCP vs own tools | `references/mcp.md` |
+| Surfaces, auth, versioning, pagination, filters, errors and codes, rate limit, endpoint inventory | `references/api-basics.md` |
+| Send, list and retry messages, group sends, phone numbers, available numbers, organization | `references/messages-and-numbers.md` |
+| Calls, recordings, transcripts, summaries, voicemails, plan gating, analytics recipe | `references/calls.md` |
+| Contacts, custom fields, notes, properties, shares, upsert-by-externalId sync | `references/contacts.md` |
+| Conversations (sync, sort, mark read/done/open), tasks, reminders recipe | `references/conversations-and-tasks.md` |
+| 2026-03-30 webhooks: events, payloads, signatures, deliveries, retries, test | `references/webhooks.md` |
+| Legacy v1 webhooks, users | `references/webhooks-v1-and-users.md` |
+| Pricing and segments, A2P 10DLC registration, cost control | `references/ai-cost-and-registration.md` |
 
-## Scripts
+## Bundled files
 
-| Script | Purpose |
+| Path | Purpose |
 |---|---|
-| `scripts/scaffold-quo.mjs` | **Generate a complete, runnable integration** (Express client + send route + verified beta webhook receiver + frontend + env + README). `--frontend vanilla\|react`. |
-| `scripts/quo-client.mjs` | Importable + CLI REST client: raw-key auth, 429 backoff, `sendMessage` (202/E.164 guards), `paginate` (cursor-correct). |
-| `scripts/verify-webhook.js` / `verify_webhook.py` | Verify a beta webhook signature (HMAC-SHA256 base64 over `{id}.{ts}.{body}`, `whsec_` secret, replay window, rotation-aware). `--selftest` round-trips offline. Node↔Python parity verified. |
-| `scripts/quo-preflight.sh` | Check node/curl, the key, the `Bearer` mistake, and (optional `--probe`) live reachability. |
+| `assets/tanstack-ai/` | TanStack AI kit: `quo-client.ts`, `quo-tool-defs.ts`, `quo-tools.ts`, `chat-route.example.ts`, `send-approval.example.tsx`, `quo-tools.test.ts` |
+| `scripts/scaffold-quo.mjs` | Generate an Express + frontend integration; `--agent-tools` adds the kit |
+| `scripts/quo-client.mjs` | Dependency-free JS client and CLI for both surfaces (`v2()`, `paginateV2()`, `sendMessage()`, `paginate()`); retries GETs only |
+| `scripts/verify-webhook.js`, `scripts/verify_webhook.py` | Standard Webhooks verification (`whsec_`, raw body, 5-minute tolerance, rotation); `--selftest` |
+| `scripts/quo-preflight.sh` | Tooling and key checks; `--probe` makes one live authenticated call |
 
 ## Common mistakes
 
-| # | Mistake | Fix |
-|---|---|---|
-| 1 | `Authorization: Bearer <key>` | Send the **raw** key: `Authorization: <key>`. Quo uses no Bearer token. |
-| 2 | Treating `202` as failure / assuming sync delivery | `202` = queued. Confirm via `GET /v1/messages/{id}` or a `message.delivered` webhook. |
-| 3 | Sending US SMS without A2P registration | Complete US Carrier (A2P 10DLC) registration first, or every send returns `400 0206400`. |
-| 4 | Multiple recipients in one send | `to` is `maxItems: 1`. Fan out client-side, under 10 req/s. |
-| 5 | Verifying a webhook against parsed JSON | Verify the **raw** body (`express.raw` / Flask `get_data()`); re-serialized JSON won't match the HMAC. |
-| 6 | Deduping webhooks on `event.id` | Use the **`webhook-id` header**; retain ≥28h to cover the retry window. |
-| 7 | Paginating on `totalItems` | It's documented as inaccurate — loop until `nextPageToken` is `null`. |
-| 8 | Expecting summaries/transcripts on any plan | They need a **business/scale** plan and are async — gate on `processingStatus`. |
-| 9 | Using the legacy `OpenPhone-Signature` verifier on beta deliveries | Beta uses `webhook-*` headers + `whsec_` — the schemes are not interchangeable. |
-| 10 | Polling lists in a loop | Prefer webhooks over polling to conserve the 10 req/s budget. |
+| Mistake | Fix |
+|---|---|
+| `Authorization: Bearer KEY` | Send the raw key |
+| Calling `/calls` without `Quo-Api-Version`, or `/v1/...` with it expecting new behaviour | Unprefixed paths need the header; `/v1` paths ignore it |
+| Several numbers in one send for a "bulk" message | That creates a group thread; send one per recipient |
+| Retrying a send after a timeout | Look up the message first; there is no idempotency key |
+| N+1 summary fetches per call | `GET /calls?include=summary,voicemail&limit=50` |
+| Partial v1 contact PATCH | 2026-03-30 PATCH plus properties, or a full-object v1 PATCH |
+| Verifying parsed JSON, or deduping on the envelope `id` | Verify raw bytes; dedupe on the `webhook-id` header |
+| Letting an SMS body steer the agent | Treat customer content as data; webhook-triggered runs use read-only tools and code-applied rules |
+| Polling for new messages | Subscribe to `message.received` |
 
 ## Resources
 
-- API reference: https://www.quo.com/docs/mdx/api-reference/introduction
-- Doc index (machine-readable): https://www.quo.com/docs/llms.txt
-- OpenAPI spec: https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json
-- LLM-ready docs bundle: https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-llm-ready-docs-prod.zip
-- Building with AI/LLMs guide: https://www.quo.com/docs/mdx/guides/building-with-ai-llms
+- Doc index for agents: https://www.quo.com/docs/llms.txt (full text: https://www.quo.com/docs/llms-full.txt)
+- 2026-03-30 intro: https://www.quo.com/docs/2026-03-30/introduction · v1 reference: https://www.quo.com/docs/mdx/api-reference/introduction
+- Changelog (RSS): https://www.quo.com/docs/changelog
+- Developer support: support+developers@quo.com

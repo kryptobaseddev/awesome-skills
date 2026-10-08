@@ -1,443 +1,451 @@
-## Calls API (Quo / formerly OpenPhone)
+# Calls API (Quo, formerly OpenPhone)
 
-All call endpoints live under the v1 REST API. Six read-only (`GET`) endpoints are documented for this domain: list calls, get a call by ID, get recordings, get summary, get transcription, and get voicemail. There are no `POST`/`PUT`/`DELETE` operations for calls in the public API — you cannot place or mutate calls via this API, only read call data.
+Calls are **read-only** on the public REST API. You can list calls, fetch one call, and read its recordings, transcripts, AI summary and voicemail. You cannot place, end, transfer or modify a call through these endpoints. Two API surfaces serve calls on the same host, `https://api.quo.com`:
 
-> Source pages (clean markdown twins):
-> - https://www.quo.com/docs/mdx/api-reference/calls/list-calls.md
-> - https://www.quo.com/docs/mdx/api-reference/calls/get-a-call-by-id.md
-> - https://www.quo.com/docs/mdx/api-reference/calls/get-recordings-for-a-call.md
-> - https://www.quo.com/docs/mdx/api-reference/calls/get-a-summary-for-a-call.md
-> - https://www.quo.com/docs/mdx/api-reference/calls/get-a-transcription-for-a-call.md
-> - https://www.quo.com/docs/mdx/api-reference/calls/get-a-voicemail-for-a-call.md
+- **v1**: paths start with `/v1/`, no version header, envelope `{data, totalItems, nextPageToken}`.
+- **2026-03-30**: paths have no prefix (`/calls`) and need the header `Quo-Api-Version: 2026-03-30` (requests without it get a `400`). Envelope is `{data, nextCursor}`.
 
-### Authentication & Base URL (read this first)
+Both surfaces authenticate with the **raw API key** in `Authorization` (`Authorization: YOUR_KEY`, no `Bearer ` prefix). One API key may make **10 requests per second** across both surfaces. Over that you get `429`. There is no daily quota.
 
-- **Auth header is a RAW API key — NOT a Bearer token.** Every endpoint's embedded OpenAPI declares `securitySchemes.apiKey` as `type: apiKey`, `in: header`, `name: Authorization`. So you send `Authorization: <your-api-key>` with the key value directly. Do **not** prefix it with `Bearer `.
-- **Host note:** This product rebranded OpenPhone → Quo. The canonical host is `https://api.quo.com/v1` (the OpenAPI `servers` block on every docs page reads `url: https://api.quo.com`; paths are `/v1/...`). `https://api.openphone.com/v1` is a live legacy alias targeting the same v1 API. The curl examples below use `https://api.quo.com/v1`; keep the host in one configurable constant and confirm which host your key is provisioned against before shipping.
-- All timestamps are ISO 8601 (e.g. `2022-01-01T00:00:00Z`).
-- All error responses share the shape: `{ message, code, status, docs, title, trace?, errors?[] }` where `docs` is the constant `https://quo.com/docs` and `code` is a per-endpoint string like `"0101400"`.
+## Contents
 
-### ID prefix conventions (verbatim from the `pattern` regexes)
+- [Which surface to use](#which-surface-to-use)
+- [Shared enums and ID prefixes](#shared-enums-and-id-prefixes)
+- [2026-03-30 endpoints](#2026-03-30-endpoints)
+  - [GET /calls](#get-calls)
+  - [GET /calls/{callId}](#get-callscallid)
+  - [GET /calls/{callId}/recordings](#get-callscallidrecordings)
+  - [GET /calls/{callId}/transcripts](#get-callscallidtranscripts)
+  - [Summary and voicemail objects (include=)](#summary-and-voicemail-objects-include)
+- [v1 endpoints](#v1-endpoints)
+- [Async processing: poll or use webhooks](#async-processing-poll-or-use-webhooks)
+- [Plan gating](#plan-gating)
+- [Call analytics recipe](#call-analytics-recipe)
+- [Migrating v1 to 2026-03-30](#migrating-v1-to-2026-03-30)
+- [Errors](#errors)
+- [Sources](#sources-checked-2026-10-08)
 
-| Entity | Prefix pattern | Example |
+## Which surface to use
+
+| Need | 2026-03-30 | v1 | Use |
+|---|---|---|---|
+| List all calls in the workspace, a date range, or by status or direction | `GET /calls`, every filter optional | Not possible. v1 needs one Quo number **and** exactly one participant | **2026-03-30** |
+| Group calls and AI-agent calls | Included. `participants` lists every party, `actorId` can be an `SYU…` system actor | 1:1 only, `participants` at most 2 strings | **2026-03-30** |
+| A call plus its summary and voicemail | One request: `?include=summary,voicemail` | Three requests (`/v1/calls/{id}`, `/v1/call-summaries/{id}`, `/v1/call-voicemails/{id}`) | **2026-03-30** |
+| Recordings | `GET /calls/{callId}/recordings`, paginated | `GET /v1/call-recordings/{callId}` | **2026-03-30** |
+| Transcripts | `GET /calls/{callId}/transcripts`, one per recorded segment | `GET /v1/call-transcripts/{id}`, one merged transcript | **2026-03-30**, or v1 if you want a single merged dialogue |
+| Summary or voicemail on its own | No standalone endpoint. Use `include=` on the call | `/v1/call-summaries/{callId}`, `/v1/call-voicemails/{callId}` | 2026-03-30 `include=` |
+| Place or control a call | Not in either API | Not in either API | Not available |
+
+Use 2026-03-30 for any new calls integration. v1 has no call capability that 2026-03-30 lacks, apart from the standalone summary and voicemail routes, and `include=` covers those.
+
+## Shared enums and ID prefixes
+
+| Prefix | Entity | Notes |
 |---|---|---|
-| Call | `^AC(.*)$` | `ACsampleActivity01` |
-| Quo phone number | `^PN(.*)$` | `PN123abc` |
-| Quo user | `^US(.*)$` | `US123abc` |
-| Call recording | (none enforced) | `CRwRVK2qBq` |
-| Voicemail | `^VM(.*)$` | `VMsampleVoicemail01` |
+| `AC` | Call | `^AC(.*)$`. Every call endpoint takes this ID |
+| `PN` | Quo phone number | `phoneNumberId` |
+| `US` | Quo user | |
+| `SYU` | System actor, such as an AI agent (Sona) | 2026-03-30 only. Appears in `actorId`, `answeredBy`, `initiatedBy` |
+| `CR` | Call recording | Pattern enforced in 2026-03-30. v1 does not enforce it |
+| `VM` | Voicemail | |
 
----
+Treat every ID as an opaque string. Read the prefix, but don't parse anything past it or assume a length.
 
-### List calls
+**Call `status`** (same 13 values on both surfaces): `queued`, `initiated`, `ringing`, `in-progress`, `completed`, `busy`, `failed`, `no-answer`, `canceled`, `missed`, `answered`, `forwarded`, `abandoned`. Live calls go through `queued`/`initiated`/`ringing`/`in-progress`. All the other values are terminal.
+
+**`direction`**: `incoming` | `outgoing`, relative to the Quo number.
+
+**AI, routing and forwarding fields** (on the call object, both surfaces):
+
+| Field | Meaning |
+|---|---|
+| `aiHandled` | `"ai-agent"` when an AI agent (Sona) answered the call, `null` when a human handled it. Filter on this field to separate AI calls from human calls. |
+| `callRoute` | `"phone-number"` (direct dial) or `"phone-menu"` (routed through an IVR). `null` for outbound calls. |
+| `forwardedFrom` / `forwardedTo` | `null` unless the call was forwarded. When forwarded, holds an E.164 number, a `PN…` or `US…` ID, `anonymous`/`blocked`/`restricted`, or a 3–6-digit service number such as `911`. |
+| `answeredBy` | User or system actor that answered an incoming call. `null` for outgoing calls and for unanswered ones. |
+| `initiatedBy` | User or system actor that placed an outgoing call. `null` for incoming calls. |
+
+## 2026-03-30 endpoints
+
+Every request below needs these headers:
 
 ```
-GET https://api.quo.com/v1/calls
+Authorization: YOUR_API_KEY
+Quo-Api-Version: 2026-03-30
 ```
 
-Fetch a paginated list of calls associated with a specific Quo number and another number. (`operationId: listCalls_v1`)
+### GET /calls
 
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `phoneNumberId` | query | string (`^PN(.*)$`) | **yes** | The unique identifier of the Quo number associated with the call. E.g. `PN123abc`. |
-| `participants` | query | array of string | **yes** | Phone numbers of participants involved in the call, **excluding your Quo number**. E.164 with country code. `maxItems: 1` — **currently limited to one-to-one (1:1) conversations only.** E.g. `+15555555555`. |
-| `maxResults` | query | integer | **yes** | Max results per page. `default: 10`, `minimum: 1`, `maximum: 100`. |
-| `userId` | query | string (`^US(.*)$`) | no | The Quo user who placed or received the call. **Defaults to the workspace owner** if omitted. E.g. `US123abc`. |
-| `createdAfter` | query | string (date-time) | no | Only calls created after this ISO 8601 instant. |
-| `createdBefore` | query | string (date-time) | no | Only calls created before this ISO 8601 instant. |
-| `since` | query | string (date-time) | no | **DEPRECATED** — use `createdAfter`/`createdBefore` instead. Note: `since` incorrectly behaves as `createdBefore` and will be removed in an upcoming release. |
-| `pageToken` | query | string | no | Opaque cursor for the next page. Pass back the `nextPageToken` from the previous response. |
+`operationId: listCalls`. Returns calls in the workspace, **newest first**. Every filter is optional, and group calls are included.
 
-Request body: _none (GET)._
+| Query param | Type | Notes |
+|---|---|---|
+| `phoneNumberId` | string `PN…` | Only calls on this Quo number. |
+| `actorId` | string `US…` or `SYU…` | Only calls that belong to this user or system actor. Pass an AI agent's `SYU` ID to get its calls. |
+| `participant` | E.164 string, or `participant[in]=` with a comma list | Matches the call's **own originating or receiving number** only. A third party who joined a group call shows up in the response's `participants` but does not match this filter. |
+| `direction` | `incoming` \| `outgoing` | |
+| `status` | one status enum value, or `status[in]=` with a comma list | e.g. `status[in]=missed,no-answer` |
+| `createdAt[gte]` / `createdAt[lte]` | ISO 8601 date-time | Both bounds are **inclusive**. Only `gte` and `lte` exist on this endpoint (no `gt`/`lt`). |
+| `include` | `summary`, `voicemail`, or `summary,voicemail` | Comma-separated, at most 2 values, no duplicates. Sections you leave out are absent from the response. `voicemail` is also absent on calls where no voicemail was left. |
+| `limit` | integer 1–50, default 10 | Use `50` for bulk reads. |
+| `after` | string | The `nextCursor` value from the previous page. Pass it back exactly as received. |
 
-Response (`200`):
+```bash
+curl -G 'https://api.quo.com/calls' \
+  -H "Authorization: $QUO_API_KEY" -H 'Quo-Api-Version: 2026-03-30' \
+  --data-urlencode 'createdAt[gte]=2026-10-07T00:00:00Z' \
+  --data-urlencode 'createdAt[lte]=2026-10-07T23:59:59Z' \
+  --data-urlencode 'status[in]=missed,no-answer' \
+  --data-urlencode 'include=summary,voicemail' \
+  --data-urlencode 'limit=50'
+```
+
+Response `200`:
 
 ```json
 {
   "data": [
     {
-      "answeredAt": "2022-01-01T00:00:00Z",
-      "answeredBy": "USlHhXmRMz",
-      "initiatedBy": null,
+      "id": "AC123abc",
+      "phoneNumberId": "PN123abc",
+      "actorId": "US123abc",
       "direction": "incoming",
       "status": "completed",
-      "completedAt": "2022-01-01T00:00:00Z",
-      "createdAt": "2022-01-01T00:00:00Z",
+      "participants": [
+        { "phoneNumber": "+15555555555", "actorId": "US123abc" },
+        { "phoneNumber": "+15555555555", "actorId": "US456def" },
+        { "phoneNumber": "+15555555556", "actorId": null }
+      ],
+      "answeredAt": "2026-10-07T15:00:05Z",
+      "answeredBy": "US123abc",
+      "initiatedBy": null,
+      "completedAt": "2026-10-07T15:04:05Z",
+      "createdAt": "2026-10-07T15:00:00Z",
+      "updatedAt": "2026-10-07T15:04:06Z",
       "callRoute": "phone-number",
-      "duration": 60,
+      "duration": 240,
       "forwardedFrom": null,
       "forwardedTo": null,
       "aiHandled": null,
-      "id": "AC123abc",
-      "phoneNumberId": "PN123abc",
-      "participants": ["+15555555555"],
-      "updatedAt": "2022-01-01T00:00:00Z",
-      "userId": "US123abc"
+      "summary": {
+        "status": "completed",
+        "type": "human",
+        "summary": ["Customer asked about invoice #1042."],
+        "nextSteps": ["Email the corrected invoice."],
+        "jobs": null,
+        "title": null
+      }
     }
   ],
-  "totalItems": 1,
-  "nextPageToken": null
+  "nextCursor": "eyJsYXN0SWQiOiJVU211a09NaXBhIn0"
 }
 ```
 
-Call object field reference (all fields are in the `required` list of the response schema; `anyOf … null` marks nullable fields):
+Call object fields (all are always present; nullable means the value can be `null`):
 
-| field | type | nullable | notes |
+| Field | Type | Nullable | Notes |
 |---|---|---|---|
-| `answeredAt` | string (date-time) | yes | When the call was answered. Null if not answered. |
-| `answeredBy` | string (`US…`) | yes | Quo user who answered the incoming call. Null for outgoing or unanswered incoming. |
-| `initiatedBy` | string (`US…`) | yes | Quo user who initiated the outgoing call. Null for incoming. |
-| `direction` | enum string | no | `incoming` \| `outgoing`. Relative to the Quo number. |
-| `status` | enum string | no | One of: `queued`, `initiated`, `ringing`, `in-progress`, `completed`, `busy`, `failed`, `no-answer`, `canceled`, `missed`, `answered`, `forwarded`, `abandoned`. |
-| `completedAt` | string (date-time) | yes | When the call ended. Null if ongoing/not completed. |
-| `createdAt` | string (date-time) | no | When the call record was created. |
-| `callRoute` | string | yes | `phone-number` (direct dial) or `phone-menu` (routed via menu). **Null for outbound calls.** |
-| `duration` | integer | no | Total call duration in **seconds**. |
-| `forwardedFrom` | string (E.164 `^\+[1-9]\d{1,14}$` or `US…`) | yes | Phone number or Quo user ID the call was forwarded from. Null if not forwarded. |
-| `forwardedTo` | string (E.164 or `US…`) | yes | Phone number or Quo user ID the call was forwarded to. Null if not forwarded. |
-| `aiHandled` | string | yes | Type of AI that answered: `ai-agent` for AI responses, or **null for human responses**. |
-| `id` | string (`AC…`) | no | Unique identifier of the call. |
-| `phoneNumberId` | string (`PN…`) | no | Quo number associated with the call. |
-| `participants` | array of E.164 string | no | `maxItems: 2`. Phone numbers in E.164. |
-| `updatedAt` | string (date-time) | yes | When the record was last updated. Null if never updated. |
-| `userId` | string (`US…`) | no | Quo user account associated with the call. |
+| `id` | `AC…` | no | |
+| `phoneNumberId` | `PN…` | **yes** | `null` when the call is not attached to a Quo number. v1 never returns null here. |
+| `actorId` | `US…` \| `SYU…` | no | The user or system actor associated with the call. Replaces v1 `userId`. |
+| `direction`, `status` | enum | no | See [enums](#shared-enums-and-id-prefixes). |
+| `participants` | array of `{phoneNumber, actorId}` | no | **Every party, including the Quo number.** Group calls can have more than 2 entries. The same number can appear more than once when several users joined on it, told apart by `actorId`. `phoneNumber` is E.164, `anonymous`/`blocked`/`restricted`, or a 3–8-digit short code. `actorId` is `null` for numbers outside the workspace. |
+| `answeredAt`, `completedAt`, `updatedAt` | date-time | yes | |
+| `createdAt` | date-time | no | |
+| `answeredBy`, `initiatedBy` | `US…` \| `SYU…` | yes | |
+| `callRoute`, `forwardedFrom`, `forwardedTo`, `aiHandled` | string | yes | See the table above. |
+| `duration` | integer seconds | no | |
+| `summary` | object | only with `include=summary` | [Summary object](#summary-and-voicemail-objects-include). |
+| `voicemail` | object | only with `include=voicemail` and only when a voicemail was left | [Voicemail object](#summary-and-voicemail-objects-include). |
 
-Top-level envelope fields: `data` (array), `totalItems` (integer), `nextPageToken` (string or null).
+Gotchas:
+- Keep requesting pages until `nextCursor` is `null`. There is no `totalItems`. Cursors are short-lived, so don't store them; to resume later, start again from a `createdAt` bound.
+- Don't let a filter on `participant` stand in for "every call this person was on". It misses people added to a group call.
+- `status=completed` alone misses most finished calls, because terminal states also include `answered`, `missed`, `no-answer`, `forwarded`, `abandoned`, `busy`, `canceled` and `failed`. Use `status[in]=` with a list, or leave the filter off and bucket the results client-side.
+- Treat the response as open: new optional fields can appear without a version bump, so ignore keys you don't recognize. Tool and output schemas should not set `additionalProperties: false` on the response.
 
-**Gotchas — List calls**
-- `phoneNumberId`, `participants`, AND `maxResults` are all `required`. Omitting any will fail validation. (`maxResults` has a default of 10 in the schema but is still flagged required — always send it.)
-- `participants` is an array capped at **1 item** (`maxItems: 1`). Multi-party / group calls are not listable here — only 1:1. Supplying more than one triggers HTTP `400 Too Many Participants` (`code: "0101400"`).
-- `participants` must **exclude your own Quo number** and must be E.164 (`+` and country code).
-- `totalItems` is documented as inaccurate: "⚠️ `totalItems` is not accurately returning the total number of items that can be paginated. We are working on fixing this issue." **Do not** rely on it for paging math — paginate until `nextPageToken` is `null`.
-- `since` is deprecated and buggy (behaves like `createdBefore`). Use `createdAfter`/`createdBefore`.
-- `403 Not Phone Number User` (`code: "0101403"`) is returned if the (default or supplied) user is not a member of that phone number.
+### GET /calls/{callId}
 
-Example:
+`operationId: getCallById`. Path `callId` (`AC…`, required). Query `include` works the same way as on the list endpoint. Returns `{ "data": {…call} }` with the same fields as above. Errors: `400`, `401`, `403`, `404` (also returned when the ID belongs to another workspace), `500`.
 
 ```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/calls?phoneNumberId=PN123abc&participants[]=%2B15555555555&maxResults=10' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
+curl 'https://api.quo.com/calls/AC123abc?include=summary,voicemail' \
+  -H "Authorization: $QUO_API_KEY" -H 'Quo-Api-Version: 2026-03-30'
 ```
 
----
+Use this endpoint to re-check one call whose summary or voicemail was still `in-progress` when you listed it.
 
-### Get a call by ID
+### GET /calls/{callId}/recordings
 
-```
-GET https://api.quo.com/v1/calls/{callId}
-```
-
-Get a single call by its unique identifier. (`operationId: getCallById_v1`)
-
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `callId` | path | string (`^AC(.*)$`) | **yes** | Unique identifier of the call. E.g. `ACsampleActivity01`. |
-
-Request body: _none (GET)._
-
-Response (`200`) — same call object as List calls, wrapped in a single `data` object (not an array):
-
-```json
-{
-  "data": {
-    "answeredAt": "2022-01-01T00:00:00Z",
-    "answeredBy": "USlHhXmRMz",
-    "initiatedBy": null,
-    "direction": "incoming",
-    "status": "completed",
-    "completedAt": "2022-01-01T00:00:00Z",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "callRoute": "phone-number",
-    "duration": 60,
-    "forwardedFrom": null,
-    "forwardedTo": null,
-    "aiHandled": null,
-    "id": "AC123abc",
-    "phoneNumberId": "PN123abc",
-    "participants": ["+15555555555"],
-    "updatedAt": "2022-01-01T00:00:00Z",
-    "userId": "US123abc"
-  }
-}
-```
-
-**Gotchas — Get a call by ID**
-- `data` here is a single object, whereas List calls returns `data` as an array. Handle both shapes.
-- Same field set and nullability rules as the List calls call object (see that table).
-- Error codes for this endpoint: `400 Too Many Participants` (`0101400`), `401 Unauthorized` (`0100401`), `403 Not Phone Number User` (`0101403`), `404 Not Found` (`0100404`), `500 Unknown` (`0101500`).
-
-Example:
-
-```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/calls/ACsampleActivity01' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
-```
-
----
-
-### Get recordings for a call
-
-```
-GET https://api.quo.com/v1/call-recordings/{callId}
-```
-
-Retrieve a list of recordings associated with a specific call. Results are sorted chronologically, **oldest recording segment first**. (`operationId: getCallRecordings_v1`)
-
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `callId` | path | string (`^AC(.*)$`) | **yes** | The call for which recordings are retrieved. E.g. `ACsampleActivity02`. |
-
-Request body: _none (GET)._
-
-Response (`200`) — `data` is an **array** of recording segments:
+`operationId: getCallRecordings`. Path `callId` (`AC…`). Query `limit` (1–50, default 10) and `after`. Results are sorted by **`startTime` ascending (oldest segment first)**, the opposite of most list endpoints. A call that was paused and resumed has one recording per recorded segment.
 
 ```json
 {
   "data": [
     {
-      "duration": 60,
       "id": "CRwRVK2qBq",
-      "startTime": "2022-01-01T00:00:00Z",
       "status": "completed",
-      "type": "audio/mpeg",
-      "url": "https://examplestorage.com/a643d4d3e1484fcc8b721627284eda5e.mp3"
+      "startTime": "2026-10-07T15:00:06Z",
+      "duration": 120,
+      "url": "https://examplestorage.com/a643d4d3e1484fcc8b721627284eda5e.mp3",
+      "type": "audio/mpeg"
     }
-  ]
+  ],
+  "nextCursor": null
 }
 ```
 
-Recording object fields (all `required`; each is nullable via `anyOf … null` except `id`):
-
-| field | type | nullable | notes |
+| Field | Type | Nullable | Notes |
 |---|---|---|---|
-| `duration` | integer | yes | Recording length in seconds. Null if not completed or unknown. |
-| `id` | string | no | Unique recording ID (e.g. `CRwRVK2qBq`). No enforced prefix pattern. |
-| `startTime` | string (date-time) | yes | When the recording began. Null if not started/unknown. |
-| `status` | enum string | yes | One of: `absent`, `completed`, `deleted`, `failed`, `in-progress`, `paused`, `processing`, `stopped`, `stopping`. |
-| `type` | string (MIME) | yes | File type, e.g. `audio/mpeg`. Null if unspecified/unknown. |
-| `url` | string (uri-reference) | yes | Download/access URL for the recording audio. **Null if not available or recording inaccessible.** |
+| `id` | `CR…` | no | |
+| `status` | enum | no | `absent`, `completed`, `deleted`, `failed`, `in-progress`, `paused`, `processing`, `stopped`, `stopping` |
+| `startTime` | date-time | no | Sort key. Can be `null` in v1. |
+| `duration` | integer seconds | yes | `null` until the length is known. |
+| `url` | uri-reference | yes | **Signed URL**, `null` until `status` is `completed`. |
+| `type` | MIME string | yes | `null` whenever `url` is `null`. |
 
-**Gotchas — Recordings**
-- `data` is a **list** — a single call can have multiple recording segments (e.g. recording paused/resumed). Iterate; segments are oldest-first.
-- The `url` is nullable and the `status` can be `processing`/`in-progress`/`absent`/`failed` — guard against `url: null` and statuses other than `completed` before downloading.
-- The download `url` points at external storage (e.g. `examplestorage.com`); such signed URLs are typically time-limited — fetch promptly, don't cache the URL long-term.
-- A call with no recording returns `data: []` (or recording objects with `status: "absent"`), not a 404.
-- Error codes: `400` (`0900400`), `401` (`0900401`), `403` (`0900403`), `404` (`0900404`), `500` (`0901500`).
+Gotchas: download the audio promptly and store the file, not the URL, because signed URLs expire. A call with no recording returns `data: []`. Use `limit=50` so that one request almost always returns every segment.
 
-Example:
+### GET /calls/{callId}/transcripts
 
-```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/call-recordings/ACsampleActivity02' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
-```
-
----
-
-### Get a summary for a call
-
-```
-GET https://api.quo.com/v1/call-summaries/{callId}
-```
-
-Retrieve a detailed summary of a specific call. Supports summaries for both regular calls and calls handled by Sona. **Call summaries are only available on business and scale plans.** (`operationId: getCallSummary_v1`)
-
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `callId` | path | string (`^AC(.*)$`) | **yes** | The call associated with the summary. E.g. `ACsampleActivity02`. |
-
-Request body: _none (GET)._
-
-Response (`200`) — `data` is a single object:
+`operationId: getCallTranscripts`. Path `callId` (`AC…`). Query `limit` (1–50, default 10) and `after`. **One transcript per recording segment**, sorted by `startTime` ascending.
 
 ```json
 {
-  "data": {
-    "callId": "ACea724hac8c30465bcbcff0b76e4c1c7b",
-    "nextSteps": ["Bring an umbrella."],
-    "status": "completed",
-    "summary": ["You talked about the weather."],
-    "jobs": [
-      {
-        "icon": "string",
-        "name": "string",
-        "result": {
-          "data": [
-            { "name": "string", "value": "string" }
-          ]
-        }
-      }
-    ]
-  }
+  "data": [
+    {
+      "recordingId": "CRwRVK2qBq",
+      "status": "completed",
+      "startTime": "2026-10-07T15:00:06Z",
+      "createdAt": "2026-10-07T15:05:10Z",
+      "duration": 118.4,
+      "dialogue": [
+        { "content": "Hi, this is Dana from Acme.", "start": 0.42, "end": 2.9,
+          "identifier": "+15555555555", "actorId": "US123abc" },
+        { "content": "Hey, I had a question about my invoice.", "start": 3.1, "end": 6.0,
+          "identifier": "+15555555556", "actorId": null }
+      ]
+    }
+  ],
+  "nextCursor": null
 }
 ```
 
-Summary object fields:
+| Field | Type | Notes |
+|---|---|---|
+| `recordingId` | `CR…` | Joins to the recording with the same ID. |
+| `status` | `absent` \| `in-progress` \| `completed` \| `failed` | `absent` means a transcript will never be produced (for example, transcription is off or the plan is not eligible). `dialogue` is only populated when the status is `completed`. |
+| `startTime`, `createdAt` | date-time | `startTime` is when the source recording started. `createdAt` is when the transcript was produced. |
+| `duration` | number (float seconds) | |
+| `dialogue[]` | array | `content` (string), `start` and `end` (float seconds **from the start of this segment's recording**, not from the start of the call), `identifier` (speaker phone number, nullable), `actorId` (`US…`/`SYU…`, `null` for external speakers or when the speaker is unknown). |
 
-| field | type | required | nullable | notes |
-|---|---|---|---|---|
-| `callId` | string | yes | no | The call this summary belongs to. |
-| `nextSteps` | array of string | yes | yes | Suggested follow-up actions, e.g. `"Bring an umbrella."`. Null if none/unavailable. |
-| `status` | enum string | yes | no | One of: `absent`, `in-progress`, `completed`, `failed`. |
-| `summary` | array of string | yes | yes | Summary bullet lines, e.g. `"You talked about the weather."`. Null if unavailable. |
-| `jobs` | array of object | no | yes | Optional structured "jobs" (Sona/AI-extracted fields). Each job: `icon` (string), `name` (string), `result.data[]` where each item is `{ name: string, value: string\|number\|boolean\|null }`. |
+Gotcha: to build one timeline for the whole call, offset each segment by its `startTime` relative to the first segment. v1 returns a single transcript with offsets measured from the start of the call.
 
-**Gotchas — Summary**
-- **Plan-gated: business and scale plans only.** Lower plans will not have summaries (expect `403 Forbidden` / `code: "0500403"` or `status: "absent"`).
-- AI processing is asynchronous: `status` may be `in-progress` or `absent` and `summary`/`nextSteps` may be `null` right after a call. Poll until `status: "completed"`.
-- `summary` and `nextSteps` are **arrays of strings**, not single strings — render each element as a line/bullet.
-- `jobs` is optional and may be absent entirely; `jobs[].result.data[].value` can be string, number, boolean, or null — type-check before use.
-- Error codes: `400` (`0500400`), `401` (`0500401`), `403` (`0500403`), `404` (`0500404`), `500` (`0501500`).
+### Summary and voicemail objects (include=)
 
-Example:
+2026-03-30 has no `/call-summaries` or `/call-voicemails` route. Ask for these sections inline with `include=` on `GET /calls` or `GET /calls/{callId}`.
+
+**`summary`** (present whenever `include=summary` is requested):
+
+| Field | Type | Notes |
+|---|---|---|
+| `status` | `absent` \| `in-progress` \| `completed` \| `failed` | `absent` means a summary will never be generated. The content fields are populated only when the status is `completed`. |
+| `type` | `human` \| `agent` \| null | `null` until a summary exists. `agent` means the call was handled by an AI agent. |
+| `summary` | string[] \| null | Key points, one string per bullet. |
+| `nextSteps` | string[] \| null | Set only for `human` summaries. |
+| `jobs` | array \| null | Set only for `agent` summaries. Each job is `{icon, name, result: {data: [{name, value}]}}`, where `value` is a string, number or boolean. These are structured Q&A or task results that the AI agent collected. |
+| `title` | string \| null | Set only for `agent` summaries, e.g. `"Pricing enquiry"`. |
+
+**`voicemail`** (present only when a voicemail was left):
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `VM…` | |
+| `status` | `completed` \| `in-progress` | No `failed` or `absent` values exist for voicemails. |
+| `duration` | integer \| null | Usually known before processing finishes. |
+| `recordingUrl` | uri \| null | `null` until the status is `completed`. |
+| `transcript` | string \| null | `null` until the status is `completed`, and stays `null` when transcription is turned off for the number that took the call. |
+
+## v1 endpoints
+
+No version header. Error bodies carry a numeric-string `code` (listed below). Prefer 2026-03-30 for new code; this section is for existing integrations.
+
+| Endpoint | Path params / required query | `data` shape | Error code prefix |
+|---|---|---|---|
+| `GET /v1/calls` | `phoneNumberId`, `participants`, `maxResults` all **required** | array | `0101…`/`0100…` |
+| `GET /v1/calls/{callId}` | `callId` | call object | `0101…`/`0100…` |
+| `GET /v1/call-recordings/{callId}` | `callId` | array of recordings, oldest first, not paginated | `0900…` |
+| `GET /v1/call-summaries/{callId}` | `callId` | summary | `0500…` |
+| `GET /v1/call-transcripts/{id}` | **`id`** (an `AC…` call ID; this route names the param differently from the others) | transcript | `0600…` |
+| `GET /v1/call-voicemails/{callId}` | `callId` | voicemail | `1200…` |
+
+**`GET /v1/calls` query:**
+
+| Param | Type | Notes |
+|---|---|---|
+| `phoneNumberId` | `PN…`, required | |
+| `participants` | array, required, `maxItems: 1` | The other party's E.164 number, excluding your Quo number. Send it **without brackets**: `participants=%2B15555555555`. More than one value returns `400 Too Many Participants` (`0101400`). An empty value returns `400`. |
+| `maxResults` | integer 1–100, required (default 10) | Always send it. |
+| `userId` | `US…`, optional | Limits results to calls this user can access. The spec says it defaults to the workspace owner; a 2024 changelog fix says it defaults to the phone number owner. Pass it explicitly. |
+| `createdAfter` / `createdBefore` | date-time | |
+| `since` | date-time | **Deprecated.** It behaves like `createdBefore`, so don't use it. |
+| `pageToken` | string | The `nextPageToken` from the previous page. |
+
+The v1 response is `{data, totalItems, nextPageToken}`. `totalItems` is documented as inaccurate, so keep paging until `nextPageToken` is `null`. A `403 Not Phone Number User` (`0101403`) means the user (supplied or default) is not a member of that number.
+
+**v1 call object:** `id`, `phoneNumberId` (never null), `userId` (`US…`), `direction`, `status`, `participants` (**array of E.164 strings, including the Quo number, at most 2**), `answeredAt`, `answeredBy`, `initiatedBy`, `completedAt`, `createdAt`, `updatedAt`, `callRoute`, `duration`, `forwardedFrom` (E.164 or `US…`), `forwardedTo` (E.164, `PN…` or `US…`), `aiHandled`.
+
+**v1 recordings:** `{id, status, startTime, duration, url, type}`. Same status enum as 2026-03-30, but here `status` and `startTime` can also be `null`.
+
+**v1 summary** (`/v1/call-summaries/{callId}`): `{callId, status, summary: string[]|null, nextSteps: string[]|null, jobs?: [...]|null}`. It has no `type` or `title` field. `status` is `absent`, `in-progress`, `completed` or `failed`. Business and Scale plans only.
+
+**v1 transcript** (`/v1/call-transcripts/{id}`): `{callId, createdAt, duration, status, dialogue: [...]|null}`. Each dialogue item is `{content, start, end, identifier, userId}`, where `start`/`end` are measured from the **beginning of the call** and `userId` is `null` for external speakers. This is a single object, not a per-segment list. Business and Scale plans only.
+
+**v1 voicemail** (`/v1/call-voicemails/{callId}`): `{id, status: completed|in-progress, duration, transcript, recordingUrl}`. While processing, `duration`, `transcript` and `recordingUrl` are `null`.
 
 ```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/call-summaries/ACsampleActivity02' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
+curl 'https://api.quo.com/v1/calls?phoneNumberId=PN123abc&participants=%2B15555555555&maxResults=50' \
+  -H "Authorization: $QUO_API_KEY"
 ```
 
----
+## Async processing: poll or use webhooks
 
-### Get a transcription for a call
+Recordings, transcripts, summaries and voicemails all finish **after** the call ends, often minutes later, and a summary can take longer still. Transcript and summary complete independently and in either order.
 
+| Artifact | Not ready yet | Ready | Will never exist |
+|---|---|---|---|
+| Recording | `processing`, `in-progress`, `stopping`, `paused`; `url: null` | `completed` | `absent`, `deleted`, `failed` |
+| Transcript | `in-progress` | `completed` | `absent`, `failed` |
+| Summary | `in-progress` | `completed` | `absent`, `failed` |
+| Voicemail | `in-progress` (no URL or transcript yet) | `completed` | no `voicemail` key in the response |
+
+**Prefer webhooks to polling.** Subscribe to these call events (2026-03-30 `POST /webhooks`; see the webhooks reference):
+
+| Event | Use |
+|---|---|
+| `call.completed` | Call ended. Carries the final `status`, `duration` and `hasVoicemail`. **Its status enum differs from the REST one**: `answered`, `unanswered`, `failed`, `forwarded`, `abandoned`, `ai-handled`, `unknown`. |
+| `call.recording.completed` | Recording ready. Can arrive after `call.completed`. |
+| `call.transcript.completed` | Transcript ready. |
+| `call.summary.completed` | Summary ready. Read `resource.processingStatus` and don't infer readiness from when the event arrived. The payload already includes `summary`, `nextSteps`, `jobs` and `handledByAiAgent`. |
+| `call.voicemail.completed` | Voicemail processed. Correlate it to the call with `resource.callId`. |
+| `call.ringing`, `call.answered`, `call.missed`, `call.forwarded`, `call.menu.selected` | Live lifecycle and IVR events. |
+
+When you have to poll, poll each call individually with a backoff schedule (for example 30 s, 1 min, 2 min, 5 min, 10 min) and stop once the status is `completed`, `absent` or `failed`. Never write a tight loop: every poll counts against the 10 req/s budget that the rest of the integration shares.
+
+## Plan gating
+
+- **Call summaries and call transcripts:** the v1 docs say they are available on **Business and Scale plans only**. The 2026-03-30 spec doesn't repeat the restriction, but the feature is the same, so expect the same gate. On a plan that isn't eligible, or a number with transcription turned off, expect `status: "absent"` (or a `403` on the v1 standalone routes). Handle both, and treat `absent` as a normal state rather than an error.
+- **AI agent (Sona) calls:** these have `aiHandled: "ai-agent"`, a `SYU…` actor, and an `agent` summary that includes `jobs` and `title`.
+- Recordings depend on the workspace's call-recording settings, not on an API flag. Expect an empty `data` array when nothing was recorded.
+
+## Call analytics recipe
+
+Goal: get every call for one day, with summaries and voicemails, using as few requests as possible and staying under 10 req/s.
+
+1. **Choose the day in UTC.** The API works only in UTC. For a local day, convert local midnight to UTC (e.g. `America/New_York` 2026-10-07 is `2026-10-07T04:00:00Z` to `2026-10-08T03:59:59Z`). Both bounds are inclusive, so set `lte` to one second before the next day's start, and dedupe by `id` if you're stitching days together.
+2. **List the calls, bringing summaries and voicemails inline:** `GET /calls?createdAt[gte]=…&createdAt[lte]=…&include=summary,voicemail&limit=50`, then follow `after` until `nextCursor` is `null`. This costs **⌈calls/50⌉ requests in total**: 400 calls is 8 requests, not the 1,200 that v1 needs (call, summary and voicemail for each call). Add `phoneNumberId`, `actorId`, `direction` or `status[in]` to narrow the set on the server.
+3. **Compute metrics client-side** from the list: counts by `status`/`direction`, answer rate (`answeredAt != null`), missed calls (`status in [missed, no-answer, abandoned]`), AI share (`aiHandled == "ai-agent"`), forwarded calls, total and average `duration`, per-agent totals by `answeredBy`/`initiatedBy`, IVR share (`callRoute == "phone-menu"`).
+4. **Fetch transcripts only when you need them**: one `GET /calls/{id}/transcripts?limit=50` per call, and only for calls with `answeredAt != null` and `duration > 0`. Skip this step if `summary.summary` is enough.
+5. **Re-check stragglers later.** For calls where `summary.status == "in-progress"` or `voicemail.status == "in-progress"`, either wait for the `call.summary.completed` / `call.voicemail.completed` webhooks or re-fetch with `GET /calls/{id}?include=summary,voicemail` on a backoff. Running the report for *yesterday* rather than today avoids most of these.
+6. **Throttle on the client.** Allow about 8 requests per second per key, which leaves headroom for other traffic on the same key. Process requests from a single shared queue so that parallel workers are covered by the one limit. On `429` or `5xx`, back off exponentially with jitter. Never retry a `400`.
+
+```ts
+const BASE = "https://api.quo.com";
+const H = { Authorization: process.env.QUO_API_KEY!, "Quo-Api-Version": "2026-03-30" };
+
+// Minimal shared throttle: at most 8 requests per rolling second.
+const stamps: number[] = [];
+async function throttle() {
+  for (;;) {
+    const now = Date.now();
+    while (stamps.length && now - stamps[0] >= 1000) stamps.shift();
+    if (stamps.length < 8) { stamps.push(now); return; }
+    await new Promise((r) => setTimeout(r, 1000 - (now - stamps[0])));
+  }
+}
+
+async function quoGet(path: string, params: Record<string, string> = {}, attempt = 0): Promise<any> {
+  await throttle();
+  const url = new URL(path, BASE);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url, { headers: H });
+  if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+    await new Promise((r) => setTimeout(r, 2 ** attempt * 500 + Math.random() * 250));
+    return quoGet(path, params, attempt + 1);
+  }
+  if (!res.ok) throw new Error(`${res.status} ${JSON.stringify(await res.json())}`);
+  return res.json();
+}
+
+export async function callsForDay(gteIso: string, lteIso: string) {
+  const calls: any[] = [];
+  let after: string | null = null;
+  do {
+    const page = await quoGet("/calls", {
+      "createdAt[gte]": gteIso,
+      "createdAt[lte]": lteIso,
+      include: "summary,voicemail",
+      limit: "50",
+      ...(after ? { after } : {}),
+    });
+    calls.push(...page.data);
+    after = page.nextCursor;
+  } while (after);
+  const pending = calls.filter(
+    (c) => c.summary?.status === "in-progress" || c.voicemail?.status === "in-progress",
+  );
+  return { calls, pending }; // re-check `pending` later or wait for webhooks
+}
 ```
-GET https://api.quo.com/v1/call-transcripts/{id}
-```
 
-Retrieve a detailed transcript of a specific call. Supports transcripts for both regular calls and calls handled by Sona. **Call transcripts are only available on business and scale plans.** (`operationId: getCallTranscript_v1`)
+For LLM tool calls (for example with TanStack AI), expose **one** `list_calls` tool with typed optional filters (`phoneNumberId`, `actorId`, `participant`, `direction`, `status` as an enum array, `createdAfter`/`createdBefore`, `includeSummary`) and have the server translate them into `createdAt[gte]`, `status[in]` and `include=`. Pass through a bounded `limit` and an opaque cursor. Keep the throttle in the server-side tool executor, not in the prompt.
 
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `id` | path | string (`^AC(.*)$`) | **yes** | Unique identifier of the call associated with this transcript. Note: the path param is named `id` (not `callId`). E.g. `ACsampleActivity01`. |
+## Migrating v1 to 2026-03-30
 
-Request body: _none (GET)._
+| v1 | 2026-03-30 |
+|---|---|
+| `GET /v1/calls?phoneNumberId&participants&maxResults` (all required) | `GET /calls`, all filters optional |
+| `participants=+1…` (one other party) | `participant=+1…` or `participant[in]=a,b` |
+| `userId` filter | `actorId` filter (`US…` or `SYU…`) |
+| `createdAfter` / `createdBefore` (exclusive wording) | `createdAt[gte]` / `createdAt[lte]` (inclusive) |
+| `maxResults` 1–100, `pageToken` / `nextPageToken`, `totalItems` | `limit` 1–50, `after` / `nextCursor`, no total |
+| Call `userId` | Call `actorId` |
+| Call `participants: ["+1…", "+1…"]` | `participants: [{phoneNumber, actorId}]`, every party including group calls |
+| `phoneNumberId` always set | `phoneNumberId` nullable |
+| `/v1/call-summaries/{callId}` | `include=summary` (adds `type`, `title`) |
+| `/v1/call-voicemails/{callId}` | `include=voicemail` (left out when there is no voicemail) |
+| `/v1/call-recordings/{callId}` (unpaginated) | `/calls/{callId}/recordings` (paginated, `CR` IDs, `startTime` non-null) |
+| `/v1/call-transcripts/{id}`: one transcript, offsets from call start, `userId` | `/calls/{callId}/transcripts`: one per segment with `recordingId`, offsets from segment start, `actorId`, `dialogue` never null |
+| Error `{message, code, status, docs, title, trace?, errors?}` | Error `{title, message, docs, trace?, errors?[{path, message, value, schema}]}` with no `code` |
+| No header | `Quo-Api-Version: 2026-03-30` required |
 
-Response (`200`) — `data` is a single object:
+## Errors
+
+2026-03-30 example:
 
 ```json
 {
-  "data": {
-    "callId": "ACea724hac8c30465bcbcff0b76e4c1c7b",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "dialogue": [
-      {
-        "content": "Hello, world!",
-        "start": 5.123456,
-        "end": 10.123456,
-        "identifier": "+19876543210",
-        "userId": "US123abc"
-      }
-    ],
-    "duration": 100,
-    "status": "completed"
-  }
+  "message": "The input was invalid",
+  "docs": "https://quo.com/docs",
+  "title": "Bad Request",
+  "errors": [{ "path": "/callId", "message": "Expected string to match '^AC(.*)$'",
+               "value": "abc123", "schema": { "type": "TemplateLiteral", "pattern": "^AC(.*)$" } }]
 }
 ```
 
-Transcript object fields (all `required`):
+| Status | Meaning | Retry? |
+|---|---|---|
+| `400` | Bad parameter, or a missing `Quo-Api-Version` header. `errors[].path` names the field. | No |
+| `401` | Bad or missing key, or a `Bearer ` prefix. | No |
+| `403` | The key is valid, but permissions, a workspace setting or the plan don't allow the action. | Not until something changes |
+| `404` | The call doesn't exist or belongs to another workspace. | No |
+| `429` | More than 10 req/s on this key. | Yes, with backoff and jitter |
+| `500` | Server-side failure. Log the `trace`. | Yes, with backoff |
 
-| field | type | nullable | notes |
-|---|---|---|---|
-| `callId` | string | no | The call this transcript belongs to. |
-| `createdAt` | string (date-time) | no | When the transcription was created. |
-| `dialogue` | array of object | yes | The dialogue segments (see below). The whole array is nullable. |
-| `duration` | number | no | Total transcribed call duration in seconds. |
-| `status` | enum string | no | One of: `absent`, `in-progress`, `completed`, `failed`. |
+## Sources (checked 2026-10-08)
 
-`dialogue[]` segment fields (all `required` within a segment):
-
-| field | type | nullable | notes |
-|---|---|---|---|
-| `content` | string | no | Transcribed text of the segment, e.g. `"Hello, world!"`. |
-| `start` | number | no | Segment start time in seconds, relative to call start (e.g. `5.123456`). |
-| `end` | number | no | Segment end time in seconds, relative to call start (e.g. `10.123456`). |
-| `identifier` | string | yes | Phone number of the participant who spoke (E.164). Null if not available. |
-| `userId` | string (`US…`) | yes | Quo user who spoke. **Null for external participants** or if user identification is unavailable. |
-
-**Gotchas — Transcription**
-- **Path param is named `id`, not `callId`** — different from the recordings/summary/voicemail endpoints (which use `callId`). The value is still the `AC…` call ID.
-- **Plan-gated: business and scale plans only.** Otherwise expect `403 Forbidden` (`code: "0600403"`) or `status: "absent"`.
-- Asynchronous: `dialogue` may be `null` and `status` may be `in-progress`/`absent` until processing finishes. Poll until `status: "completed"`.
-- `start`/`end`/`duration` are floating-point seconds (`number`, not integer). `identifier` and `userId` per-segment are nullable; expect nulls for the external caller's segments where the user isn't a Quo user.
-- Error codes: `400` (`0600400`), `401` (`0600401`), `403` (`0600403`), `404` (`0600404`), `500` (`0601500`).
-
-Example:
-
-```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/call-transcripts/ACsampleActivity01' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
-```
-
----
-
-### Get a voicemail for a call
-
-```
-GET https://api.quo.com/v1/call-voicemails/{callId}
-```
-
-Retrieve a voicemail associated with a specific call. Returns **null data fields while the voicemail is processing**; returns completed data fields once finished processing. (`operationId: getCallVoicemails_v1`)
-
-| name | in | type | required | notes |
-|---|---|---|---|---|
-| `callId` | path | string (`^AC(.*)$`) | **yes** | The call for which a voicemail is retrieved. E.g. `ACsampleActivity02`. |
-
-Request body: _none (GET)._
-
-Response (`200`) — `data` is a single object:
-
-```json
-{
-  "data": {
-    "duration": 60,
-    "id": "VMsampleVoicemail01",
-    "transcript": "Hello, this is a voicemail from John Doe.",
-    "recordingUrl": "https://examplestorage.com/a643d4d3e1484fcc8b721627284eda5e.mp3",
-    "status": "completed"
-  }
-}
-```
-
-Voicemail object fields (all `required`):
-
-| field | type | nullable | notes |
-|---|---|---|---|
-| `duration` | integer | yes | Voicemail length in seconds. Null if not completed or unknown. |
-| `id` | string (`^VM(.*)$`) | no | Unique voicemail ID, e.g. `VMsampleVoicemail01`. |
-| `transcript` | string | yes | Voicemail transcript text. **Null if not completed or transcript unavailable.** |
-| `recordingUrl` | string (uri) | yes | Download/access URL for the voicemail audio. **Null if not completed or URL unavailable.** |
-| `status` | enum string | no | One of: `completed`, `in-progress`. |
-
-**Gotchas — Voicemail**
-- While processing (`status: "in-progress"`), `duration`, `transcript`, and `recordingUrl` are all **null**. Re-fetch until `status: "completed"`.
-- Voicemail `status` enum is only `completed` / `in-progress` (no `failed`/`absent`), unlike recordings/summary/transcription.
-- `recordingUrl` points at external storage and is likely a time-limited signed URL — download promptly.
-- Voicemail transcript availability is not explicitly plan-gated in the docs (unlike summary/transcript, which require business/scale), but the AI-generated transcript field can still be null.
-- Error codes: `400` (`1200400`), `401` (`1200401`), `403` (`1200403`), `404` (`1200404`), `500` (`1201500`).
-
-Example:
-
-```bash
-curl --request GET \
-  --url 'https://api.quo.com/v1/call-voicemails/ACsampleActivity02' \
-  --header 'Authorization: YOUR_RAW_API_KEY'
-```
-
----
-
-### Cross-endpoint summary
-
-| Endpoint | Method | Path | `data` shape | Plan-gated |
-|---|---|---|---|---|
-| List calls | GET | `/v1/calls` | array of call | no |
-| Get a call by ID | GET | `/v1/calls/{callId}` | single call | no |
-| Get recordings | GET | `/v1/call-recordings/{callId}` | array of recording | no |
-| Get summary | GET | `/v1/call-summaries/{callId}` | single summary | **business + scale only** |
-| Get transcription | GET | `/v1/call-transcripts/{id}` | single transcript | **business + scale only** |
-| Get voicemail | GET | `/v1/call-voicemails/{callId}` | single voicemail | no (transcript field still nullable) |
-
-Note the inconsistent path-param name: transcription uses `{id}`; all others use `{callId}`. The resource path segments also differ from the entity ID prefixes (e.g. recordings live under `/call-recordings/` keyed by the `AC…` call ID, and return their own `CR…`-style recording IDs).
+- OpenAPI specs: `openphone-public-api-2026-03-30-prod.json` (`/calls`, `/calls/{callId}`, `/calls/{callId}/recordings`, `/calls/{callId}/transcripts`) and `openphone-public-api-v1-prod.json` (`/v1/calls`, `/v1/calls/{callId}`, `/v1/call-recordings/{callId}`, `/v1/call-summaries/{callId}`, `/v1/call-transcripts/{id}`, `/v1/call-voicemails/{callId}`)
+- quo.com/docs/2026-03-30: calls/list-calls, calls/get-a-call-by-id, calls/list-recordings-for-a-call, calls/list-transcripts-for-a-call, requests, errors, rate-limits, webhooks-event-payloads
+- quo.com/docs/mdx/api-reference/calls: list-calls, get-a-call-by-id, get-recordings-for-a-call, get-a-summary-for-a-call, get-a-transcription-for-a-call, get-a-voicemail-for-a-call
+- quo.com/docs changelog (2026-09-29 calls release; v1 `since` deprecation and `userId`-default fix)

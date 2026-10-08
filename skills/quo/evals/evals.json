@@ -36,6 +36,80 @@
       "prompt": "We want to pull every call's AI summary and transcript into our CRM, and create/update a contact for each external caller. Walk me through the Quo endpoints and the gotchas.",
       "expected_output": "Uses GET /v1/calls (requires phoneNumberId + participants + maxResults) with pageToken pagination (loop until nextPageToken is null; totalItems is inaccurate), then GET /v1/call-summaries/{callId} and GET /v1/call-transcripts/{id} — noting the transcript path param is `id` not `callId`, that both are business/scale-plan-gated, and that results are async (poll processingStatus until completed). For contacts: POST/PATCH /v1/contacts with the nested defaultFields/customFields shape (firstName required), upsert by externalId. Recommends subscribing to call.summary.completed / call.transcript.completed webhooks instead of polling. Auth is the raw key (no Bearer).",
       "files": []
+    },
+    {
+      "name": "tanstack-ai-quo-assistant-tools",
+      "prompt": "We're on TanStack Start + @tanstack/ai (anthropic adapter). I want an in-app assistant for our support team that can look at our Quo inbox, tell us which customers we haven't replied to, summarize yesterday's missed calls and voicemails, and text customers back. A human has to approve every text before it goes out. Our support line's phone number id is PNsupport01. Build the server tools + the chat route.",
+      "expected_output": "Server-only TanStack AI tools built with toolDefinition + Zod inputSchema and .server(); send tool has needsApproval: true and calls POST /v1/messages (v1 is the only send surface) with raw-key auth; reads use the 2026-03-30 surface with Quo-Api-Version header (GET /calls with include=summary,voicemail, GET /conversations or /messages); inbox scoped to PNsupport01 and re-checked inside execute; tool errors returned as data; no auto-retry of sends; rate limit 10 req/s respected (shared limiter / sequential tool execution); customer text treated as untrusted; chat route passes resume for approvals.",
+      "files": [],
+      "id": 6,
+      "assertions": [
+        "Authorization header carries the raw API key with no 'Bearer' prefix",
+        "Uses the 2026-03-30 surface (unprefixed path with Quo-Api-Version: 2026-03-30) for at least one read that v1 cannot do as efficiently (workspace-wide calls/messages/conversations), and every such request carries the header",
+        "Rate limit of 10 req/s per key is enforced in code (shared limiter, throttle or sequential execution), not just mentioned",
+        "SMS is sent via POST /v1/messages (the v1 path)",
+        "Send tool is defined with TanStack AI toolDefinition + Zod inputSchema and implemented with .server()",
+        "Send tool sets needsApproval: true",
+        "Inbox restriction to PNsupport01 is re-checked server-side inside the tool's execute (not only in the prompt)",
+        "A send that fails with 5xx/timeout is not automatically retried",
+        "Missed calls are fetched with summaries/voicemails inline (include=summary,voicemail or equivalent single list) rather than one extra request per call",
+        "Customer-authored text (SMS bodies, transcripts) is treated as untrusted data (labelled, or explicit prompt-injection guard)",
+        "Chat route forwards the resume/approval continuation payload to chat()",
+        "Multiple recipients in one send are prevented or explicitly warned as a shared group thread",
+        "The same approved send cannot execute twice (idempotency ledger keyed by tool call / approval, or a reconciliation lookup before any resend)",
+        "Finding unreplied customers and missed calls costs O(pages) Quo requests, not one or more requests per conversation or per call",
+        "Missed calls are identified as incoming calls that were never answered, not by a single status value",
+        "Approval is bound server-side to the exact recipients/content (and approving actor), not only to a UI click",
+        "AI call summaries are returned for yesterday's missed calls when available"
+      ]
+    },
+    {
+      "name": "call-analytics-structured-report",
+      "prompt": "Every morning I want a job that pulls all of yesterday's calls from our OpenPhone (now Quo) workspace with the AI call summaries and has an LLM produce a structured JSON report: totals, missed calls, top 5 call reasons with example call ids, and a follow-up list. Use TanStack AI. We have ~300 calls a day so don't blow the rate limit.",
+      "expected_output": "Uses GET /calls on the 2026-03-30 API (Quo-Api-Version header, unprefixed path, createdAt[gte]/[lte] UTC window, include=summary,voicemail, limit=50 + after/nextCursor pagination) instead of N+1 per-call summary fetches; handles summary.status absent/in-progress/failed and Business/Scale plan gating; stays under 10 req/s; uses TanStack AI structured output (chat with outputSchema Zod) to produce the report; raw key auth with no Bearer.",
+      "files": [],
+      "id": 7,
+      "assertions": [
+        "Authorization header carries the raw API key with no 'Bearer' prefix",
+        "Uses the 2026-03-30 surface (unprefixed path with Quo-Api-Version: 2026-03-30) for at least one read that v1 cannot do as efficiently (workspace-wide calls/messages/conversations), and every such request carries the header",
+        "Rate limit of 10 req/s per key is enforced in code (shared limiter, throttle or sequential execution), not just mentioned",
+        "Uses GET /calls on the 2026-03-30 surface (unprefixed path) with a createdAt[gte]/[lte] UTC window for yesterday",
+        "Requests summaries inline with include=summary (no per-call summary request)",
+        "Paginates with limit=50 and after/nextCursor until nextCursor is null",
+        "Handles summary status other than completed (absent / in-progress / failed) explicitly",
+        "Produces the report via TanStack AI structured output (chat with a Zod outputSchema)",
+        "Mentions that call summaries require the Business or Scale plan",
+        "Fetching ~300 calls costs O(pages) Quo requests (about 6-10), not one request per call or per conversation",
+        "Missed calls are identified as incoming calls that were never answered (covers busy/canceled/completed-without-answer), not only status=missed",
+        "Missed-call count excludes AI-handled and forwarded calls",
+        "The fetch is complete for the workspace (no per-conversation fan-out that skips group calls or unscanned conversations)"
+      ]
+    },
+    {
+      "name": "reminder-scheduling-agent-tool",
+      "prompt": "our clinic uses Quo for texting. I need appointment reminders sent 24h before each appointment, and our TanStack AI chat assistant should be able to schedule a one-off reminder text when staff ask it to (\"remind Jane at 9am tomorrow about her follow-up\"). If the patient doesn't reply to confirm, a staff member should get a follow-up task. How do I build this?",
+      "expected_output": "States Quo has no scheduled-send endpoint; scheduling is an app-side durable job queue whose worker calls POST /v1/messages at send time (no auto-retry; idempotent job, look up before resending); assistant tool to schedule has needsApproval and requires explicit time-zone offset; re-checks consent/opt-out/quiet hours at send time; uses Quo tasks with dueDate (POST /v1/tasks linked to activity/conversation, or 2026-03-30 task endpoints) for staff follow-up and optionally task.overdue / message.received webhooks to detect confirmation.",
+      "files": [],
+      "id": 8,
+      "assertions": [
+        "Authorization header carries the raw API key with no 'Bearer' prefix",
+        "Uses the 2026-03-30 surface (unprefixed path with Quo-Api-Version: 2026-03-30) for at least one read that v1 cannot do as efficiently (workspace-wide calls/messages/conversations), and every such request carries the header",
+        "Rate limit of 10 req/s per key is enforced in code (shared limiter, throttle or sequential execution), not just mentioned",
+        "States that Quo has no scheduled-send endpoint and scheduling must be app-side",
+        "Uses a durable job queue/scheduler whose worker calls POST /v1/messages at the send time",
+        "The assistant's schedule-reminder tool requires human approval (needsApproval: true)",
+        "Requires or converts to an explicit time-zone offset for the reminder time",
+        "Re-checks consent/opt-out (STOP) or quiet hours at send time",
+        "Creates a Quo task (with dueDate) for staff follow-up when the patient does not confirm",
+        "Detects confirmation replies via a signature-verified message.received webhook",
+        "Send in the worker is not auto-retried blindly (idempotent job / look up before resend)",
+        "Each reminder send has exactly one recipient (no accidental group thread)",
+        "The assistant's scheduling tool takes a patient/contact id resolved server-side, or otherwise prevents the model from texting an arbitrary number",
+        "The rate limit holds across processes (shared/injected limiter or an explicit split of the 10 req/s budget between worker and web)",
+        "Every Quo request in every process (worker, web, webhook handler) goes through one limiter per process within the 10 req/s per-key budget",
+        "Quiet hours are re-checked at send time, not only when scheduling",
+        "Any resend-reconciliation lookup uses only filter operators the endpoint defines (GET /messages: createdAt[gt]/[lt])"
+      ]
     }
   ]
 }
