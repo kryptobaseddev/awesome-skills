@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07 21:51:21",
+  "generated_at": "2026-10-07 22:26:53",
   "total_skills": 27,
   "total_categories": 15,
   "categories": [
@@ -145,8 +145,8 @@
           "description": "Audit, restructure and improve web and app UX/UI with the 30 Laws of UX (lawsofux.com) as the critique language and measured guardrails as the bar - brownfield first. Maps an existing codebase into a component inventory with where-used blast radius, duplicate families (four card components, raw inputs beside a TextInput), token drift and data views missing loading/error/empty states; walks the running site mobile-first (320/390 up to 1440, touch emulated) with a probe measuring reflow, tap targets, input zoom, contrast, competing CTAs and style sprawl; scores PASS/WARN/FAIL against WCAG 2.2, Core Web Vitals and law-anchored thresholds; then plans and verifies consolidation into reusable, interchangeable components. Use for UX audits, mobile-first fixes, design-system cleanup, component refactors, form/card/table/nav/checkout redesigns or a new app's design contract - even if the user only says 'our UI is a mess', 'make it work on mobile' or 'apply Hick's law'. Not for backend-only work.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
-            "version": "1.3.0",
-            "last_updated": "2026-10-08 02:10:00",
+            "version": "1.4.0",
+            "last_updated": "2026-10-08 05:05:00",
             "category": "frontend",
             "tags": "ux, ui, laws-of-ux, design-system, mobile-first, responsive, accessibility, components, refactoring, audit"
           }

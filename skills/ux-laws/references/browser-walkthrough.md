@@ -33,8 +33,8 @@ Use whatever the environment has; the procedure is the same. `probe.js` is a fun
 
 **Batch, Node + Playwright (fastest for many routes):**
 ```bash
-npm i -D playwright && npx playwright install chromium     # once, if the project lacks it
-node <skill>/scripts/walk.mjs --base http://localhost:5173 \
+# playwright is looked up in the project, then in ~/.cache/ux-laws; add --install once to set up that cache
+node <skill>/scripts/walk.mjs --install --base http://localhost:5173 \
   --routes / /products /products/123 /cart /checkout /account \
   --widths 320,390,768,1024,1440 --out ux-audit/captures
 # authenticated routes: save a storage state from a logged-in test session, then --storage-state auth.json
