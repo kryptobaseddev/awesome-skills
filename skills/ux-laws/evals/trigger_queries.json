@@ -1,0 +1,20 @@
+[
+  {"query": "our react app has grown for 4 years and the UI is honestly a mess - 3 different modal implementations, cards copy-pasted everywhere. can you audit it and tell me what to consolidate before we restructure? repo is in ~/work/fleetops-web", "should_trigger": true},
+  {"query": "can you go through our marketing site + app on localhost:3000 and make it actually work on phones? the checkout and account pages are the worst, but desktop can't break", "should_trigger": true},
+  {"query": "Apply Hick's law and Fitts's law to our onboarding flow (src/features/onboarding). Too many choices on step 1 and the buttons are tiny on mobile.", "should_trigger": true},
+  {"query": "I want guardrails for our frontend: some numbers we hold every PR to - tap target size, contrast, number of font sizes, CLS, that kind of thing. Set it up for our Next.js repo and tell me where we fail today.", "should_trigger": true},
+  {"query": "we have ProductTile, ProductCard, ListingCard and SearchResultCard in a vue 3 codebase and they all look slightly different. make one reusable card component and migrate everything", "should_trigger": true},
+  {"query": "starting a new SaaS dashboard from scratch in SvelteKit - before I build any screens I want a proper design contract and component foundation so it doesn't end up looking like every other AI-generated dashboard", "should_trigger": true},
+  {"query": "every form in our app handles errors differently, some use alert(), some a modal, some nothing. I want one consistent pattern for inputs, validation and error states across ~30 forms", "should_trigger": true},
+  {"query": "review this settings page against laws of ux and tell me what's wrong with it, with links: src/routes/settings/+page.svelte", "should_trigger": true},
+  {"query": "the data tables in our admin panel are unusable on mobile, people are scrolling sideways. figure out a responsive pattern and apply it to the orders, customers and invoices tables", "should_trigger": true},
+  {"query": "add a postgres index on orders.created_at and rewrite the slow report query in reports/monthly.sql, it takes 9 seconds", "should_trigger": false},
+  {"query": "how do I use useSuspenseQuery with TanStack Router loaders in v5? getting a hydration error", "should_trigger": false},
+  {"query": "generate a color palette for our brand - primary is #0F766E, I need 5 categorical chart colors that work in dark mode", "should_trigger": false},
+  {"query": "write a blog post explaining Jakob's Law for our company newsletter, ~800 words, friendly tone", "should_trigger": false},
+  {"query": "scrape the product listings from competitor.com and put names and prices into a CSV", "should_trigger": false},
+  {"query": "our playwright e2e test for login is flaky in CI, it times out waiting for the dashboard selector about 1 in 5 runs. fix it", "should_trigger": false},
+  {"query": "set up storybook 8 with vite for our react component library and add a story for the Button", "should_trigger": false},
+  {"query": "convert this figma export (design.png) into a pixel-perfect html email template that works in outlook", "should_trigger": false},
+  {"query": "bump next from 14 to 15 and fix whatever breaks in the app router", "should_trigger": false}
+]

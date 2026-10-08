@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Shoply</title>
+<style>
+body{font-family:Inter,system-ui,sans-serif;margin:0;color:#111827}
+.hero{text-align:center;padding:96px 24px;background:linear-gradient(135deg,#4f46e5,#9333ea,#ec4899);color:#fff}
+.hero h1{font-size:48px;margin:0 0 12px}
+.btn{background:linear-gradient(90deg,#6366f1,#9333ea);color:#fff;border:0;border-radius:16px;padding:6px 12px;font-size:13px;box-shadow:0 10px 25px rgba(0,0,0,.15)}
+.btn2{background:#a855f7;color:#fff;border:0;border-radius:16px;padding:6px 12px;font-size:13px}
+.features{display:grid;grid-template-columns:repeat(3,320px);gap:24px;padding:24px}
+.card{border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,.1);padding:18px;text-align:center}
+.muted{color:#9ca3af}
+.deals{display:flex;gap:16px;padding:24px;width:1200px}
+.deal{border-radius:20px;box-shadow:0 10px 30px rgba(99,102,241,.3);padding:18px;width:260px}
+.deal .row-actions{display:none}.deal:hover .row-actions{display:flex}
+.icon{width:20px;height:20px;border:0;background:none;padding:0}
+form{padding:24px;max-width:1100px}
+input,select{font-size:13px;border:1px solid #e5e7eb;border-radius:16px;padding:4px 8px;margin:4px 0;display:block}
+nav a{margin:0 6px;font-size:12px;color:#6b7280}
+</style></head>
+<body>
+<header><nav><a href="#">Home</a><a href="#">Shop</a><a href="#">Deals</a><a href="#">New</a><a href="#">Brands</a><a href="#">Gifts</a><a href="#">Sale</a><a href="#">Blog</a><a href="#">Help</a><a href="#">Account</a></nav></header>
+<section class="hero"><h1>Build the future of shopping</h1><p>Welcome back! Everything you need, all in one place.</p>
+<button class="btn">Get started</button> <button class="btn2">Learn more</button></section>
+<div class="features">
+<div class="card"><div>⚡</div><h3>Fast</h3><p class="muted">Lightning fast shipping.</p></div>
+<div class="card"><div>🛡</div><h3>Secure</h3><p class="muted">Bank-grade security.</p></div>
+<div class="card"><div>✨</div><h3>Smart</h3><p class="muted">AI-powered picks.</p></div>
+</div>
+<section class="deals">
+<div class="deal"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="200" height="120"><h4>Sneakers</h4><span class="muted" style="font-size:11px">$59</span><div class="row-actions"><button class="icon" aria-label="edit">✎</button><button class="icon">♥</button></div></div>
+<div class="deal"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="200" height="120"><h4>Jacket</h4><span class="muted" style="font-size:11px">$120</span></div>
+<div class="deal"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="200" height="120"><h4>Watch</h4><span class="muted" style="font-size:11px">$249</span></div>
+</section>
+<form><h2>Checkout</h2>
+<input placeholder="First name"><input placeholder="Last name"><input name="email" placeholder="Email"><input name="phone" placeholder="Phone">
+<input placeholder="Address"><input placeholder="City"><select><option>CA</option></select><input name="zip" placeholder="Zip"><input name="card" placeholder="Card number"><input placeholder="MM/YY"><input name="cvc" placeholder="CVC">
+<button class="btn" type="submit">Submit</button></form>
+</body></html>

@@ -1,0 +1,76 @@
+{
+  "skill_name": "ux-laws",
+  "evals": [
+    {
+      "id": 1,
+      "name": "brownfield-full-audit",
+      "prompt": "Our shop frontend is a mess and I want a real UX audit before we restructure anything. Source is in ./project (React + Tailwind, the src folder). A static preview of the current home + checkout is running at http://localhost:8765. Lean mobile-first, but desktop still has to work. Figure out what components we have, where they're used, what should be consolidated, and give me a prioritized plan with real evidence, not vibes. Put everything you produce in ./outputs.",
+      "expected_output": "An audit folder with a component inventory (families, fan-in, bypass, token drift), mobile-first captures at phone and desktop widths, a scorecard or equivalent measured guardrails, law-cited findings ranked by critical path and blast radius, and an ordered plan (tokens \u2192 primitives \u2192 screens).",
+      "files": [
+        "evals/files/brownfield-shop",
+        "evals/files/brownfield-shop-static"
+      ],
+      "assertions": [
+        "Inventory lists all four card components (ProductCard, ItemCard, DealCard, FeatureCard) and both buttons (Button, PrimaryButton) with where-used or fan-in",
+        "Running page was captured at a phone width (<=414px) AND a desktop width (>=1280px) with saved screenshots or measured data",
+        "Reports the horizontal-overflow / reflow failure at phone width with a measured value (e.g. scrollWidth or overflowing elements)",
+        "Identifies unlabeled / placeholder-only checkout fields and sub-16px inputs on mobile with evidence",
+        "Flags ProductGrid and DealsStrip (data views) as missing loading/error/empty states",
+        "At least 80% of prioritized findings name a specific Law of UX or a WCAG criterion",
+        "Law citations include lawsofux.com (or w3.org WCAG) URLs",
+        "Plan orders foundational work (tokens / primitives) before screen-level changes",
+        "No invented conversion, revenue or lift percentages are claimed",
+        "States explicitly what was NOT measured or covered (e.g. INP, auth routes, real devices, keyboard)",
+        "Reports the checkout form exposing card number/CVC in the URL (GET submit) as a security finding ranked above UX findings",
+        "States that the static preview is not built from src (preview/source drift) and attributes findings to where they were observed",
+        "Report includes visual findings from reviewed screenshots (layout, imagery, overlap, alignment), not only measured metrics"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "card-consolidation",
+      "prompt": "we've got ProductCard, ItemCard, DealCard and FeatureCard all doing roughly the same thing in ./project/src/components/cards, plus PrimaryButton next to Button. make the cards reusable and interchangeable - one proper card system - and migrate the call sites without breaking anything. explain what you merged and what you kept separate and why. write a short summary to ./outputs/SUMMARY.md",
+      "expected_output": "A Card primitive (compound parts or slots, tokens not literals, states), thin domain compositions, call sites migrated (or adapters + @deprecated), PrimaryButton folded into Button variants, FeatureCard either justified as separate or merged with a reason, and a summary citing the blast radius per component.",
+      "files": [
+        "evals/files/brownfield-shop"
+      ],
+      "assertions": [
+        "A single shared Card primitive (or compound Card) exists and ProductCard, ItemCard and DealCard render through it, or are removed/aliased onto it",
+        "PrimaryButton is merged into Button (as a variant) or reduced to a deprecated adapter that renders Button",
+        "Every import in project/src resolves to an existing file that exports the imported name (no broken call sites)",
+        "No raw hex color literals remain in project/src/components/cards",
+        "DealCard no longer renders a raw <button>; it uses the shared Button",
+        "SUMMARY.md states an explicit decision for FeatureCard (merged or kept separate) with a reason",
+        "SUMMARY.md reports where each merged component was used (call sites / fan-in)",
+        "Card images get an alt text path (alt prop passed or required)",
+        "All three original data shapes (name/image/price, title/thumb/cost, name/img/badge) render through one card prop shape (interchangeable)",
+        "New or changed user-visible strings contain no em or en dashes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "checkout-mobile-fix",
+      "prompt": "Checkout converts terribly on phones. The form is ./project/src/features/checkout/CheckoutForm.tsx and you can see the current version at http://localhost:8765 (scroll to Checkout). Fix it using laws of UX so it's great on mobile and still fine on desktop. Change the code, and in ./outputs/CHANGES.md tell me what you changed, which law each change answers, and how you'd verify it.",
+      "expected_output": "CheckoutForm split into context-based steps with progress, persistent labels on a shared field component, correct type/inputmode/autocomplete, \u226516px inputs, inline in-step validation with human copy instead of a modal, saved step state, one primary action, \u226544px targets; CHANGES.md maps each change to a named law with a URL and a verification metric, with no invented conversion numbers.",
+      "files": [
+        "evals/files/brownfield-shop"
+      ],
+      "assertions": [
+        "Checkout is split into 2+ steps grouped by context (e.g. contact / shipping / payment) with one progress indicator",
+        "Every field has a persistent visible label (no placeholder-only inputs remain)",
+        "Email uses type=email, phone uses type=tel, and card/zip/cvc use inputMode numeric",
+        "At least 5 fields carry autocomplete attributes (e.g. email, given-name, cc-number)",
+        "Inputs render at >=16px font size on mobile (text-base / 16px, no text-[13px]/text-[14px] on inputs)",
+        "The error Modal / 'An error occurred' is replaced by inline, field-level validation messages",
+        "Step data is persisted across refresh/back (localStorage/sessionStorage/URL or similar)",
+        "Exactly one primary action per step; Cancel/Back is visually secondary",
+        "CHANGES.md maps changes to named Laws of UX with lawsofux.com URLs",
+        "CHANGES.md gives a concrete verification method per change and claims no invented conversion numbers",
+        "Card number, expiry and CVC are NOT persisted to any storage",
+        "Each step validates its fields before advancing (cannot reach payment with invalid contact data)",
+        "The changed form was rendered and screenshotted at a phone width (<=414px) and the result reviewed",
+        "New or changed user-visible strings contain no em or en dashes"
+      ]
+    }
+  ]
+}
