@@ -11,8 +11,9 @@
 #      401/403 vs 200 tells you whether the key actually works
 #
 # The Quo API authenticates with the RAW key in the Authorization header — there
-# is NO "Bearer " prefix. Base URL: https://api.quo.com/v1 (api.openphone.com/v1
-# is an identical legacy alias). Rate limit: 10 requests/second per key.
+# is NO "Bearer " prefix. Host: https://api.quo.com (v1 under /v1; 2026-03-30
+# unprefixed + Quo-Api-Version header). api.openphone.com serves v1 only.
+# Rate limit: 10 requests/second per key.
 #
 # Usage:
 #   bash quo-preflight.sh            # local checks only
@@ -34,7 +35,8 @@ warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$1"; }
 
 RC=0
-BASE_URL="${QUO_BASE_URL:-https://api.quo.com/v1}"
+BASE_URL="${QUO_BASE_URL:-https://api.quo.com}"
+BASE_URL="${BASE_URL%/}"; BASE_URL="${BASE_URL%/v1}"   # accept a legacy .../v1 value
 
 echo "Quo (OpenPhone) preflight"
 echo "-------------------------"
@@ -69,17 +71,18 @@ else
 fi
 
 if [ "$PROBE" = 1 ]; then
-  echo "Live probe ($BASE_URL/phone-numbers):"
+  echo "Live probe ($BASE_URL/organization, Quo-Api-Version 2026-03-30):"
   if [ -z "$KEY" ]; then
     warn "skipped — no key to probe with"
   elif ! command -v curl >/dev/null 2>&1; then
     warn "skipped — curl not available"
   else
     CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 \
-      "$BASE_URL/phone-numbers?maxResults=1" -H "Authorization: $KEY" 2>/dev/null) || {
+      "$BASE_URL/organization" -H "Authorization: $KEY" -H "Quo-Api-Version: 2026-03-30" 2>/dev/null) || {
         bad "network error reaching $BASE_URL"; exit 5; }
     case "$CODE" in
-      200) ok "200 OK — key is valid and the workspace has phone numbers" ;;
+      200) ok "200 OK — key is valid (check subscriptionStatus in GET /organization if sends fail)" ;;
+      400) bad "400 — usually a missing/invalid Quo-Api-Version header or proxy rewrite"; RC=6 ;;
       401) bad "401 Unauthorized — key missing/invalid (check for a stray Bearer prefix)"; RC=6 ;;
       403) warn "403 Forbidden — key valid but lacks permission or a setting is off" ;;
       429) warn "429 Too Many Requests — rate limited (10 req/s/key); retry with backoff" ;;

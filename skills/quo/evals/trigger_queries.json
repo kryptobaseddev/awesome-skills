@@ -1,0 +1,102 @@
+[
+  {
+    "query": "we use openphone at the shop and i want our nextjs app to text customers when their repair is ready. can you set that up server side? the number is +1 512 555 0142",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "Build me a TanStack AI tool set so our support copilot can read the Quo inbox, see missed calls with voicemail transcripts, and draft replies that a human approves before sending",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "my agent keeps texting all 5 customers in one message and now they can see each other's numbers. it's calling POST /v1/messages with a to array. how do i fix the tool so each gets a private text?",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "nightly cron: pull yesterday's calls from Quo with the AI summaries and dump a CSV of call reasons + next steps for the sales manager. ~400 calls/day",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "getting 400 'Quo-Api-Version header is required' when I hit https://api.quo.com/calls but /v1/calls works fine?? what changed",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "sync contacts from our hubspot export (contacts.csv, columns: id,first,last,phone,email) into our Quo workspace without creating duplicates every night",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "set up a webhook so when someone texts our clinic line we create a ticket in Linear \u2014 and make sure the endpoint rejects forged requests. we're on Hono on Cloudflare Workers",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "can Claude get access to my company phone texts? we use quo and I want to ask it which leads didn't get a reply this week",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "appointment reminders 24h before via our quo number, plus the assistant should be able to schedule one-off reminders when the front desk asks",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "our ai receptionist (Sona) handles after-hours calls in OpenPhone \u2014 I want a dashboard tile showing how many calls it took vs humans last week",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "Build an SMS sending function with Twilio's Node SDK for order confirmations, with retries and status callbacks",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "Add a chat panel to our TanStack Start dashboard using @tanstack/ai with streaming and a tool that looks up orders in our Postgres db",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "set up email notifications with Resend when a support ticket is created",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "write a React form that validates US phone numbers and formats them as E.164 before saving to the database",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "We're evaluating business phone systems \u2014 compare OpenPhone/Quo vs Dialpad vs RingCentral on price and features for a 12-person team",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "verify Stripe webhook signatures in my Express app, the raw body keeps getting parsed before I can check it",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "Implement a WhatsApp Business Cloud API bot that answers FAQs with Claude",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "our tanstack query useQuery for /api/messages refetches too often on window focus, how do I stop that",
+    "should_trigger": true,
+    "fixture": "web-app"
+  },
+  {
+    "query": "set up Vonage voice API to forward incoming calls to my cell after business hours",
+    "should_trigger": false,
+    "fixture": "web-app"
+  },
+  {
+    "query": "build an MCP server for our internal ticketing system so Claude can create and search tickets",
+    "should_trigger": false,
+    "fixture": "web-app"
+  }
+]

@@ -1,394 +1,113 @@
-## Quo (formerly OpenPhone) API — Building with AI/LLMs, Cost & Carrier Registration
+# Quo API — building with AI, messaging cost, plan gates and US carrier registration
 
-> Source-grounded against the live `quo.com` docs (June 2026) and the public OpenAPI spec. **Quo is the rebrand of OpenPhone** — docs, the API host, and support email all now use `quo.com`, while the public OpenAPI JSON files are still hosted on the legacy `openphone-public-api-prod` S3 bucket.
+Covers what an AI-driven Quo integration costs, what blocks it from sending (A2P 10DLC registration, subscription, credits, daily caps), which features need which plan, and the ground rules Quo publishes for agent-built integrations. Endpoint-by-endpoint detail for messages, calls and webhooks lives in the other reference files. The hosted MCP server is covered in `mcp.md`.
 
-### Base URL & Auth (read this first)
+## Contents
 
-- **Base URL:** `https://api.quo.com/v1` — the OpenAPI `servers[0].url` is `https://api.quo.com` and every live curl example uses `https://api.quo.com/v1/...`. (The legacy `https://api.quo.com/v1` host is **not** what the current docs publish — use `api.quo.com`.)
-  Source: <https://www.quo.com/docs/mdx/api-reference/send-your-first-message.md>, <https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json>
-- **Auth header:** raw API key, **not** a Bearer token. The docs state verbatim: *"Include your API key in the Authorization header of each request: `Authorization: YOUR_API_KEY` The Quo API does not use a Bearer token for authentication."* The OpenAPI `securityScheme` is `{ type: apiKey, in: header, name: Authorization }`.
-  Source: <https://www.quo.com/docs/mdx/api-reference/authentication.md>
-- **Get a key:** Workspace Settings → "API" tab → "Generate API key" (requires workspace **owner or admin** privileges). Each key grants full API access; spaces are not allowed in the key name.
-  Source: <https://www.quo.com/docs/mdx/api-reference/authentication.md>
-- **Rate limit:** **10 requests/second per API key**. Exceeding it returns `429`. Implement throttling / exponential backoff.
-  Source: <https://www.quo.com/docs/mdx/api-reference/rate-limits.md>
+- [Two API surfaces, one host](#two-api-surfaces-one-host)
+- [Building with AI and LLMs](#building-with-ai-and-llms)
+- [Messaging cost](#messaging-cost)
+- [Segment math](#segment-math)
+- [US carrier registration (A2P 10DLC)](#us-carrier-registration-a2p-10dlc)
+- [Account, plan and credit gates](#account-plan-and-credit-gates)
+- [Error codes that mean "cannot send"](#error-codes-that-mean-cannot-send)
+- [Cost and safety controls for AI agents](#cost-and-safety-controls-for-ai-agents)
+- [What changed since v1.0.0 of this reference](#what-changed-since-v100-of-this-reference)
+- [Sources](#sources-checked-2026-10-08)
 
----
+## Two API surfaces, one host
 
-### Building with AI/LLMs — recommended patterns
+| | v1 | 2026-03-30 |
+|---|---|---|
+| Base | `https://api.quo.com/v1/...` | `https://api.quo.com/...` (no `/v1`) |
+| Version header | none | **`Quo-Api-Version: 2026-03-30`** (400 without it) |
+| Auth | `Authorization: YOUR_API_KEY`, raw key, **no `Bearer`** | same |
+| Rate limit | 10 req/s per key → `429` | same |
+| Sending SMS | **`POST /v1/messages` is the only send endpoint** | no send endpoint, but has `POST /messages/{messageId}/retry` for `failed` messages |
+| Errors | `{title, description, code, status, docs, message, errors}` with numeric `code` such as `0206400` | `{title, message, docs, trace?, errors[{path,message,value,schema}]}`. Branch on HTTP status, then `errors[].path` |
 
-The "Building with AI LLMs" guide is a workflow guide (no endpoints of its own). Verbatim guidance from <https://www.quo.com/docs/mdx/guides/building-with-ai-llms.md>:
+Keys: Workspace Settings → **API** → *Generate API key*. You need **owner or admin** rights, and spaces are not allowed in the name. A key has admin-level reach over the whole workspace. Name keys after their consumer (`claude-agent`, `crm-sync`) so each can be audited and revoked on its own.
 
-- **Feed the LLM the spec, not your keys.** Provide the LLM with two artifacts:
-  - OpenAPI spec: `https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json`
-  - The "complete documentation package" (llm-ready docs zip): `https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-llm-ready-docs-prod.zip`
-  - The docs index (`llms.txt`) for page discovery: `https://www.quo.com/docs/llms.txt`
-- **Security (verbatim):** *"Never share API keys with LLMs · Keep sensitive data out of prompts · Validate all generated code · Follow security best practices."*
-- **API usage (verbatim):** *"Follow Quo API rate limits · Implement proper error handling · Monitor API usage · Optimize API calls."*
-- **Documented integration patterns:** automated message handling/responses, contact sync/management, processing call summaries & recording data, and scheduling/reminders (Tasks).
-- The guide uses Claude in its examples but states the principles apply to any capable LLM.
+## Building with AI and LLMs
 
-**Polling vs. webhooks (grounded in the API surface):** For AI/agent workflows that react to inbound activity (new SMS, completed call, ready transcript/summary), **register a webhook** rather than polling `GET /v1/messages` / `GET /v1/calls`. Polling burns your 10 req/s budget and adds latency; webhooks push the event the moment it occurs. Quo exposes dedicated webhook-creation endpoints for exactly the AI-relevant events: inbound messages, call lifecycle, **AI call summaries**, and **AI call transcripts**. Note: *"Webhooks created in the Quo app are not compatible with those created via the API. You cannot access or modify app webhooks through the API, or API webhooks in the app."*
-Source: <https://www.quo.com/docs/mdx/guides/webhooks.md>
+There are two distinct cases. Pick the right one first.
 
----
+| You want… | Use | Why |
+|---|---|---|
+| A person working with their Quo data in Claude or ChatGPT | **Quo MCP** (`https://mcp.quo.com/mcp`), on Starter, Business and Scale plans | Per-user OAuth, no key, curated tools. See `mcp.md`. |
+| Your product or backend acting on Quo (scheduled, webhook-driven, policy-heavy) | **REST API** with your own tool definitions | Deterministic schemas, signed webhooks, your own guardrails |
 
-### `POST /v1/messages` — Send a text message
+**Feed an agent the source of truth, not memory:**
 
-```
-POST https://api.quo.com/v1/messages
-```
+| Resource | URL |
+|---|---|
+| Docs index (start here) | `https://www.quo.com/docs/llms.txt` |
+| Whole docs as one file | `https://www.quo.com/docs/llms-full.txt` |
+| OpenAPI 2026-03-30 (authoritative for the new surface) | `https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-2026-03-30-prod.json` |
+| OpenAPI v1 (needed for sending) | `https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json` |
+| Offline docs bundle | `https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-llm-ready-docs-prod.zip` |
 
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `content` | body | string | **yes** | `minLength: 1`, `maxLength: 1600`, must contain a non-whitespace char (`pattern: .*\S.*`). |
-| `from` | body | string | **yes** | Sender. Either a Quo phone number ID (`^PN(.*)$`) **or** an E.164 number (`^\+[1-9]\d{1,14}$`). |
-| `to` | body | string[] | **yes** | Array with `minItems: 1`, `maxItems: 1` — **exactly one recipient**. E.164 (`+15555555555`). |
-| `userId` | body | string | no | `^US(.*)$`. Quo user sending the message. Defaults to the phone number owner if omitted. |
-| `setInboxStatus` | body | string (enum) | no | Only allowed value: `"done"`. Moves the resulting conversation to the Done inbox view. Default leaves it open. |
-| `phoneNumberId` | body | string | no | **DEPRECATED** — use `from` instead. `^PN(.*)$`. |
+The spec JSON files still live in the legacy `openphone-public-api-prod` bucket, which is expected. When generated code and the spec disagree, the spec wins.
 
-Request body:
+**Quo's published ground rules for agent integrations** (Build with AI & agents page):
+1. **The key never enters the conversation.** Keep it in env or a secret store, never in a prompt or generated source. Assume anything an LLM reads, it may repeat.
+2. **Give the agent its own key**, named, so its traffic is visible and revocable on its own.
+3. **Tell it the budget**: 10 req/s. Left alone, agents poll.
+4. **Check generated code against the spec.** Code can compile and still call endpoints that don't exist.
+5. **Let errors do their job.** Pass the structured 2026-03-30 errors (`errors[].path`) back to the agent raw so it can fix the request.
 
-```json
-{
-  "content": "Hello, world!",
-  "from": "+15555555555",
-  "to": ["+15555555555"],
-  "userId": "US123abc",
-  "setInboxStatus": "done"
+The older v1-era "Building with AI LLMs" guide adds: keep sensitive data out of prompts, validate all generated code, handle errors properly, and monitor usage. Its documented patterns are message automation, contact sync, call summary and recording processing, and task-based scheduling or reminders.
+
+**Webhooks over polling.** For agents that react to inbound SMS, completed calls, or finished summaries and transcripts, subscribe to webhooks instead of polling list endpoints. Polling burns the shared 10 req/s budget and adds latency. Webhooks created in the Quo app and webhooks created via the API are mutually invisible. Signing, event names and payloads are in the webhooks reference files.
+
+## Messaging cost
+
+From the API pricing page:
+
+| Destination | Price |
+|---|---|
+| US and Canada SMS | **$0.01 per segment** |
+| International SMS | **$0.01 + country-specific rate per segment** (rates at `https://www.quo.com/rates`) |
+
+- You are charged **only for outgoing API-powered messages**: direct API calls and messages sent by apps or integrations built on the API. **Quo MCP sends count as API-powered messages** too (MCP tools page).
+- **Billing is credit-based.** Buy credits under **Plans & Billing**. They are deducted when a message is sent, and **auto-recharge** is available. Partial credits cannot be used: if the balance cannot cover a message's full cost, the API returns an error and **the message is not sent**. The spec documents no specific error code for this, so treat the code as unverified.
+- **MMS.** The pricing page says *"MMS is not supported in the current API version."* The v1 send body has no media field, so you can only send text. Message **reads** (`GET /v1/messages`, `GET /v1/messages/{id}` since 2026-08-21, and the 2026-03-30 message objects) do include a `media[]` array (`{url, type}`) for MMS sent or received in the Quo app.
+- **Group sends.** `POST /v1/messages` now accepts up to **10** numbers in `to` (one group message). The pricing page does not say how a group message is billed. Budget it as **segments × recipients** until verified.
+- Inbound messages, reads and webhooks are not listed as charges.
+
+## Segment math
+
+- A segment is the billing unit. The segment count depends on **length** and **character set**.
+- **GSM-7 only** (A–Z, a–z, 0–9, space, basic punctuation): **up to 160 characters per segment**.
+- **Any** non-GSM character (é, ñ, ü, curly or smart quotes, emoji, many international scripts) switches the **whole message** to the **70-character** limit, not just the part containing it.
+- Quo enables **smart encoding** automatically ("chooses the most efficient encoding"). The docs do not say which characters it rewrites, so do not rely on it for emoji or real accented text.
+- Multipart messages: the pricing page only gives 160 and 70. Under the standard SMS concatenation convention each part of a multipart message holds **153** (GSM-7) or **67** (UCS-2) characters. That figure comes from the carrier standard, not Quo docs. Estimate with the segment calculator Quo links to: `https://twiliodeved.github.io/message-segment-calculator/`.
+- The API maximum is `content` ≤ **1,600 characters** (v1 send and the MCP send tools). That is about 11 GSM-7 segments or about 24 UCS-2 segments per recipient.
+
+Quick estimator for a cost-preview tool. It is deliberately conservative: Quo's page says accented letters force the 70-character limit, even though some of them are in the GSM-7 table. It assumes standard concatenation; GSM-7 extension characters such as `{ } [ ] ~ \ | ^ €` count double and are approximated here.
+
+```ts
+const GSM7 = /^[A-Za-z0-9 \r\n@£$¥_!"#%&'()*+,\-./:;<=>?¡¿§^{}\\[~\]|€]*$/ // conservative: Quo bills é, ñ, ü at 70, so accents count as UCS-2
+export function estimateSegments(text: string): { encoding: 'GSM-7' | 'UCS-2'; segments: number } {
+  const gsm = GSM7.test(text)
+  const len = gsm ? [...text].reduce((n, c) => n + ('^{}\\[~]|€'.includes(c) ? 2 : 1), 0) : text.length // UCS-2 counts UTF-16 units
+  const [single, multi] = gsm ? [160, 153] : [70, 67]
+  return { encoding: gsm ? 'GSM-7' : 'UCS-2', segments: len <= single ? 1 : Math.ceil(len / multi) }
 }
+// US/CA cost ≈ segments × recipients × $0.01
 ```
 
-Response — `202 Accepted`:
+Ways to cut segments, from the pricing page: stick to plain Latin characters, avoid special characters and emoji, drop unneeded line breaks (each one counts), shorten long URLs, and use widely understood abbreviations. For LLM-written texts, add a post-processing step that normalizes smart quotes, en and em dashes, and ellipsis characters to ASCII, and strips emoji unless the user asked for them. LLM output is full of these characters, and one of them doubles the cost of the whole message.
 
-```json
-{
-  "data": {
-    "id": "AC123abc",
-    "to": ["+15555555555"],
-    "from": "+15555555555",
-    "text": "Hello, world!",
-    "phoneNumberId": "PN123abc",
-    "direction": "outgoing",
-    "userId": "US123abc",
-    "status": "sent",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z"
-  }
-}
-```
+## US carrier registration (A2P 10DLC)
 
-`status` enum: `queued | sent | delivered | undelivered | received`. `direction` enum: `incoming | outgoing`.
+> *"To send text messages to US numbers via the API, you must complete US Carrier Registration."* (Authentication and Send-your-first-message pages)
 
-curl:
-
-```bash
-curl --request POST \
-  --url https://api.quo.com/v1/messages \
-  --header 'Authorization: YOUR_API_KEY' \
-  --header 'Content-Type: application/json' \
-  --data '{
-    "content": "Hello, world!",
-    "from": "+15555555555",
-    "to": ["+15555555555"],
-    "userId": "US123abc"
-  }'
-```
-
-**Gotchas:**
-- Success is **`202`, not `200`** — the send is accepted asynchronously; poll `GET /v1/messages/{id}` (or use a `message.delivered` webhook) for terminal delivery state.
-- `to` accepts **only one** recipient (`maxItems: 1`). No bulk/fan-out in a single call.
-- **MMS is not supported** in the current API version — text only.
-- `400` here means **A2P Registration Not Approved** (code `0206400`), not a malformed body — see registration gate below.
-- Insufficient credit → the API returns an error and the message is **not** sent. Partial credits can't be used.
-- `phoneNumberId` in the request body is deprecated; use `from`.
-
----
-
-### `GET /v1/messages` — List messages
-
-```
-GET https://api.quo.com/v1/messages
-```
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `phoneNumberId` | query | string | **yes** | Your Quo phone number ID. |
-| `participants` | query | string[] | **yes** | The other party/parties (E.164). |
-| `maxResults` | query | integer | **yes** | Page size. |
-| `userId` | query | string | no | Filter by sending user. |
-| `since` | query | string (date-time) | no | ISO 8601. |
-| `createdAfter` | query | string (date-time) | no | ISO 8601. |
-| `createdBefore` | query | string (date-time) | no | ISO 8601. |
-| `pageToken` | query | string | no | Cursor from `nextPageToken`. |
-
-Response — `200`:
-
-```json
-{
-  "data": [
-    {
-      "id": "AC123abc",
-      "to": ["+15555555555"],
-      "from": "+15555555555",
-      "text": "Hello, world!",
-      "phoneNumberId": "PN123abc",
-      "direction": "incoming",
-      "userId": "US123abc",
-      "status": "received",
-      "createdAt": "2022-01-01T00:00:00Z",
-      "updatedAt": "2022-01-01T00:00:00Z"
-    }
-  ],
-  "totalItems": 1,
-  "nextPageToken": null
-}
-```
-
-**Gotchas:**
-- `phoneNumberId`, `participants`, and `maxResults` are **all required** — a bare `GET /v1/messages` will 4xx.
-- This is a polling surface. For AI agents reacting to inbound SMS, prefer a `message.received` webhook over a poll loop to respect the 10 req/s ceiling.
-
----
-
-### `GET /v1/messages/{id}` — Get a message by ID
-
-```
-GET https://api.quo.com/v1/messages/{id}
-```
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `id` | path | string | **yes** | Message ID (`^AC(.*)$`). |
-
-Response — `200`: same single-object `{ "data": { ... } }` shape as the send response above. Use this to resolve final `status` after a `202` send.
-
-**Gotchas:** Message IDs are prefixed `AC` (same prefix family as call IDs in webhook payloads — match on the full ID, not the prefix).
-
----
-
-### `POST /v1/webhooks/messages` — Create a message webhook
-
-```
-POST https://api.quo.com/v1/webhooks/messages
-```
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `events` | body | string[] (enum) | **yes** | Allowed: `message.received`, `message.delivered`. |
-| `url` | body | string | **yes** | HTTPS endpoint that receives events. |
-| `label` | body | string | no | Human label, e.g. `my webhook label`. |
-| `resourceIds` | body | string[] | no | Phone number IDs to scope to, e.g. `["PN1234"]`. |
-| `status` | body | string (enum) | no | `enabled` (default) or `disabled`. |
-| `userId` | body | string | no | `^US(.*)$`. Creator; defaults to workspace owner. |
-
-Request body:
-
-```json
-{
-  "events": ["message.received", "message.delivered"],
-  "url": "https://example.com/webhooks/quo",
-  "label": "inbound-sms-to-agent",
-  "resourceIds": ["PN1234"],
-  "status": "enabled",
-  "userId": "US123abc"
-}
-```
-
-Response — `201`:
-
-```json
-{
-  "data": {
-    "id": "WH123abc",
-    "userId": "US123abc",
-    "orgId": "OR123abc",
-    "label": "inbound-sms-to-agent",
-    "status": "enabled",
-    "url": "https://example.com/webhooks/quo",
-    "key": "whsec_...",
-    "createdAt": "2022-01-01T00:00:00Z",
-    "updatedAt": "2022-01-01T00:00:00Z",
-    "deletedAt": null,
-    "events": ["message.received", "message.delivered"],
-    "resourceIds": ["PN1234"]
-  }
-}
-```
-
-Inbound event payload (`message.received`):
-
-```json
-{
-  "id": "EVsampleEvent01",
-  "object": "event",
-  "apiVersion": "v4",
-  "createdAt": "2022-01-23T16:55:52.557Z",
-  "type": "message.received",
-  "data": {
-    "object": {
-      "id": "ACsampleActivity01",
-      "object": "message",
-      "from": "+19876543210",
-      "to": ["+15555555555"],
-      "direction": "incoming",
-      "text": "Hello, world!",
-      "status": "delivered",
-      "createdAt": "2022-01-23T16:55:52.420Z",
-      "userId": "USu5AsEHuQ",
-      "phoneNumberId": "PNtoDbDhuz",
-      "contactIds": ["6824dfb69aee85c132b7dg65"]
-    }
-  }
-}
-```
-
-**Gotchas:**
-- The create response returns a `key` — the signing secret used to **verify webhook signatures**; persist it and validate every delivery.
-- API-created webhooks and app-created webhooks are **mutually invisible** — you can't manage one from the other surface.
-- The actual event payload is nested under `data.object`, with the `event` envelope (`id`, `type`, `apiVersion`, `createdAt`) at the top — don't read `data` as the message directly.
-
----
-
-### `POST /v1/webhooks/calls` — Create a call webhook
-
-```
-POST https://api.quo.com/v1/webhooks/calls
-```
-
-Same body schema as the message webhook (`url` + `events` required; optional `label`, `resourceIds`, `status`, `userId`).
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `url` | body | string | **yes** | HTTPS receiver. |
-| `events` | body | string[] (enum) | **yes** | Allowed: `call.completed`, `call.ringing`, `call.recording.completed`. |
-| `resourceIds` | body | string[] | no | Phone number IDs. |
-| `label` / `status` / `userId` | body | — | no | As above (`status`: `enabled`/`disabled`). |
-
-`call.ringing` payload (top-level envelope + `data.object`):
-
-```json
-{
-  "id": "EVsampleEvent02",
-  "object": "event",
-  "apiVersion": "v4",
-  "createdAt": "2022-06-24T19:35:46.825Z",
-  "type": "call.ringing",
-  "data": {
-    "object": {
-      "id": "ACsXlF0",
-      "object": "call",
-      "direction": "outgoing",
-      "status": "ringing",
-      "duration": 60,
-      "phoneNumberId": "PN1ZmRMzlx",
-      "participants": ["+15555555555"],
-      "userId": "USlHhXmRMz",
-      "contactIds": ["6824dfb69aee85c132b7dg65"]
-    }
-  }
-}
-```
-
-**Gotchas:** `call.recording.completed` fires only after the recording is processed — your AI pipeline should treat recording/transcript availability as eventually-consistent, not synchronous with `call.completed`.
-
----
-
-### `POST /v1/webhooks/call-summaries` — AI call-summary webhook
-
-```
-POST https://api.quo.com/v1/webhooks/call-summaries
-```
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `events` | body | string[] (enum) | **yes** | Only allowed: `call.summary.completed`. |
-| `url` | body | string | **yes** | HTTPS receiver. |
-| `resourceIds` / `label` / `status` / `userId` | body | — | no | As above. |
-
-`call.summary.completed` payload (note `type` is `callSummary`):
-
-```json
-{
-  "id": "EVsampleEvent02",
-  "object": "event",
-  "apiVersion": "v4",
-  "createdAt": "2022-06-24T19:35:46.825Z",
-  "type": "callSummary",
-  "data": {
-    "object": {
-      "callId": "ACsampleActivity02",
-      "object": "callSummary",
-      "status": "completed",
-      "summary": ["You talked about the weather."],
-      "nextSteps": ["Bring an umbrella."],
-      "contactIds": ["6824dfb69aee85c132b7dg65"]
-    }
-  }
-}
-```
-
-**Gotchas:** Call summaries/transcripts are **only available on business and scale plans** — the corresponding `GET` endpoints and these webhooks will not produce data on lower plans. The webhook event enum is `call.summary.completed`, but the payload `type` field is `callSummary` — match on `type`, not the registered event name.
-
----
-
-### `POST /v1/webhooks/call-transcripts` — AI call-transcript webhook
-
-```
-POST https://api.quo.com/v1/webhooks/call-transcripts
-```
-
-| name | in | type | required | notes |
-|------|----|------|----------|-------|
-| `events` | body | string[] (enum) | **yes** | Only allowed: `call.transcript.completed`. |
-| `url` | body | string | **yes** | HTTPS receiver. |
-| `resourceIds` / `label` / `status` / `userId` | body | — | no | As above. |
-
-`call.transcript.completed` payload (`type` is `callTranscript`):
-
-```json
-{
-  "id": "EVsampleEvent02",
-  "object": "event",
-  "apiVersion": "v4",
-  "createdAt": "2022-06-24T19:35:46.825Z",
-  "type": "callTranscript",
-  "data": {
-    "object": {
-      "callId": "ACsampleActivity02",
-      "object": "callTranscript",
-      "createdAt": "2022-06-24T19:34:50.279Z",
-      "dialogue": [
-        {
-          "content": "Hello, world!",
-          "start": 5.123456,
-          "end": 10.123456,
-          "identifier": "+19876543210",
-          "userId": "USlHhXmRMz"
-        }
-      ],
-      "duration": 5,
-      "status": "completed",
-      "contactIds": ["6824dfb69aee85c132b7dg65"]
-    }
-  }
-}
-```
-
-**Gotchas:** Transcripts are business/scale-plan only. Each `dialogue` entry has float `start`/`end` seconds and an `identifier` (E.164 of the speaker).
-
----
-
-### Cost & US Carrier Registration (A2P 10DLC)
-
-#### HARD requirement: register before sending US SMS
-
-> **US Messaging Registration Required:** *"To send text messages to US numbers via the API, you must complete US Carrier Registration."*
-> Source: <https://www.quo.com/docs/mdx/api-reference/authentication.md>, <https://www.quo.com/docs/mdx/api-reference/send-your-first-message.md>
-> Registration guide: <https://support.openphone.com/hc/en-us/articles/15519949741463-Guide-to-US-carrier-registration-for-OpenPhone-customers>
-
-If you call `POST /v1/messages` to a US number before registration is approved, the API returns:
+- Registration happens **in the Quo app or with support**. Neither spec exposes registration endpoints. Both specs declare an "A2P Registration" tag, but no operations use it. Quo's guide is linked from the docs at `https://support.openphone.com/hc/en-us/articles/15519949741463-Guide-to-US-carrier-registration-for-OpenPhone-customers` (this legacy domain is still linked from the docs).
+- Until registration is approved, `POST /v1/messages` to a US number returns **`400`** with `code: "0206400"` and `title: "A2P Registration Not Approved"`. A 400 from send is therefore **not necessarily a malformed body**: check `code` before "fixing" the payload.
+- After approval, 10DLC throughput has a **daily cap**. Hitting it returns **`403`** with `code: "0204403"` and `title: "A2P 10DLC Daily Message Cap Reached"`. To raise the cap, contact support via `https://support.quo.com/help/submit-a-request`. Do not retry the same day in a loop.
+- The docs do not state registration requirements for Canadian or international destinations. Treat them as **unverified** and test with a real send.
+- MCP sends run through the same Quo messaging. Expect the same registration and cap behavior (an inference; the MCP docs do not say so).
 
 ```json
 {
@@ -397,65 +116,65 @@ If you call `POST /v1/messages` to a US number before registration is approved, 
   "code": "0206400",
   "status": 400,
   "docs": "https://quo.com/docs",
-  "message": "...",
+  "message": "…",
   "errors": []
 }
 ```
 
-(`code` const `0206400`, `status` const `400`, `title`/`description` const `A2P Registration Not Approved`.)
-Source: <https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json>
+## Account, plan and credit gates
 
-#### Plan & account gating
-- An **active Quo subscription is required** for API access. Expired subscription → `402` (`code 0201402`, title "Subscription Expired").
-- Credit-based billing: add funds under "Plans & Billing"; credits are deducted automatically on send. **Insufficient credit → error, message not sent.** Partial credits cannot be used.
-- **Call summaries & transcripts require business or scale plans** (Source: <https://www.quo.com/docs/llms.txt>).
-Source: <https://www.quo.com/docs/mdx/pricing-support/pricing-overview.md>
+| Gate | Effect | How to detect up front |
+|---|---|---|
+| Active Quo subscription | Required for any API access. Expired subscription: v1 message endpoints return **`402`** `0201402` "Subscription Expired" | 2026-03-30 `GET /organization` returns `data.subscriptionStatus`: `active` or `expired` (`expired` also covers "no subscription") |
+| Owner or admin | Needed to create API keys | — |
+| Messaging credits | Insufficient balance: error, message not sent (code undocumented) | No balance endpoint in either spec. Watch Plans & Billing and enable auto-recharge |
+| US A2P 10DLC registration | `400` `0206400` on US sends | No API. Do one test send to a US number |
+| 10DLC daily cap | `403` `0204403` | — |
+| **Business or Scale plan** | Call **summaries** and **transcripts** (REST endpoints and the summary/transcript webhooks). On lower plans they return no data | Spec text: "only available on business and scale plans" |
+| MCP connector | Starter, Business, Scale. `fetch-call-transcripts` needs Business | See `mcp.md` |
+| Number membership | `userId` on a send must be a member of the sending number (v1 spec) | 2026-03-30 phone-number members endpoint |
 
-#### Pricing model (segment-based)
-- **$0.01 per segment** for standard (e.g. US/Canada) destinations.
-- **$0.01 + country-specific rate per segment** for international destinations (rates vary by country; see <https://www.openphone.com/rates>).
-- You are charged **only for outgoing API-powered messages** (direct API calls or apps built on the API). **MMS is not supported.**
+## Error codes that mean "cannot send"
 
-#### What a "segment" is
-- A segment is the SMS billing unit. Messages are split into segments by **(1) length** and **(2) character type**.
-- **Standard GSM-7** (A–Z, a–z, 0–9, spaces, basic punctuation): **up to 160 characters/segment**.
-- **Special/non-GSM** characters: capacity drops to **70 characters/segment** — and critically, *"If your message contains even one special character, the entire message is billed at the 70-character limit — not just the portion with special characters."* Special chars include accented letters (é, ñ, ü), curly/smart quotes (" " ' '), emojis, and many international chars.
-- Quo's API **automatically enables "smart encoding"** to minimize segments where possible.
-Source: <https://www.quo.com/docs/mdx/pricing-support/pricing-overview.md>
+v1 `POST /v1/messages` responses as declared in the spec:
 
-#### Cost-minimization tactics (verbatim from the minimizing-costs guide)
-- Stick to standard Latin alphabet, numbers, and basic punctuation (160 chars/segment).
-- Avoid special characters (é, ñ, ß) — they cut capacity to 70 chars/segment.
-- Avoid emojis — most count as **two** characters; heavy use inflates segment count fast.
-- Each **line break counts as a character**.
-- **Shorten long URLs** — long URLs can span multiple segments; shortened links save space.
-- Use widely understood abbreviations to cut character count.
-- Estimate before sending with the [Segment Calculator](https://twiliodeved.github.io/message-segment-calculator/).
-Source: <https://www.quo.com/docs/mdx/pricing-support/minimizing-costs.md>
+| HTTP | `code` | `title` | Agent action |
+|---|---|---|---|
+| 202 | — | (accepted) | Not yet delivered. Wait for the `message.delivered` webhook or poll the message |
+| 400 | `0206400` | A2P Registration Not Approved | Stop. Surface "complete US carrier registration" to the user |
+| 401 | `0200401` | Unauthorized | Key is missing, wrong, or sent as `Bearer …` |
+| 402 | `0201402` | Subscription Expired | Stop. The account owner must fix billing |
+| 403 | `0204403` | A2P 10DLC Daily Message Cap Reached | Stop for the day. Ask support to raise the cap |
+| 404 | `0200404` | Not Found | Bad `from` or number not in workspace |
+| 429 | — | (rate limited) | Exponential backoff with jitter |
+| 500 | `0201500` | Unknown | Back off and retry. Log for support |
 
-#### Cost tactics derived from the API surface
-- **Webhooks over polling.** Don't poll `GET /v1/messages` / `GET /v1/calls` in a loop to detect activity — register `message.received` / `call.*` webhooks. Polling wastes your 10 req/s budget and risks `429`s.
-- **Batch and throttle outbound sends** to stay under 10 req/s; on `429`, back off exponentially.
-- **One recipient per `POST /v1/messages`** — plan fan-out client-side under the rate limit.
+The 2026-03-30 surface uses the same status codes without the numeric `code`. Log `trace` and send it to support+developers@quo.com. **4xx means your side, 5xx means Quo's side.** Retrying a 400 just spends rate limit.
 
----
+**Retries for sends.** v1 `POST /v1/messages` takes no idempotency key, so a blind retry after a timeout can double-send and double-bill. Read the conversation first. For messages whose status is `failed`, use the 2026-03-30 `POST /messages/{messageId}/retry`. Only `failed` messages **without** an error code are retryable. `undelivered` and permanently failed messages are not. The docs do not say whether a retry is billed again (unverified).
 
-### API response codes (reference)
+## Cost and safety controls for AI agents
 
-| Code | Status | Meaning |
-|------|--------|---------|
-| 200 | OK | Request successful |
-| 201 | Created | Resource created (e.g. webhook) |
-| 202 | Accepted | Request accepted for processing (message send) |
-| 204 | No Content | Success, no body |
-| 400 | Bad Request | Invalid parameters — **or A2P Registration Not Approved (`0206400`) on `POST /v1/messages`** |
-| 401 | Unauthorized | Missing/invalid API key (`0200401`) |
-| 402 | (Payment Required) | Subscription Expired (`0201402`) — message endpoints |
-| 403 | Forbidden | Insufficient permissions / account setting not enabled (`0202403` "Not Phone Number User") |
-| 404 | Not Found | Resource doesn't exist (`0200404`) |
-| 409 | Conflict | Conflict with another request |
-| 422 | Unprocessable Entity | Well-formed but semantically invalid |
-| 429 | Too Many Requests | Rate limit exceeded — use exponential backoff |
-| 500 | Server Error | Quo-side issue (`0201500`) |
+- **Human approval on every send tool.** Show the sender, every recipient, the final text, the estimated segments and cost, and whether recipients will see each other (a group thread exposes numbers).
+- **Hard caps in code, not in the prompt.** Enforce a maximum number of recipients per call, a maximum number of sends per conversation, user and day, and a maximum `content` length below 1,600 characters.
+- **Normalize text before sending** (see segment math) and preview the segment count.
+- **Throttle below 10 req/s per key**, shared across every worker using that key, with a queue and not ad-hoc sleeps.
+- **De-duplicate** by (from, to, content-hash, time window) before calling send.
+- **Stop on terminal codes** (`0206400`, `0201402`, `0204403`) and do not let the model "try again".
+- **Treat inbound text as untrusted.** Customer messages and transcripts can carry prompt injection. Never let retrieved content authorize a send.
+- **Keys out of reach of the model.** Tools run server-side and the LLM sees only tool results.
 
-Source: <https://www.quo.com/docs/mdx/api-reference/error-codes.md>, <https://openphone-public-api-prod.s3.us-west-2.amazonaws.com/public/openphone-public-api-v1-prod.json>
+## What changed since v1.0.0 of this reference
+
+- Base URL wording fixed: `https://api.quo.com` with a `/v1` prefix for v1, unprefixed paths plus the `Quo-Api-Version` header for 2026-03-30.
+- `to` on `POST /v1/messages` is now `maxItems: 10` (group message), not 1.
+- Added the `403 0204403` A2P 10DLC daily-cap error and `GET /organization` `subscriptionStatus`.
+- Added Quo MCP (sends count as API-powered messages) and the 2026-03-30 retry endpoint.
+- Message reads now include `media[]`. Sending MMS is still unsupported.
+- International rates link is now `quo.com/rates`. The standalone "minimizing costs" page is gone (its tips are folded into the pricing page). Dropped its "most emojis count as two characters" claim, which the current page no longer makes.
+- Removed the duplicated webhook and endpoint tables. They live in the messages and webhooks references.
+
+## Sources (checked 2026-10-08)
+
+- quo.com/docs: `mdx/pricing-support/pricing-overview`, `2026-03-30/ai-agents`, `mdx/guides/building-with-ai-llms`, `mdx/api-reference/authentication`, `2026-03-30/authentication`, `mdx/api-reference/send-your-first-message`, `2026-03-30/errors`, `2026-03-30/rate-limits`, `2026-03-30/messages/retry-a-failed-message`, `mdx/mcp/tools`, `changelog`, `llms.txt`.
+- OpenAPI: `openphone-public-api-v1-prod.json` (`POST /v1/messages` body and responses, summary/transcript plan text) and `openphone-public-api-2026-03-30-prod.json` (`GET /organization`, message `status` and `media`, `POST /messages/{messageId}/retry`).

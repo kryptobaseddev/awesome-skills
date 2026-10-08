@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07 23:21:57",
+  "generated_at": "2026-10-08 16:22:39",
   "total_skills": 27,
   "total_categories": 15,
   "categories": [
@@ -265,11 +265,11 @@
         {
           "name": "quo",
           "path": "skills/quo",
-          "description": "Build, scaffold, and integrate Quo \u2014 formerly OpenPhone \u2014 telephony into a full-stack app: send & receive SMS/text messages, list and analyze calls (recordings, AI summaries, transcripts, voicemails), manage contacts, conversations, tasks, users, and phone numbers via the Quo REST API (https://api.quo.com/v1), plus signature-verified webhooks. Ships a one-command scaffolder that emits a runnable integration (Express + API client + send-SMS route + a signature-verifying webhook receiver), a preflight checker, a tested webhook verifier (Node + Python), and an importable client. Use whenever the user wants to add, build, or scaffold SMS/text messaging, programmatic calls, an OpenPhone or Quo integration, two-way SMS, call transcripts/summaries, contact sync, or Quo webhooks \u2014 even if they only say 'OpenPhone', 'Quo', or 'send a text from my app'. Bakes in the raw-API-key auth gotcha (no Bearer token), A2P 10DLC registration, the 202/one-recipient/E.164 send rules, and the whsec_ webhook signing scheme.",
+          "description": "Build Quo (formerly OpenPhone) integrations and LLM agent tools on the Quo REST API, webhooks and MCP server: SMS send and receive, group texts, calls with AI summaries, transcripts and voicemails, contacts, conversations, tasks, users and phone numbers, on both API versions (v1, the only way to send, and header-versioned 2026-03-30). Ships a type-checked TanStack AI tool kit (Zod tools, approval-gated sends, inbox allowlists, 10 req/s limiter), a scaffolder, a webhook verifier and a client. Use when building an assistant or agent that texts customers, reads a phone inbox, triages missed calls, analyses calls, syncs contacts or schedules reminders; when adding SMS, inbound-text webhooks or call data to an app; or when fixing an app's texting, messages endpoint or call-data code, even if the user never says Quo or OpenPhone ('when someone texts our clinic line', 'our /api/messages refetches'). Not for Twilio, Vonage or WhatsApp APIs, email, or TanStack chat without phone data.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
-            "version": "1.0.0",
-            "last_updated": "2026-06-15 17:30:00",
+            "version": "2.0.0",
+            "last_updated": "2026-10-08 16:25:00",
             "category": "communication"
           }
         },

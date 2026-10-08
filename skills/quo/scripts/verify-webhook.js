@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * verify-webhook.js — Verify a Quo (formerly OpenPhone) BETA webhook signature.
+ * verify-webhook.js — Verify a Quo (formerly OpenPhone) webhook signature
+ * (2026-03-30 webhook API, Standard Webhooks scheme).
  *
- * Quo's beta webhooks are Standard-Webhooks / Svix-compatible. Each delivery
+ * Quo's 2026-03-30 webhooks are Standard-Webhooks / Svix-compatible. Each delivery
  * carries three headers:
  *   webhook-id          a stable delivery id (use it for idempotency)
  *   webhook-timestamp   unix seconds when Quo signed the request
@@ -24,7 +25,8 @@
  *
  *   node verify-webhook.js --selftest    # round-trip the algorithm (no network)
  *
- * Source: https://www.quo.com/docs/mdx/beta/webhooks-signature-validation.md
+ * Source: https://www.quo.com/docs/2026-03-30/webhooks-signature-validation.md
+ * (Legacy v1 webhooks use a different `openphone-signature` header; not handled here.)
  */
 import crypto from 'node:crypto';
 
@@ -83,7 +85,7 @@ function timingSafeEqualStr(a, b) {
 }
 
 /**
- * Verify a Quo beta webhook. Returns true only if a provided signature matches
+ * Verify a Quo 2026-03-30 webhook. Returns true only if a provided signature matches
  * AND the timestamp is within tolerance.
  *
  * @param headers  the inbound headers (Node req.headers, a plain object, or a
