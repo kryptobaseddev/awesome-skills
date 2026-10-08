@@ -130,7 +130,7 @@ Each skill carries its own `license` field in its frontmatter. Repo scaffolding 
 
 <!-- SKILLS-START -->
 
-_27 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-10-07 22:47:34._
+_27 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Last updated: 2026-10-07 23:21:57._
 
 ### 🧰 Skill Development
 
@@ -167,7 +167,7 @@ _27 skills across 15 categories — auto-generated from `skills/*/SKILL.md`. Las
 | [`deuxui`](skills/deuxui/) | Engineer and verify interfaces against a 235-rule UX contract with runnable checks, not opinions. Use when building or changing any screen, flow, page, component, form, table, dashboard or layout -… |
 | [`svelte5-sveltekit`](skills/svelte5-sveltekit/) | Comprehensive guide for building modern web applications with Svelte 5 and SvelteKit. Use when creating Svelte components, implementing Svelte 5 runes ($state, $derived, $effect, $props), building … |
 | [`tanstack`](skills/tanstack/) | Use the whole TanStack ecosystem correctly at its CURRENT versions, plus the TanStack CLI (`tanstack`, `npx @tanstack/cli`). Covers Start (server functions, middleware, SSR), Router, Query, Table v… |
-| [`ux-laws`](skills/ux-laws/) | Make an existing web app work on phones and hold it to the Laws of UX, across the whole codebase rather than one screen: mobile-first responsive fixes (sideways scroll, tiny tap targets, grids and … |
+| [`ux-laws`](skills/ux-laws/) | Make an existing web app work on phones and hold it to the Laws of UX, from a single page review to the whole codebase: mobile-first responsive fixes (sideways scroll, tiny tap targets, grids and t… |
 
 ### 🖥️ Infrastructure & Sysadmin
 
