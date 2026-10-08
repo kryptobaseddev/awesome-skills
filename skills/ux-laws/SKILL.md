@@ -1,6 +1,6 @@
 ---
 name: ux-laws
-description: "Make an existing web app work on phones and hold it to the Laws of UX, across the whole codebase rather than one screen: mobile-first responsive fixes (sideways scroll, tiny tap targets, grids and tables on phones), one consistent pattern for forms, validation and errors across every form, merging duplicate components (several card, modal, button or input versions) into reusable ones, a design contract before adding screens, and PR guardrails measured in a real browser at 320-1440px with a 38-check PASS/WARN/FAIL scorecard (lawsofux.com, WCAG 2.2, Core Web Vitals). Ships a component inventory with where-used blast radius, a browser probe and the scorecard. Use when the user says the UI is a mess or inconsistent, the app is broken or unusable on mobile, every form handles errors differently, one component exists several ways, wants guardrails or a design contract, or names a law such as Hick's or Fitts's. Not for backend work, one library's API, palettes or marketing copy."
+description: "Make an existing web app work on phones and hold it to the Laws of UX, across the whole codebase rather than one screen: mobile-first responsive fixes (sideways scroll, tiny tap targets, grids and tables on phones), one consistent pattern for forms, validation and errors across every form, merging duplicate components (several card, modal, button or input versions) into reusable ones, a design contract and component foundation before building screens (even for a new app), and PR guardrails measured in a real browser at 320-1440px with a 38-check PASS/WARN/FAIL scorecard (lawsofux.com, WCAG 2.2, Core Web Vitals). Ships an inventory, browser probe and scorecard. Use when the user says the UI is a mess or inconsistent, the app is broken or unusable on mobile, every form handles errors differently, one component exists several ways, wants guardrails or a design contract or component foundation, or names a law such as Hick's or Fitts's. Not for backend work, one library's API, palettes or marketing copy."
 license: MIT
 compatibility: >-
   inventory.py and scorecard.py need only Python 3.9+ (stdlib). probe.js runs in any browser tool that can
@@ -9,8 +9,8 @@ compatibility: >-
   TanStack, Vue/Nuxt, Svelte/SvelteKit, Astro, plain HTML; Tailwind, CSS modules, CSS-in-JS.
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.4.1"
-  last_updated: "2026-10-08 07:30:00"
+  version: "1.4.2"
+  last_updated: "2026-10-08 09:10:00"
   category: frontend
   tags: ux, ui, laws-of-ux, design-system, mobile-first, responsive, accessibility, components, refactoring, audit
 allowed-tools: Bash Read Write Edit Glob Grep

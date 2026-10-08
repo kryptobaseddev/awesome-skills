@@ -49,16 +49,24 @@ and 9 point at files that exist in the fixture. The originals name repos that ar
 | v1.4.0 (audit-first wording) | original 18 | 11/18 | 22% | 0% |
 | v1.4.0 | repo-grounded 18 | 14/18 | 50% | 0% |
 | two rewordings of v1.4.0 | original 18 | 11/18 each | 22% | 0% |
-| **v1.4.1 (shipped: user-intent first)** | **all 27** | **25/27** | **81%** | **0%** |
+| v1.4.1 (user-intent first) | all 27 | 25/27 | 81% | 0% |
+| **v1.4.2 (shipped: adds "component foundation, even for a new app")** | **all 27** | **26/27** | **92%** | **0%** |
 
 What moved recall: leading with the jobs users actually ask for, framed as whole-codebase work. That means
 making an app work on phones, one error pattern across every form, merging duplicate components, and
-guardrails and a design contract. Before, the description led with the method (inventories, probes,
-scorecards). The `deuxui` plugin had been winning those intents.
+guardrails and a design contract or component foundation, including for a new app. Before, the description
+led with the method (inventories, probes, scorecards). The `deuxui` plugin had been winning those intents.
 
-The two remaining misses:
-- "Vue card consolidation in a repo that isn't there": the agent goes looking for the repo, a test artifact.
-- "Design contract for a brand-new SvelteKit dashboard": `deuxui` picks it up, which is a reasonable fit for a greenfield screen contract.
+Queries that name a stack the test project doesn't have were re-run in a matching fixture:
+
+| Query | Fixture | v1.4.2 |
+|---|---|---|
+| Vue 3 card consolidation (ProductTile, ProductCard, ListingCard, SearchResultCard) | Vue 3 repo with those four components | 3/3 |
+| Design contract before building a new SvelteKit dashboard | fresh SvelteKit repo | 3/3 |
+| Laws of UX review of `src/routes/settings/+page.svelte` | SvelteKit repo with that page | 2/3 (the third run read the file and answered directly) |
+
+So every should-trigger query fires in the majority of runs once its repo exists. The one 26/27 miss on the
+React project is the SvelteKit settings path that the project doesn't contain.
 
 All 9 near-misses stayed off in every run: backend work, TanStack API questions, palettes, a blog post on
 Jakob's Law, scraping, flaky e2e, Storybook, an HTML email, a Next upgrade.
