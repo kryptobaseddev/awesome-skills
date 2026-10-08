@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07 22:26:53",
+  "generated_at": "2026-10-07 22:47:34",
   "total_skills": 27,
   "total_categories": 15,
   "categories": [
@@ -142,11 +142,11 @@
         {
           "name": "ux-laws",
           "path": "skills/ux-laws",
-          "description": "Audit, restructure and improve web and app UX/UI with the 30 Laws of UX (lawsofux.com) as the critique language and measured guardrails as the bar - brownfield first. Maps an existing codebase into a component inventory with where-used blast radius, duplicate families (four card components, raw inputs beside a TextInput), token drift and data views missing loading/error/empty states; walks the running site mobile-first (320/390 up to 1440, touch emulated) with a probe measuring reflow, tap targets, input zoom, contrast, competing CTAs and style sprawl; scores PASS/WARN/FAIL against WCAG 2.2, Core Web Vitals and law-anchored thresholds; then plans and verifies consolidation into reusable, interchangeable components. Use for UX audits, mobile-first fixes, design-system cleanup, component refactors, form/card/table/nav/checkout redesigns or a new app's design contract - even if the user only says 'our UI is a mess', 'make it work on mobile' or 'apply Hick's law'. Not for backend-only work.",
+          "description": "Make an existing web app work on phones and hold it to the Laws of UX, across the whole codebase rather than one screen: mobile-first responsive fixes (sideways scroll, tiny tap targets, grids and tables on phones), one consistent pattern for forms, validation and errors across every form, merging duplicate components (several card, modal, button or input versions) into reusable ones, a design contract before adding screens, and PR guardrails measured in a real browser at 320-1440px with a 38-check PASS/WARN/FAIL scorecard (lawsofux.com, WCAG 2.2, Core Web Vitals). Ships a component inventory with where-used blast radius, a browser probe and the scorecard. Use when the user says the UI is a mess or inconsistent, the app is broken or unusable on mobile, every form handles errors differently, one component exists several ways, wants guardrails or a design contract, or names a law such as Hick's or Fitts's. Not for backend work, one library's API, palettes or marketing copy.",
           "metadata": {
             "author": "github.com/kryptobaseddev",
-            "version": "1.4.0",
-            "last_updated": "2026-10-08 05:05:00",
+            "version": "1.4.1",
+            "last_updated": "2026-10-08 07:30:00",
             "category": "frontend",
             "tags": "ux, ui, laws-of-ux, design-system, mobile-first, responsive, accessibility, components, refactoring, audit"
           }
