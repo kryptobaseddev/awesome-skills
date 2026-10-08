@@ -2,14 +2,15 @@
 // ux-laws walk: visit every route at every width, mobile first, run probe.js, save a screenshot and the
 // probe JSON as <route>@<width>.json. Feed the folder to scorecard.py --probes.
 //
-// Needs the `playwright` npm package resolvable from the project or this folder (npm i -D playwright &&
-// npx playwright install chromium). Without it, do the same walk by hand with any browser tool: resize,
-// navigate, evaluate probe.js, screenshot - references/browser-walkthrough.md has the recipe per tool.
+// Needs the `playwright` npm package. It is looked up in the project (cwd), next to this script, in
+// $UX_LAWS_PW_DIR, and in a private cache (~/.cache/ux-laws). If none has it, run once with --install:
+// that installs playwright + Chromium into the cache only (nothing is added to the project). Or skip the
+// batch walk and do it by hand with any browser tool - references/browser-walkthrough.md has the recipe.
 //
 // Usage:
 //   node walk.mjs --base http://localhost:5173 --routes / /products /checkout [--widths 320,390,768,1024,1440]
 //                 [--out ux-audit/captures] [--full-page] [--wait 600] [--routes-file routes.txt]
-//                 [--storage-state auth.json] [--slices]
+//                 [--storage-state auth.json] [--slices] [--install]
 // --slices also saves viewport-height screenshots down the page (<name>-s1.png …): review those, not only
 // --full-page, because full-page captures paint fixed and sticky bars in the wrong place and hide overlaps.
 // Narrow widths (< 768) are emulated as touch devices (hasTouch, isMobile) so pointer:coarse and
@@ -18,6 +19,8 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+import { homedir } from 'node:os'
+import { spawnSync } from 'node:child_process'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const argv = process.argv.slice(2)
@@ -40,12 +43,25 @@ const waitMs = Number(opt('wait', ['600'])[0])
 const storageState = opt('storage-state', null)?.[0]
 const slices = opt('slices', false) === true
 
-let chromium
-for (const from of [process.cwd() + '/', here + '/']) {
-  try { chromium = createRequire(from)('playwright').chromium; break } catch {}
+const cacheDir = process.env.UX_LAWS_PW_DIR || join(homedir(), '.cache', 'ux-laws')
+const lookIn = [process.cwd() + '/', here + '/', cacheDir + '/']
+const findChromium = () => {
+  for (const from of lookIn) { try { return createRequire(from)('playwright').chromium } catch {} }
+  return null
+}
+let chromium = findChromium()
+if (!chromium && opt('install', false) === true) {
+  console.error(`installing playwright + chromium into ${cacheDir} (one time, outside the project)`)
+  mkdirSync(cacheDir, { recursive: true })
+  if (!existsSync(join(cacheDir, 'package.json'))) writeFileSync(join(cacheDir, 'package.json'), '{"name":"ux-laws-browser","private":true}')
+  const run = (cmd, args) => { const r = spawnSync(cmd, args, { cwd: cacheDir, stdio: 'inherit', shell: process.platform === 'win32' }); if (r.status !== 0) { console.error(`failed: ${cmd} ${args.join(' ')}`); process.exit(2) } }
+  run('npm', ['install', '--no-audit', '--no-fund', 'playwright@1.56.1'])
+  run('npx', ['playwright', 'install', 'chromium'])
+  chromium = findChromium()
 }
 if (!chromium) {
-  console.error('playwright is not installed here. Run: npm i -D playwright && npx playwright install chromium\n' +
+  console.error('playwright was not found (looked in the project, next to this script and in ' + cacheDir + ').\n' +
+    'Run again with --install to set it up in that cache (one time, nothing added to the project),\n' +
     'or walk by hand with your browser tool (see references/browser-walkthrough.md).')
   process.exit(2)
 }

@@ -5,12 +5,12 @@ license: MIT
 compatibility: >-
   inventory.py and scorecard.py need only Python 3.9+ (stdlib). probe.js runs in any browser tool that can
   evaluate JavaScript (Playwright MCP, Claude in Chrome, agent-browser, DevTools). walk.mjs batches the walk
-  and needs Node 18+ with the playwright package and Chromium. Framework-agnostic: React, Next.js, Remix,
+  with Node 18+, using playwright from the project or a private cache that `--install` sets up once. Framework-agnostic: React, Next.js, Remix,
   TanStack, Vue/Nuxt, Svelte/SvelteKit, Astro, plain HTML; Tailwind, CSS modules, CSS-in-JS.
 metadata:
   author: github.com/kryptobaseddev
-  version: "1.3.0"
-  last_updated: "2026-10-08 02:10:00"
+  version: "1.4.0"
+  last_updated: "2026-10-08 05:05:00"
   category: frontend
   tags: ux, ui, laws-of-ux, design-system, mobile-first, responsive, accessibility, components, refactoring, audit
 allowed-tools: Bash Read Write Edit Glob Grep
@@ -85,7 +85,7 @@ each width: navigate, run `scripts/probe.js`, save the JSON as `<route>@<width>.
 mid-flow, and time the feedback.
 ```bash
 node <skill>/scripts/walk.mjs --base http://localhost:5173 --routes / /checkout /account \
-  --widths 320,390,768,1024,1440 --out ux-audit/captures      # batch, if playwright is available
+  --widths 320,390,768,1024,1440 --out ux-audit/captures      # add --install once if playwright is missing
 ```
 With Playwright MCP, Claude in Chrome or agent-browser, do the same steps by hand: resize, navigate,
 evaluate probe.js, screenshot. Then force the states nobody tests (slow network, failed request, offline,
@@ -206,7 +206,7 @@ stretch a phone layout across 1440px. Container queries for components, media qu
 |---|---|---|
 | `scripts/inventory.py <root> [--out DIR] [--where Name] [--json]` | component inventory, families, fan-in, bypass, token drift, routes, data-view states | Python 3.9+ |
 | `scripts/probe.js` | in-page measurement at the current viewport: reflow, targets, fields, CTAs, headings, contrast, sprawl, fixed chrome, hover-only rules, copy tells, lab LCP/CLS | any browser tool that evaluates JS |
-| `scripts/walk.mjs --base URL --routes … [--widths …] [--slices] [--out DIR]` | batch walk with touch emulation below 768; writes probe JSON, screenshots and (with `--slices`) viewport slices for visual review | Node 18+, playwright, Chromium |
+| `scripts/walk.mjs --base URL --routes … [--widths …] [--slices] [--install] [--out DIR]` | batch walk with touch emulation below 768; writes probe JSON, screenshots and (with `--slices`) viewport slices for visual review | Node 18+; playwright from the project or `--install` (private cache) |
 | `scripts/scorecard.py --inventory … --probes … [--manual …] [--baseline …] [--gate]` | 38 guardrails → PASS/WARN/FAIL/NOT_MEASURED with deltas | Python 3.9+ |
 
 `<skill>` means this skill's directory. Run the scripts from there; don't copy them into the user's app
