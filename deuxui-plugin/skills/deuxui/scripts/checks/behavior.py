@@ -7,7 +7,8 @@ put the question in front of someone, not to settle it.
 from __future__ import annotations
 import re
 from . import check, finding
-from ._util import ancestors, strip_comments
+from ._util import ancestors, paren_span, strip_comments
+from .states import _maps_to_markup
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro")
 
@@ -100,7 +101,7 @@ def missing_error_routes(f, p):
     # built from component directories, so adding app/not-found.tsx or
     # +error.svelte -- the actual fix -- did not clear this rule, and NAV-008
     # could not be satisfied by doing the right thing.
-    found_404, found_err, looked = False, False, 0
+    found_404, found_err, looked, anchor = False, False, 0, None
     for q in p.root.rglob("*"):
         if looked > 24000:
             break
@@ -121,6 +122,24 @@ def missing_error_routes(f, p):
                 found_err = True
         if not found_err and re.search(r"errorboundary|error-boundary", n):
             found_err = True
+        # Code-based routers (TanStack Router) declare both as route options, not
+        # files: createRootRoute({ notFoundComponent, errorComponent }) or the
+        # default* pair on createRouter.
+        if q.suffix in (".tsx", ".ts", ".jsx", ".js") and (
+                "/routes/" in rel or q.stem.lower() in ("__root", "router", "main", "app", "root")):
+            try:
+                txt = strip_comments(q.read_text(errors="ignore")[:400000])
+            except OSError:
+                continue
+            r = re.search(r"\bcreate(?:Root|File)?Route(?:WithContext)?\b|\bcreateRouter\s*\(", txt)
+            if not r:
+                continue
+            if anchor is None or "createRoot" in r.group(0):
+                anchor = (q.relative_to(p.root).as_posix(), _ln(txt, r.start()))
+            if re.search(r"\b(?:default)?[nN]otFoundComponent\s*[:,}(]", txt):
+                found_404 = True
+            if re.search(r"\b(?:default)?[eE]rrorComponent\s*[:,}(]", txt):
+                found_err = True
     if not looked:
         return out                       # nothing on disk to judge
     missing = []
@@ -130,7 +149,12 @@ def missing_error_routes(f, p):
         missing.append("an error boundary or error route")
     if not missing:
         return out
-    out.append(finding("S-NAV-ERROR-ROUTE", f, 1, ", ".join(missing),
+    # Anchor on the route tree the finding is about, not whichever file the
+    # scan happened to list first. Failing that, the manifest that names the router.
+    if anchor is None and (p.root / "package.json").is_file():
+        anchor = ("package.json", 1)
+    where, line = anchor or (f, 1)
+    out.append(finding("S-NAV-ERROR-ROUTE", where, line, ", ".join(missing),
                        "The project defines " + " and ".join(missing).join(("no ", ""))
                        + ". An invalid URL or a failed load then shows the framework "
                        "default, which is a stack trace or nothing at all (NAV-008).",
@@ -161,7 +185,9 @@ def stale_response_overwrite(f, p):
     (STATE-007, COMP-018)."""
     out = []
     for m in re.finditer(r"\b(?:useEffect|\$effect|watchEffect)\s*\(", f.text):
-        win = f.text[m.start():m.start() + 1400]
+        # The effect call itself, not the next 1400 characters: a listener effect
+        # followed by an unrelated async function is not an effect that fetches.
+        win = f.text[m.start():paren_span(f.text, m.end() - 1)]
         if not re.search(r"fetch\s*\(|axios|\.then\s*\(|await ", win):
             continue
         if re.search(r"AbortController|signal\s*:|ignore|cancelled|canceled|"
@@ -187,6 +213,10 @@ def cancel_semantics(f, p):
     keeps going, saying "Cancelled" is false (STATE-012)."""
     out = []
     for m in re.finditer(r"\b(?:onCancel|handleCancel|cancelUpload|abortRequest)\b", f.text):
+        # A native <dialog>'s cancel event is Escape: it dismisses the dialog and
+        # promises nothing about a request.
+        if any(t.name == "dialog" and t.start <= m.start() < t.end for t in f.tags):
+            continue
         win = f.text[max(0, m.start() - 400):m.start() + 800]
         if re.search(r"abort\s*\(|AbortController|signal|\.cancel\s*\(|mutation\.reset", win):
             continue
@@ -381,6 +411,10 @@ def unvirtualised_long_list(f, p):
                      r"prisma\.|drizzle|loadData", f.text):
         return out
     for m in re.finditer(r"\.map\s*\(", f.text):
+        # Only a map that renders markup is a list on screen; `.map(Number)` over
+        # a split string is a transform.
+        if not _maps_to_markup(f.text, m.end()):
+            continue
         win = f.text[max(0, m.start() - 400):m.start() + 100]
         if not re.search(r"\b(?:rows|records|items|results|entries|data)\b", win):
             continue

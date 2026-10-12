@@ -22,11 +22,72 @@ ERROR_SIGNAL = re.compile(r"\b(?:isError|error|onError|catch|\.rejected|errorEle
 PENDING_SIGNAL = re.compile(r"\b(?:isPending|isLoading|loading|pending|isFetching|"
                             r"isSubmitting|busy|Suspense|Skeleton|optimistic)\b")
 EMPTY_SIGNAL = re.compile(r"\.length\s*(?:===?\s*0|<\s*1)|\.length\s*\?|isEmpty|"
-                          r"\bEmptyState\b|\bnoResults\b|!\w+\?\.length|\.length\s*>\s*0")
+                          r"\bEmptyState\b|\bnoResults\b|!\w+\??\.length|\.length\s*>\s*0")
 
 
 def _window(text, pos, before=700, after=1400):
     return text[max(0, pos - before):pos + after]
+
+
+# A query or mutation hook owns the state of the request it wraps, and the UI reads
+# that state through its result -- `query.isPending` -- wherever the JSX happens to
+# be, often hundreds of lines and several components below the call. A window around
+# the call misses it; the binding finds it.
+_HOOK_BINDING = re.compile(r"\b(?:const|let|var)\s+(\w+|\{[^}]*\})\s*=\s*(?:useQuery|"
+                           r"useSuspenseQuery|useInfiniteQuery|useMutation|useSWR|"
+                           r"createQuery|createMutation)\b")
+_PENDING_PROPS = r"isPending|isLoading|isFetching|isInitialLoading|status|fetchStatus"
+_ERROR_PROPS = r"isError|error|status"
+
+
+def _hook_reads(text, pos, props):
+    """True when the hook whose call (or queryFn/mutationFn) sits at `pos` has its
+    `props` read anywhere in the file."""
+    owner = None
+    for b in _HOOK_BINDING.finditer(text, max(0, pos - 600), pos + 40):
+        if b.start() <= pos:
+            owner = b
+    if owner is None:
+        return False
+    name = owner.group(1)
+    if name.startswith("{"):
+        return re.search(rf"\b(?:{props})\b", name) is not None
+    return re.search(rf"\b{name}\s*\??\.\s*(?:{props})\b", text) is not None
+
+
+# A `.map` is a rendered list only when its callback returns markup. `new Map(xs.map(...))`,
+# a CSV `rows.map(r => r.join(","))` and a copy-to-clipboard string build have no empty
+# state to show, and were the bulk of this rule's hits on a real TanStack app.
+_ARROW_HEAD = re.compile(r"\s*(?:async\s+)?(?:\([^()]*\)|\w+)\s*(?::\s*[^=()]+)?=>\s*(\{)?|"
+                         r"\s*function\s*\w*\s*\([^()]*\)\s*(\{)")
+# `<option>` rows sit under a select whose placeholder option is the empty case.
+_MARKUP = r"\(?\s*<(?!option\b)[A-Za-z>]"
+
+
+def _maps_to_markup(text, end):
+    a = _ARROW_HEAD.match(text, end)
+    if not a:
+        # `.map(renderRow)` / `.map(Row)` render; `.map(csvCell)` / `.map(String)` do not.
+        return re.match(r"\s*(?:render\w*|(?!String\b|Number\b|Boolean\b)[A-Z]\w*)\s*\)",
+                        text[end:]) is not None
+    if a.group(1) or a.group(2):
+        return re.search(rf"\breturn\s*{_MARKUP}", text[a.end():a.end() + 800]) is not None
+    return re.match(rf"\s*{_MARKUP}", text[a.end():]) is not None
+
+
+def _literal_list(text, name):
+    """`const views = ["library", ...] as const` -- a list the author wrote out, which
+    cannot come back empty."""
+    d = re.search(rf"\b(?:const|let|var)\s+{name}\s*(?::[^=\n]+)?=\s*\[", text)
+    if not d:
+        return False
+    depth, i = 0, d.end() - 1
+    while i < len(text):
+        depth += {"[": 1, "]": -1}.get(text[i], 0)
+        if depth == 0:
+            return "..." not in text[d.end():i]
+        i += 1
+    return False
 
 
 @check("S-STATE-EMPTY", exts=SRC)
@@ -43,9 +104,11 @@ def empty_state(f, p):
     seen = set()
     for m in re.finditer(r"\b(\w+)\s*(?:\?\.)?\.map\s*\(", f.text):
         name = m.group(1)
-        if name in seen:
+        if name in seen or not _maps_to_markup(f.text, m.end()):
             continue
         seen.add(name)
+        if _literal_list(f.text, name):
+            continue
         if name[0].isupper() or name in (
                 "Object", "Array", "React", "children", "toasts", "messages",
                 "citations", "steps", "tabs", "columns", "fields", "options",
@@ -69,7 +132,7 @@ def error_state(f, p):
     out = []
     for m in ASYNC_FETCH.finditer(f.text):
         win = _window(f.text, m.start())
-        if ERROR_SIGNAL.search(win):
+        if ERROR_SIGNAL.search(win) or _hook_reads(f.text, m.start(), _ERROR_PROPS):
             continue
         line = f.text[:m.start()].count("\n") + 1
         out.append(finding("S-STATE-ERROR", f, line, m.group(0),
@@ -86,7 +149,7 @@ def loading_state(f, p):
     out = []
     for m in ASYNC_FETCH.finditer(f.text):
         win = _window(f.text, m.start())
-        if PENDING_SIGNAL.search(win):
+        if PENDING_SIGNAL.search(win) or _hook_reads(f.text, m.start(), _PENDING_PROPS):
             continue
         line = f.text[:m.start()].count("\n") + 1
         out.append(finding("S-STATE-LOADING", f, line, m.group(0),

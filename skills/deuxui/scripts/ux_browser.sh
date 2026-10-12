@@ -32,6 +32,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# uxconfig.py needs PyYAML. Every config read below discards stderr, so without
+# this check a missing module meant the project config was silently ignored.
+if ! python3 -c 'import yaml' 2>/dev/null; then
+  echo "python3 ($(command -v python3)) cannot import yaml, so .deuxui/ux.config.yaml" >&2
+  echo "  cannot be read. Install it for that interpreter: python3 -m pip install pyyaml" >&2
+  exit 2
+fi
+
 # Fill anything not given on the command line from the project config. One
 # parser, shared with the Python tiers -- see scripts/uxconfig.py.
 cfg() { python3 "$HERE/uxconfig.py" --get "$1" ${CONFIG:+--config "$CONFIG"} 2>/dev/null; }
@@ -64,21 +72,36 @@ fi
 
 mkdir -p "$OUT/raw" "$OUT/screens"
 
-if ! command -v agent-browser >/dev/null 2>&1; then
-  python3 - "$OUT" <<'PY'
+unavailable() { # unavailable <reason>: nothing was measured, so every rule is NOT_RUN
+  python3 - "$OUT" "$1" <<'PY'
 import json, sys, pathlib
-reason = ("agent-browser is not installed, so nothing was measured. "
-          "Install it (npm i -g agent-browser) and re-run; until then every "
-          "runtime rule stays NOT_RUN.")
 p = pathlib.Path(sys.argv[1]) / "runtime.json"
 p.write_text(json.dumps({"tier": "runtime", "available": False,
-                         "reason": reason, "probes": []}, indent=1))
-print(reason, file=sys.stderr)
+                         "reason": sys.argv[2], "probes": []}, indent=1))
+print(sys.argv[2], file=sys.stderr)
 PY
   exit 3
+}
+
+command -v agent-browser >/dev/null 2>&1 || unavailable "agent-browser is not \
+installed, so nothing was measured. Install it (npm i -g agent-browser) and re-run; \
+until then every runtime rule stays NOT_RUN."
+
+# Without a session of its own every agent on the machine drove the one "default"
+# browser, so two concurrent runs navigated each other's pages. A caller's session
+# is used and left alone; one this run creates is closed when it exits.
+if [ -z "${AGENT_BROWSER_SESSION:-}" ]; then
+  export AGENT_BROWSER_SESSION="deuxui-$$"
+  trap 'agent-browser close >/dev/null 2>&1' EXIT
 fi
 
-ab() { timeout 120 agent-browser "$@" 2>/dev/null; }
+# macOS ships no GNU `timeout`; without one every call failed silently and each
+# probe reported "returned nothing". Fall back to gtimeout, then perl's alarm.
+if command -v timeout >/dev/null 2>&1; then TO=(timeout 120)
+elif command -v gtimeout >/dev/null 2>&1; then TO=(gtimeout 120)
+else TO=(perl -e 'alarm shift; exec @ARGV' 120)
+fi
+ab() { "${TO[@]}" agent-browser "$@" 2>/dev/null; }
 probe() { # probe <name> <outfile>
   local js; js="window.__uxTh=$TH_JSON;window.__uxApi=${API_JSON};$(cat "$PROBES/$1.js")"
   ab eval "$js" > "$2" 2>/dev/null
@@ -98,7 +121,11 @@ LAST_VP="${VP_LIST[${#VP_LIST[@]}-1]}"
 for route in "${ROUTE_LIST[@]}"; do
   R="$(slug "$route")"
   echo "route $route" >&2
-  ab open "${BASE%/}${route}" >/dev/null
+  # A failed open leaves the browser on its own error page, and every probe then
+  # measured that page and reported PASS for an app that was never loaded.
+  ab open "${BASE%/}${route}" >/dev/null || unavailable "could not open \
+${BASE%/}${route} (is the dev server running?), so nothing was measured and every \
+runtime rule stays NOT_RUN."
   ab wait --load networkidle >/dev/null
   # Measured on the healthy load: whether this route fetches the intercepted pattern
   # at all. Without it the forced-state probes report on a page where nothing was

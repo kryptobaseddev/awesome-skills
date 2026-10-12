@@ -110,6 +110,12 @@ def handrolled_widget_keyboard(f, p):
     return out
 
 
+_DISCLOSURE_STATE = re.compile(
+    r"\b(?:is)?(?:open|expanded|collapsed|shown|visible|show\w*)\s*(?:&&|\?)|"
+    r"\b(?:set|toggle)(?:Is)?(?:Open|Expanded|Collapsed|Show\w*|Visible|Panel|Section|"
+    r"Details?)\b", re.I)
+
+
 @check("S-COMP-ACCORDION", exts=SRC)
 def accordion_state(f, p):
     """An expander that does not announce its state leaves screen-reader users
@@ -121,10 +127,16 @@ def accordion_state(f, p):
         cls = " ".join(t.classes()) + " " + str(t.attr("onClick") or "")
         if not re.search(r"accordion|collaps|expand|disclos|toggle", cls, re.I):
             continue
-        if t.has("aria-expanded"):
+        # aria-pressed is a toggle button announcing its own state, not an expander.
+        if t.has("aria-expanded", "aria-pressed"):
             continue
         win = f.text[max(0, t.start - 400):t.start + 400]
         if re.search(r"<details|aria-expanded|@radix-ui|@base-ui|@headlessui", win):
+            continue
+        # "toggle" alone names any boolean (a shortlist, a favourite). It is an
+        # expander only when the state it flips opens or shows something.
+        if (not re.search(r"accordion|collaps|expand|disclos", cls, re.I)
+                and not _DISCLOSURE_STATE.search(win)):
             continue
         out.append(finding("S-COMP-ACCORDION", f, t.line, t.raw[:70],
                            "An expander with no aria-expanded and no aria-controls. Use "
@@ -270,6 +282,10 @@ def route_title(f, p):
         return out
     if re.search(r"<title|useHead|document\.title|generateMetadata|export const metadata|"
                  r"<svelte:head|<Head>|Helmet", f.text):
+        return out
+    # TanStack Router: createFileRoute({ head: ({ match }) => ({ meta: [{ title }] }) })
+    if re.search(r"\bhead\s*:\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>[\s\S]{0,300}?"
+                 r"\bmeta\s*:\s*\[[\s\S]{0,300}?\btitle\s*:", f.text):
         return out
     if not f.tags:
         return out

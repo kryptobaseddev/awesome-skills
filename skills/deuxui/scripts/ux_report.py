@@ -182,8 +182,7 @@ def _contrast(raws, out):
     if unjudged:
         note += (f" {unjudged} of {examined} text runs sit on a backdrop CSS cannot "
                  f"resolve -- an image, a gradient, or a sibling layer -- and were "
-                 f"not judged. Only a pixel read settles those, and R-PIXEL-CONTRAST "
-                 f"is not implemented, so they are unmeasured rather than passing.")
+                 f"not judged here; R-PIXEL-CONTRAST reads them from the painted pixels.")
     if unparsed:
         note += f" {unparsed} colour value(s) were in a format this probe cannot convert."
     if not hits:

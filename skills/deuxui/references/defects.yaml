@@ -1813,3 +1813,385 @@ defects:
         text: the document exemption swallowed a screen
     verified_by_revert: true
     revert_reverified: "2026-09-22"
+
+  # 5.27.0: a field report from a TanStack Query/Router app on stock macOS. Five were in
+  # the runtime wrapper, eleven were static false positives; each static one has a
+  # reduction of the reported code in fixtures/good-peer{5,6,7} or good-route.
+
+  - id: DEF-68
+    title: the runtime tier needed GNU timeout, which macOS does not ship
+    class: never-worked
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/ux_browser.sh
+    symptom: >-
+      Every agent-browser call went through `timeout 120`. On a stock Mac that is
+      "command not found", and the wrapper discarded stderr, so each probe wrote
+      "probe returned nothing" and it looked like a browser problem.
+    consequence: >-
+      The runtime tier measured nothing on macOS, and nothing said why.
+    fix: >-
+      Use `timeout`, then `gtimeout`, then perl's alarm+exec, which keeps the exit code,
+      signals and stdin.
+    guard:
+      - file: scripts/ux_browser.sh
+        text: "perl -e 'alarm shift; exec @ARGV'"
+    control:
+      - file: scripts/selftest.py
+        text: agent-browser was never called without GNU timeout on PATH
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-69
+    title: a failed open measured the browser's error page and reported PASS
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/ux_browser.sh
+    symptom: >-
+      `ab open` failing (dev server down, an unsafe port) was ignored. Every probe then
+      ran on chrome-error://chromewebdata/ and R-REFLOW, R-TARGET, R-CONTRAST and the
+      rest came back PASS.
+    consequence: >-
+      A green runtime report for an app that was never loaded: the one result this
+      skill exists to make impossible.
+    fix: >-
+      A failed open writes runtime.json with available:false and exits 3, the same
+      NOT_RUN path as a missing agent-browser.
+    guard:
+      - file: scripts/ux_browser.sh
+        text: could not open
+    control:
+      - file: scripts/selftest.py
+        text: not NOT_RUN (exit 3)
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-70
+    title: every runtime run drove the one shared default browser session
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/ux_browser.sh
+    symptom: >-
+      No session was set, so two agents running ux_browser.sh at once navigated, resized
+      and took offline the same browser.
+    consequence: >-
+      Measurements of one agent's app could be taken on another agent's page.
+    fix: >-
+      Without AGENT_BROWSER_SESSION the run uses deuxui-<pid> and closes it on exit. A
+      caller's session is used and left open.
+    guard:
+      - file: scripts/ux_browser.sh
+        text: export AGENT_BROWSER_SESSION="deuxui-$$"
+    control:
+      - file: scripts/selftest.py
+        text: a run without a session drove
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-71
+    title: a python3 without pyyaml made the runtime tier ignore the project config
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/ux_browser.sh
+    symptom: >-
+      Every config read discarded stderr, so a missing yaml module read as "no
+      app.api_pattern" and default thresholds. The crash only surfaced in ux_report.py,
+      after the browser work.
+    consequence: >-
+      Project thresholds and the API pattern silently did not apply.
+    fix: >-
+      Check `import yaml` with the same python3 before any config read and stop with
+      the interpreter's path. doctor.py names the interpreter too.
+    guard:
+      - file: scripts/ux_browser.sh
+        text: cannot import yaml, so .deuxui/ux.config.yaml
+    no_control: >-
+      Simulating an interpreter without pyyaml needs a second Python install; the check
+      is one line at the top of the script.
+
+  - id: DEF-72
+    title: R-CONTRAST said R-PIXEL-CONTRAST was not implemented
+    class: drift
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/ux_report.py
+    symptom: >-
+      The R-CONTRAST note said unresolved backdrops were unmeasured because
+      R-PIXEL-CONTRAST "is not implemented", in the same report where R-PIXEL-CONTRAST
+      had run and failed.
+    consequence: >-
+      The report contradicted itself.
+    fix: >-
+      The note points at R-PIXEL-CONTRAST instead.
+    guard:
+      - file: scripts/ux_report.py
+        text: R-PIXEL-CONTRAST reads them from the painted pixels
+    no_control: >-
+      Prose in a note; nothing that runs asserts its wording.
+
+  - id: DEF-73
+    title: S-STATE-EMPTY read every .map in a fetching file as a rendered list
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/states.py
+    symptom: >-
+      new Map(xs.map(...)), CSV rows.map(...).join and a hand-written views array were
+      each asked for an empty state.
+    consequence: >-
+      Seven false findings in one file of the reporting app.
+    fix: >-
+      A .map counts only when its callback returns markup (not <option>), and a literal
+      array with no spread is skipped.
+    guard:
+      - file: scripts/checks/states.py
+        text: "if name in seen or not _maps_to_markup(f.text, m.end()):"
+    control:
+      - file: scripts/checks/fixtures/good-peer5.tsx
+        text: new Map(capabilities.map((c) => [c.id, c]));
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-74
+    title: S-STATE-LOADING and S-STATE-ERROR missed a query's state read far from the call
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/states.py
+    symptom: >-
+      They searched a fixed window around the call; TanStack exposes state through the
+      hook's result (query.isPending), often hundreds of lines away.
+    consequence: >-
+      A query with an aria-busy skeleton was reported as having no loading state.
+    fix: >-
+      Find the hook the call belongs to and accept its status reads anywhere in the file.
+    guard:
+      - file: scripts/checks/states.py
+        text: "def _hook_reads(text, pos, props):"
+    control:
+      - file: scripts/checks/fixtures/good-peer5.tsx
+        text: "{query.isPending && ("
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-75
+    title: S-STATE-RACE judged the 1400 characters after an effect, not the effect
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/behavior.py
+    symptom: >-
+      A beforeunload effect followed by an async function was reported as an effect that
+      fetches; the same window let a later useQuery hide a real race.
+    consequence: >-
+      A false finding and a missed one, from the same window.
+    fix: >-
+      Read only the effect call's own parentheses.
+    guard:
+      - file: scripts/checks/behavior.py
+        text: "win = f.text[m.start():paren_span(f.text, m.end() - 1)]"
+    control:
+      - file: scripts/checks/fixtures/good-peer6.tsx
+        text: window.addEventListener("beforeunload", warn);
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-76
+    title: S-STATE-CANCEL read a native dialog's onCancel as a request cancel
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/behavior.py
+    symptom: >-
+      <dialog onCancel> is the Escape event; it promises nothing about a request.
+    consequence: >-
+      A false "Cancelled is a lie" finding on a dialog that closes.
+    fix: >-
+      Skip onCancel when it is an attribute of a <dialog>.
+    guard:
+      - file: scripts/checks/behavior.py
+        text: if any(t.name == "dialog" and t.start <= m.start() < t.end for t in f.tags)
+    control:
+      - file: scripts/checks/fixtures/good-peer6.tsx
+        text: "onCancel={(e) => {"
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-77
+    title: S-PERF-LONG-LIST counted transforms as lists and stopped at the first map
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/behavior.py
+    symptom: >-
+      ids.split(',').map(Number) was flagged, and because the loop broke on the first
+      hit, a real unbounded rendered list later in the file was hidden.
+    consequence: >-
+      A false finding in front of a missed one.
+    fix: >-
+      Share states.py's _maps_to_markup, so only a map that renders markup counts
+      (<option> rows excluded). A long list mapped from a prop still fires: its bound
+      is not visible from the child.
+    guard:
+      - file: scripts/checks/behavior.py
+        text: "if not _maps_to_markup(f.text, m.end()):"
+    control:
+      - file: scripts/checks/fixtures/good-peer6.tsx
+        text: .map(Number)
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-78
+    title: S-NAV-ERROR-ROUTE ignored TanStack route options and anchored on styles.css:1
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/behavior.py
+    symptom: >-
+      createRootRoute({ notFoundComponent, errorComponent }) was not read, and the finding
+      pointed at whichever file the scan listed first.
+    consequence: >-
+      A project that handles both was told it handles neither, at a line unrelated to
+      routing.
+    fix: >-
+      Read route source files for the TanStack options and anchor on the root route.
+    guard:
+      - file: scripts/checks/behavior.py
+        text: "[nN]otFoundComponent"
+    control:
+      - file: scripts/selftest.py
+        text: not the root route
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-79
+    title: S-RESP-FIXEDPX read a media query's min-width as a fixed width
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/responsive.py
+    symptom: >-
+      @media (min-width: 1600px) matched the width-declaration pattern.
+    consequence: >-
+      A breakpoint, the fix the rule asks for, was reported as the defect.
+    fix: >-
+      In CSS, skip a match whose statement is an at-rule prelude.
+    guard:
+      - file: scripts/checks/responsive.py
+        text: lstrip().startswith("@")
+    control:
+      - file: scripts/checks/fixtures/good-peer7.css
+        text: "@media (min-width: 1600px)"
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-80
+    title: S-RESP-TABLE missed a table stacked by a separate stylesheet
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/responsive.py
+    symptom: >-
+      Cells with data-label, restacked by attr(data-label) under a max-width query in
+      another file, were reported as an unresponsive table; it measured 305px at 320.
+    consequence: >-
+      The card pattern the rule recommends was flagged once it lived in a stylesheet.
+    fix: >-
+      Accept data-label cells when the project's CSS has attr(data-label) and a
+      max-width media query.
+    guard:
+      - file: scripts/checks/responsive.py
+        text: "if cards or _stacked(t, p):"
+    control:
+      - file: scripts/checks/fixtures/good-peer7.tsx
+        text: <td data-label="Point of contact">
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-81
+    title: S-NAV-TITLE did not know TanStack Router's head option
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/components.py
+    symptom: >-
+      createFileRoute({ head: () => ({ meta: [{ title }] }) }) sets the title per view;
+      the rule said the route had none.
+    consequence: >-
+      A false finding, and the corpus had no route-path file so it could not have
+      caught it.
+    fix: >-
+      Accept head meta titles; the corpus now places good-route/bad-route at
+      routes/index.tsx.
+    guard:
+      - file: scripts/checks/components.py
+        text: "\\bmeta\\s*:\\s*\\["
+    control:
+      - file: scripts/checks/fixtures/good-route.tsx
+        text: "meta: [{ title:"
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-82
+    title: S-COMP-ACCORDION read any toggle onClick as an expander
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/components.py
+    symptom: >-
+      A button toggling shortlist membership, with aria-pressed, was asked for
+      aria-expanded and aria-controls.
+    consequence: >-
+      A correct toggle button was told to become a disclosure.
+    fix: >-
+      aria-pressed satisfies the rule, and "toggle" alone needs nearby disclosure state.
+    guard:
+      - file: scripts/checks/components.py
+        text: and not _DISCLOSURE_STATE.search(win)
+    control:
+      - file: scripts/checks/fixtures/good-peer7.tsx
+        text: onClick={toggle}
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"
+
+  - id: DEF-83
+    title: S-RETRY-SAFETY flagged a read query's retry because a mutation was nearby
+    class: wrong-result
+    kind: product
+    found_in: "5.26.0"
+    fixed_in: "5.27.0"
+    surface: scripts/checks/safety.py
+    symptom: >-
+      The word retry inside a useQuery (and inside error copy) matched because a
+      useMutation POST sat within the window.
+    consequence: >-
+      A GET retry was reported as a duplicate-write risk.
+    fix: >-
+      Skip matches in string literals and inside read calls (useQuery and kin) unless
+      that call itself writes.
+    guard:
+      - file: scripts/checks/safety.py
+        text: "if q and not _WRITE_METHOD.search(f.text, q[1], q[2]):"
+    control:
+      - file: scripts/checks/fixtures/good-peer7.tsx
+        text: "retry: (count) => count < 2,"
+    verified_by_revert: true
+    revert_reverified: "2026-10-12"

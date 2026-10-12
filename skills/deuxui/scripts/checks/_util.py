@@ -587,3 +587,54 @@ def contrast_ratio(fg, bg) -> float:
     a, b = luminance(fg), luminance(bg)
     hi, lo = max(a, b), min(a, b)
     return (hi + 0.05) / (lo + 0.05)
+
+
+def _paren_end(s: str, i: int) -> int:
+    """Index just past the (...) starting at i, skipping string literals."""
+    depth, n = 0, len(s)
+    while i < n:
+        c = s[i]
+        if c in "\"'`":
+            q, i = c, i + 1
+            while i < n and s[i] != q:
+                i += 2 if s[i] == "\\" else 1
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return n
+
+
+def enclosing_call(text: str, pos: int, names: str):
+    """(name, start, end) of the innermost call to one of `names` (a regex
+    alternation) whose argument list contains pos, or None. `retry` inside
+    useQuery({...}) belongs to a read; inside useMutation({...}) to a write."""
+    best = None
+    for m in re.finditer(rf"\b({names})\s*(?:<[^()]*?>\s*)?\(", text[:pos]):
+        end = _paren_end(text, m.end() - 1)
+        if end > pos:
+            best = (m.group(1), m.start(), end)
+    return best
+
+
+def paren_span(s: str, i: int) -> int:
+    """Index just past the (...) starting at i, tolerating nested parens/strings.
+    The extent of a call, so a check reads its arguments and not the code after."""
+    depth, n = 0, len(s)
+    while i < n:
+        c = s[i]
+        if c in "\"'`":
+            q, i = c, i + 1
+            while i < n and s[i] != q:
+                i += 2 if s[i] == "\\" else 1
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return n
