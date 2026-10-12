@@ -43,10 +43,13 @@ def diagnose(root: Path) -> list[dict]:
     # ---------------------------------------------------------------- the skill
     try:
         import yaml                                            # noqa: F401
-        row("pyyaml", OK, "importable")
+        row("pyyaml", OK, f"importable by {sys.executable}")
     except ImportError:
-        row("pyyaml", GONE, "not installed",
-            "Nothing runs. `pip install pyyaml` -- it is the only dependency.")
+        # Name the interpreter: a uv- or mise-selected python3 is often not the one
+        # pyyaml was installed into, and "not installed" sends people to the wrong one.
+        row("pyyaml", GONE, f"not importable by {sys.executable}",
+            f"Nothing runs. `{sys.executable} -m pip install pyyaml` -- it is the "
+            f"only dependency.")
         return rows
     import yaml
     try:

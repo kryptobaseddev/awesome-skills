@@ -34,6 +34,13 @@ def fixed_widths(f, p):
         px = int(m.group(1))
         if px <= 320:
             continue
+        # `@media (min-width: 1600px)` is a condition, not a width: the statement
+        # a match sits in starts after the last `{`, `}` or `;`.
+        if f.ext not in SRC:
+            head = f.text[:m.start()]
+            stmt = head[max(head.rfind("{"), head.rfind("}"), head.rfind(";")) + 1:]
+            if re.sub(r"/\*.*?\*/", "", stmt, flags=re.S).lstrip().startswith("@"):
+                continue
         line = f.text[:m.start()].count("\n") + 1
         out.append(finding("S-RESP-FIXEDPX", f, line, m.group(0),
                            f"{px}px fixed width overflows a 320px viewport (NUM-009). Prefer "
@@ -113,6 +120,15 @@ def _ancestors_until(t, stop):
         p = p.parent
 
 
+def _stacked(table, p):
+    """A table restacked by the project's stylesheet: data-label cells, and a
+    max-width media query that prints them with attr(data-label). The CSS lives
+    in a .css file, so it is read from the project, not the component."""
+    return (any(d.name.lower() == "td" and d.has("data-label") for d in _descendants(table))
+            and "attr(data-label)" in p.css_text
+            and bool(re.search(r"@media[^{]*\bmax-width", p.css_text)))
+
+
 @check("S-RESP-TABLE", exts=SRC)
 def table_narrow(f, p):
     out = []
@@ -130,7 +146,7 @@ def table_narrow(f, p):
         wrap = " ".join(x.raw for x in [t] + up)
         cards = any(_CARDS.search(x.raw) for x in near)
         scroll = bool(_SCROLL.search(wrap))
-        if cards:
+        if cards or _stacked(t, p):
             continue
         if not scroll:
             out.append(finding("S-RESP-TABLE", f, t.line, t.raw,

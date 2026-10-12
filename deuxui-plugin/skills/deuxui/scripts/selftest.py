@@ -35,7 +35,7 @@ EXPECT = [
     "S-A11Y-HREFHASH", "S-A11Y-TABINDEX", "S-A11Y-HEADING",
     "S-FOCUS-OUTLINE", "S-CONTRAST-PAIR", "S-TARGET-SIZE",
     "S-FORM-AUTOCOMPLETE", "S-FORM-INPUTTYPE", "S-FORM-VALIDATION",
-    "S-STATE-EMPTY", "S-RESP-VH", "S-RESP-SAFEAREA", "S-RESP-TABLE",
+    "S-STATE-EMPTY", "S-STATE-LOADING", "S-NAV-TITLE", "S-RESP-VH", "S-RESP-SAFEAREA", "S-RESP-TABLE",
     "S-MOTION-REDUCE", "S-HOVER-ONLY", "S-MODAL-NATIVE",
     "S-SLOP-EMOJI", "S-SLOP-COPY", "S-TOKEN-HEX", "S-TOKEN-ARBITRARY",
     "S-DS-NEWDEP", "S-CONTENT-ERRORTEXT", "S-PERF-IMGDIM",
@@ -118,9 +118,18 @@ def run(tmp: Path, which: str) -> set[str]:
     for extra, dest in ((f"{which}-peer.tsx", "peer-commit.tsx"),
                         (f"{which}-peer2.tsx", "peer-dupe.tsx"),
                         (f"{which}-peer3.tsx", "peer-destruct.tsx"),
-                        (f"{which}-peer4.tsx", "peer-disabled.tsx")):
+                        (f"{which}-peer4.tsx", "peer-disabled.tsx"),
+                        # 5.27.0 field report, a TanStack Query/Router app: one file
+                        # per detector module so each stays its own evidence window.
+                        (f"{which}-peer5.tsx", "peer-states.tsx"),
+                        (f"{which}-peer6.tsx", "peer-effects.tsx"),
+                        (f"{which}-peer7.tsx", "peer-components.tsx"),
+                        (f"{which}-peer7.css", "peer-components.css"),
+                        # S-NAV-TITLE only judges route files, so it needs a route path.
+                        (f"{which}-route.tsx", "routes/index.tsx")):
         src = FIX / extra
         if src.exists():
+            (tmp / dest).parent.mkdir(exist_ok=True)
             shutil.copy(src, tmp / dest)
     for extra, dest in ((f"{which}-p0.tsx", "checkout.tsx"),
                         (f"{which}-craft.tsx", "landing.tsx"),
@@ -195,7 +204,8 @@ def config_wiring():
         elif len(part["findings"]) >= len(whole["findings"]):
             fails.append("a subdirectory scan is not narrower than the whole project: "
                          "the directory argument is being discarded")
-        if part.get("scanned", "").rstrip("/") != str(sub):
+        # resolve(): macOS temp dirs sit behind the /var -> /private/var symlink
+        if Path(part.get("scanned", "")).resolve() != sub.resolve():
             fails.append(f"scanned {part.get('scanned')!r}, asked for {str(sub)!r}")
 
         # --- disabled_checks must move a rule to NOT_RUN, never leave it PASS
@@ -2335,9 +2345,116 @@ export default { async headers() { return [{ source: "/(.*)",
     return fails
 
 
+TANSTACK_ROOT = """import {{ createRootRoute, Outlet }} from "@tanstack/react-router";
+
+export const Route = createRootRoute({{
+  component: () => <Outlet />,
+{opts}}});
+"""
+
+
+def tanstack_field():
+    """The 5.27.0 TanStack Query/Router field report, rule by rule.
+
+    good-peer6 is the reduction of four findings that were wrong (a listener
+    effect, a native dialog's Escape, `.map(Number)`, a root route with
+    notFoundComponent/errorComponent); bad-peer6 is the real defect each rule
+    exists for. The corpus only proves good is silent, so the bad half and the
+    code-declared route options are held here."""
+    fails = []
+    rules = {"S-STATE-RACE", "S-STATE-CANCEL", "S-PERF-LONG-LIST"}
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        for which in ("good", "bad"):
+            q = root / which
+            q.mkdir()
+            shutil.copy(FIX / f"{which}-peer6.tsx", q / "peer-effects.tsx")
+            got = {f["detector"] for f in _scan(q).get("findings", [])} & rules
+            want = set() if which == "good" else rules
+            if got != want:
+                fails.append(f"{which}-peer6: fired {sorted(got)}, expected {sorted(want)}")
+        for name, opts, fires in (
+                ("handled", "  notFoundComponent: () => <p>Page not found</p>,\n"
+                            "  errorComponent: () => <p>The page could not open</p>,\n", False),
+                ("bare", "", True)):
+            q = root / name
+            (q / "src" / "routes").mkdir(parents=True)
+            (q / "package.json").write_text(
+                '{"dependencies": {"@tanstack/react-router": "^1.0.0"}}\n')
+            (q / "src" / "routes" / "__root.tsx").write_text(TANSTACK_ROOT.format(opts=opts))
+            hits = [f for f in _scan(q).get("findings", [])
+                    if f["detector"] == "S-NAV-ERROR-ROUTE"]
+            if bool(hits) != fires:
+                fails.append(f"S-NAV-ERROR-ROUTE on a TanStack root route ({name}): "
+                             f"{'silent' if fires else 'fired'}")
+            elif hits and not hits[0]["file"].endswith("routes/__root.tsx"):
+                fails.append(f"S-NAV-ERROR-ROUTE anchored on {hits[0]['file']}, "
+                             "not the root route")
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
+def browser_wrapper():
+    """ux_browser.sh's own failure paths, against a stub agent-browser on a PATH with
+    no GNU `timeout` (stock macOS). Each case was a field report: the missing
+    `timeout` made every call fail silently, a failed `open` measured Chrome's error
+    page and reported PASS, and every run shared the one "default" session."""
+    fails = []
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        bin_ = root / "bin"; bin_.mkdir()
+        log = root / "calls.log"
+        stub = bin_ / "agent-browser"
+        stub.write_text('#!/bin/sh\necho "${AGENT_BROWSER_SESSION:--}|$1" >> "%s"\n'
+                        '[ "$1" = open ] && exit 1\nexit 0\n' % log)
+        stub.chmod(0o755)
+        tools = {t: shutil.which(t) for t in
+                 ("bash", "sh", "perl", "sed", "cat", "dirname", "mkdir")}
+        for t, src in tools.items():
+            if src:
+                (bin_ / t).symlink_to(src)
+        # A shim, not a symlink: a symlinked venv interpreter loses its venv (and pyyaml).
+        (bin_ / "python3").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+        (bin_ / "python3").chmod(0o755)
+        for session, closes in ((None, True), ("caller-owned", False)):
+            log.write_text("")
+            env = {"PATH": str(bin_), "HOME": d}
+            if session:
+                env["AGENT_BROWSER_SESSION"] = session
+            out = root / "out"
+            r = subprocess.run([tools["bash"], str(HERE / "ux_browser.sh"),
+                                "http://127.0.0.1:9", "--out", str(out)],
+                               capture_output=True, text=True, env=env, cwd=d, timeout=60)
+            calls = [c.split("|") for c in log.read_text().splitlines()]
+            try:
+                rt = json.loads((out / "runtime.json").read_text())
+            except (OSError, ValueError):
+                rt = {}
+            if r.returncode != 3 or rt.get("available") is not False:
+                fails.append(f"a failed open exited {r.returncode} with available="
+                             f"{rt.get('available')!r}, not NOT_RUN (exit 3)")
+            if not any(verb == "open" for _, verb in calls):
+                fails.append("agent-browser was never called without GNU timeout on PATH")
+            names = {name for name, _ in calls}
+            if session and names != {session}:
+                fails.append(f"a caller's session was not used: {sorted(names)}")
+            if not session and not all(n.startswith("deuxui-") for n in names):
+                fails.append(f"a run without a session drove {sorted(names)}")
+            closed = any(verb == "close" for _, verb in calls)
+            if closed != closes:
+                fails.append("the run closed a session it did not create" if closed
+                             else "the run left its own session open")
+    for f in fails:
+        print(f"  FAIL {f}")
+    return fails
+
+
 GROUPS = {"contract": "contract invariants", "config": "config wiring",
           "bytecode": "shipped bytecode", "csp": "overlay vs page CSP",
           "capabilities": "capabilities", "spans": "element spans",
+          "tanstack": "TanStack field report (effects, cancel, lists, routes)",
+          "wrapper": "ux_browser.sh without timeout, a failed open, sessions",
           "corpus": "the known-bad and known-good fixtures"}
 
 NOT_RUN = "NOT RUN"
@@ -2369,6 +2486,8 @@ def main(argv=None):
     overlay = maybe("csp", overlay_policy)
     caps = maybe("capabilities", capabilities)
     spans = maybe("spans", element_spans)
+    tanstack = maybe("tanstack", tanstack_field)
+    wrapper = maybe("wrapper", browser_wrapper)
     if "corpus" in want:
         with tempfile.TemporaryDirectory() as d:
             bad = run(Path(tempfile.mkdtemp(dir=d)), "bad")
@@ -2401,7 +2520,9 @@ def main(argv=None):
     print(say("overlay vs page CSP:", overlay))
     print(say("element spans:", spans))
     print(say("capabilities:", caps))
-    ran = [g for g in (contract, wiring, bytecode, overlay, spans, caps)
+    print(say("tanstack field:", tanstack))
+    print(say("browser wrapper:", wrapper))
+    ran = [g for g in (contract, wiring, bytecode, overlay, spans, caps, tanstack, wrapper)
            if g != NOT_RUN]
     ok = (not missed and not leaked and not any(ran))
     skipped = sorted(set(GROUPS) - want)

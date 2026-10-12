@@ -8,6 +8,7 @@ a suspicion with a stated confidence rather than staying silent.
 from __future__ import annotations
 import re
 from . import check, finding
+from ._util import enclosing_call
 
 SRC = (".tsx", ".jsx", ".js", ".ts", ".svelte", ".vue", ".astro", ".html", ".htm")
 
@@ -291,6 +292,11 @@ def silent_overwrite(f, p):
     return out
 
 
+_READ_CALLS = (r"use(?:Suspense)?(?:Infinite)?Query|useQueries|queryOptions|"
+               r"infiniteQueryOptions|useSWR(?:Infinite)?")
+_WRITE_METHOD = re.compile(r"method\s*:\s*[\"'`](?:POST|PUT|PATCH|DELETE)", re.I)
+
+
 @check("S-RETRY-SAFETY", exts=SRC)
 def unsafe_retry(f, p):
     """Retrying a request whose outcome is unknown is how one payment becomes
@@ -302,6 +308,18 @@ def unsafe_retry(f, p):
         # retrying is correct. Only a retry wrapped around a write is a hazard.
         after = f.text[m.end():m.end() + 24]
         if re.match(r"\s*:\s*[\{\d]", after):
+            continue
+        # "Please retry." in error copy asks a person; it is not a retry mechanism.
+        # shortcut: line-local quote parity, so a multi-line template literal is
+        # still read as code; switch to a tokenizer if that ever matters.
+        pre = f.text[f.text.rfind("\n", 0, m.start()) + 1:m.start()]
+        if pre.count('"') % 2 or pre.count("`") % 2:
+            continue
+        # Anything inside a query's options -- its retry policy, its error copy --
+        # belongs to a read, however close a useMutation or a POST sits below it.
+        # A query that itself writes (a POST queryFn) is still a write.
+        q = enclosing_call(f.text, m.start(), _READ_CALLS)
+        if q and not _WRITE_METHOD.search(f.text, q[1], q[2]):
             continue
         win = f.text[max(0, m.start() - 500):m.start() + 700]
         if not re.search(r"method\s*:\s*[\"'`]POST|\.post\s*\(|useMutation|mutationFn|"

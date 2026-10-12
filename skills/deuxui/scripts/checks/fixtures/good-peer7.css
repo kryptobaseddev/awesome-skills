@@ -1,0 +1,11 @@
+/* 5.27.0 field report reductions (TanStack Query + Router app). */
+.workspace { padding: 32px 24px; }
+/* A breakpoint condition, not a fixed width. */
+@media (min-width: 1600px) { .workspace { padding: 48px 56px; } }
+/* The matrix restacks below 768px: one block per row, each cell prints its label. */
+@media (max-width: 767px) {
+  .table-stack table, .table-stack tbody, .table-stack tr { display: block; }
+  .table-stack thead { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+  .table-stack td { display: flex; justify-content: space-between; }
+  .table-stack td::before { content: attr(data-label); }
+}
