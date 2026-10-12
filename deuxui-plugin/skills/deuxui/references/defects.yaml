@@ -2042,9 +2042,9 @@ defects:
     consequence: >-
       A false finding in front of a missed one.
     fix: >-
-      Share states.py's _maps_to_markup, drop Object.entries/keys/values as a data word,
-      and skip a component mapping its own destructured prop, as the rule's own comment
-      already intended.
+      Share states.py's _maps_to_markup, so only a map that renders markup counts
+      (<option> rows excluded). A long list mapped from a prop still fires: its bound
+      is not visible from the child.
     guard:
       - file: scripts/checks/behavior.py
         text: "if not _maps_to_markup(f.text, m.end()):"
